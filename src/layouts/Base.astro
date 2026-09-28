@@ -15,7 +15,6 @@ const view = path === '/' || path === ''
   : /^\/photos/.test(path) ? 'photos'
   : /^\/videos/.test(path) ? 'videos'
   : /^\/notes/.test(path) ? 'notes'
-  : /^\/links/.test(path) ? 'links'
   : /^\/me/.test(path) ? 'me'
   : 'home';
 
@@ -33,8 +32,8 @@ const NAV = [
   { key: 'photos', href: '/photos/', label: 'GALLERY', no: '02' },
   { key: 'videos', href: '/videos/', label: 'VIDEO', no: '03' },
   { key: 'notes', href: '/notes/', label: 'BLOG', no: '04' },
-  { key: 'me', href: '/me/', label: 'ME', no: '05' },
-  { key: 'links', href: '/links/', label: 'LINKS', no: '06' }
+  { key: 'me', href: '/me/', label: 'ME', no: '05' }
+  // 友链不放顶栏（用户要求）：入口在首页里，见 index.astro 的 .friend-entry
 ];
 
 // 顶栏左侧品牌：编号 = 当前板块在导航里的序号（Kisara 那种「KISARA / 03」的味道）

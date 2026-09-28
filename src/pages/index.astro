@@ -134,6 +134,19 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
   </nav>
 
   {/*
+    友链入口：不在顶栏，而是首页里这一条（参考你给的那张图）。
+    左边一个带边框的心形方块，中间 eyebrow + 大字，右边一个 ↗。
+  */}
+  <a class="friend-entry" href={asset('links/')}>
+    <span class="friend-icon" aria-hidden="true">♡</span>
+    <span class="friend-text">
+      <span class="friend-eyebrow">FRIEND LINKS / OPEN ROUTE</span>
+      <span class="friend-title">进入友链</span>
+    </span>
+    <span class="friend-arrow" aria-hidden="true">↗</span>
+  </a>
+
+  {/*
     终幕画面单独作为一段显示 —— 原来它只在「滚动到首屏中段」时才揭晓，
     结果这张图很可能一直看不到，太别扭。现在它是一段正式内容：
     面板区之后、页脚之前，一定会被看到。

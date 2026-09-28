@@ -1417,6 +1417,84 @@ html.reveal .finale {
   .link-mine-row > span { width: auto; }
 }
 
+/* =========================================================
+ *  首页「进入友链」入口条
+ *  （参考用户给的那张图：左边心形方块 + 中间 eyebrow/大字 + 右边 ↗）
+ * ======================================================= */
+.friend-entry {
+  display: flex;
+  align-items: center;
+  gap: clamp(15px, 3vw, 28px);
+  margin: 30px 0 0;
+  padding: 20px clamp(16px, 3vw, 26px);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  transition:
+    background .35s ease,
+    border-color .35s ease,
+    padding-left .42s cubic-bezier(.22, .61, .36, 1);
+}
+.friend-entry:hover {
+  background: rgba(224, 70, 111, .05);
+  border-color: var(--rose-dim);
+  padding-left: clamp(24px, 4.4vw, 42px);   /* 整条内容往右挪一点，像被"拉开" */
+}
+
+.friend-icon {
+  flex: none;
+  width: 58px; height: 58px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  color: var(--rose);
+  font-size: 23px;
+  line-height: 1;
+  transition: transform .42s cubic-bezier(.22, .61, .36, 1), border-color .35s ease;
+}
+.friend-entry:hover .friend-icon {
+  transform: scale(1.07) rotate(-5deg);
+  border-color: var(--rose);
+}
+
+.friend-text { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.friend-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: .3em;
+  color: var(--ink-3);
+}
+.friend-title {
+  font-family: var(--font-serif);
+  font-size: clamp(22px, 3.6vw, 34px);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--rose-2);
+  opacity: .82;
+  transition: opacity .3s ease, letter-spacing .45s cubic-bezier(.22, .61, .36, 1);
+}
+.friend-entry:hover .friend-title { opacity: 1; letter-spacing: .04em; }
+
+.friend-arrow {
+  margin-left: auto; flex: none;
+  font-size: 20px;
+  color: var(--ink-3);
+  transition: transform .42s cubic-bezier(.22, .61, .36, 1), color .3s ease;
+}
+.friend-entry:hover .friend-arrow { transform: translate(4px, -4px); color: var(--rose); }
+
+@media (max-width: 560px) {
+  .friend-icon { width: 46px; height: 46px; font-size: 19px; }
+  .friend-eyebrow { letter-spacing: .18em; font-size: 9.5px; }
+}
+
+/* 减少动态效果：只保留颜色变化，不做位移/旋转 */
+@media (prefers-reduced-motion: reduce) {
+  .friend-entry, .friend-icon, .friend-title, .friend-arrow { transition: none !important; }
+  .friend-entry:hover { padding-left: clamp(16px, 3vw, 26px); }
+  .friend-entry:hover .friend-icon { transform: none; }
+  .friend-entry:hover .friend-arrow { transform: none; }
+}
+
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }
 
 /* =========================================================
