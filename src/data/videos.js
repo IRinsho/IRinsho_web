@@ -24,8 +24,7 @@ export default [
     tags: ['动漫'],
     date: '2025-06-01',
     src: 'media\videos\re0.mp4',
-    embed: 'https://v.douyin.com/jqnwNoFjWR4/',
-    poster: 'media\covers\re0.png',
+    poster: 'media\covers\re0.svg',
     duration: '00:26'
   },
  
