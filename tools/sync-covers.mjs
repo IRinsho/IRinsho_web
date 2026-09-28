@@ -23,10 +23,14 @@ import {
 } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { patchVideos } from './patch-videos.mjs';
+
+// 给 loadSharp() 用的 CommonJS require（sharp 是 CJS 包）
+const require = createRequire(import.meta.url);
 // 复用页面那套链接解析（抖音 / B站 / YouTube 都能认出来），避免两处逻辑不一致
 import { resolveEmbed } from '../src/lib/embeds.js';
 
@@ -710,14 +714,16 @@ async function resolveDouyin(raw, opts = {}) {
       shotFrom = '视频页截图';
     }
     if (shot && opts.coverDir) {
-      const dest = join(opts.coverDir, 'douyin-' + numId + '.png');
+      // 截图里通常有大片白边（播放器之外的空白），用 sharp 裁掉再缩放
+      const tidy = await tidyShot(shot);
+      const dest = join(opts.coverDir, 'douyin-' + numId + tidy.ext);
       try {
-        writeFileSync(dest, shot);
+        writeFileSync(dest, tidy.buf);
         return {
           ok: true,
           localFile: COVER_URL_PREFIX + '/' + dest.split(/[\\/]/).pop(),
           numId,
-          source: shotFrom,
+          source: shotFrom + (tidy.ext === '.jpg' ? '（已裁边）' : ''),
           meta: { date: dom ? dateFromText(dom) : '' }
         };
       } catch (e) { /* 落到失败分支 */ }
@@ -757,6 +763,41 @@ function magicImage(buf) {
     if (/heic|heix|hevc|mif1/i.test(brand)) return 'heic';
   }
   return '';
+}
+
+/** 加载 sharp（本地优先，回退到 DSH 自带；都没有就返回 null） */
+function loadSharp() {
+  const cands = ['sharp', 'D:/Deepseek Harness Desktop/resources/dsh/node_modules/sharp'];
+  if (process.env.DSH_HOME) {
+    cands.push(join(process.env.DSH_HOME, '..', 'Deepseek Harness Desktop', 'resources', 'dsh', 'node_modules', 'sharp'));
+  }
+  for (const c of cands) {
+    try {
+      const s = require(c);
+      if (typeof s === 'function') return s;
+    } catch (e) { /* 试下一个 */ }
+  }
+  return null;
+}
+
+/**
+ * 处理浏览器截图：
+ *  · trim() 把四周纯色（通常是播放器外面的白边）裁掉
+ *  · 缩到最长边 1400 并转成 jpg，体积更小
+ * 拿不到 sharp 或处理失败就原样返回 PNG。
+ */
+async function tidyShot(shot) {
+  const sharp = loadSharp();
+  if (!sharp) return { buf: shot, ext: '.png' };
+  try {
+    const buf = await sharp(shot)
+      .trim({ threshold: 12 })          // 去掉均匀的纯色边框
+      .resize({ width: 1400, height: 1400, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 84 })
+      .toBuffer();
+    if (buf && buf.length > 2048) return { buf, ext: '.jpg' };
+  } catch (e) { /* 处理失败就用原图 */ }
+  return { buf: shot, ext: '.png' };
 }
 
 /* ---------- 下载封面 ---------- */
@@ -872,8 +913,11 @@ export async function syncCovers(options = {}) {
     const key = String(v.douyin || v.embed).trim();
     const label = v.title || ('第 ' + (i + 1) + ' 条');
 
-    // 已经有手填 poster 了 → 尊重它（同时也能防止它被后面的自动抓取清掉）
-    if (v.poster) {
+    // 已经有手填 poster 了，而且文件确实在 → 尊重它
+    const manualPosterOk = v.poster && existsSync(
+      join(root, 'public', String(v.poster).replace(/\\/g, '/').replace(/^(\.?\/)+/, ''))
+    );
+    if (manualPosterOk) {
       out[key] = { poster: v.poster, title: v.title || '', date: v.date || '', duration: v.duration || '' };
       continue;
     }
@@ -1047,7 +1091,13 @@ export async function syncCovers(options = {}) {
       if (info.date && !v.date) fields.date = info.date;
       if (info.duration && !v.duration) fields.duration = info.duration;
       if (info.ratio && !v.ratio) fields.ratio = info.ratio;
-      if (info.poster && v.cover !== false) fields.poster = info.poster;
+      // poster：原来写的值如果指向一个**不存在的文件**，就当成没填、用新抓到的补上。
+      // （踩过坑：之前抓到一张错误的图并写进 poster，文件后来被删掉，
+      //   页面就一直请求不存在的文件，卡片永远空白。）
+      const oldPosterOk = v.poster && existsSync(
+        join(root, 'public', String(v.poster).replace(/\\/g, '/').replace(/^(\.?\/)+/, ''))
+      );
+      if (info.poster && v.cover !== false && !oldPosterOk) fields.poster = info.poster;
 
       if (!Object.keys(fields).length) return null;
       return {

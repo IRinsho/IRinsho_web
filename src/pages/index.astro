@@ -6,13 +6,25 @@ import autoCovers from '../data/covers.generated.js';
 import { photos } from '../lib/photos.js';
 import { asset } from '../lib/url.js';
 import { pad2 } from '../lib/format.js';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+// poster 文件可能已经不存在（例如之前抓错被删掉），这种情况当没填
+function posterExists(p) {
+  const v = String(p || '').trim();
+  if (!v) return false;
+  if (/^https?:\/\//i.test(v)) return true;
+  try {
+    return existsSync(join(process.cwd(), 'public', v.replace(/\\/g, '/').replace(/^(\.?\/)+/, '')));
+  } catch (e) { return true; }
+}
 
 // video 那一格的候选封面：抓来的抖音封面 > 手填 poster > 头像
 const videoArt = (() => {
   const v = videos[0] || {};
   const key = String(v.embed || v.douyin || '').trim();
   const auto = v.cover === false ? {} : (autoCovers[key] || {});
-  return auto.poster || v.poster || config.avatar || '';
+  return auto.poster || (posterExists(v.poster) ? v.poster : '') || config.avatar || '';
 })();
 
 // 每格挑一张图做底；没有图就用渐变色兜底

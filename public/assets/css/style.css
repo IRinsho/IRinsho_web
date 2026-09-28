@@ -1098,7 +1098,11 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
     max-height: 100dvh;
     border-radius: 0; border: 0;
     display: flex; flex-direction: column;
-    overflow: hidden;
+    /* ⚠ 不能用 hidden：手机上内容一旦超出（标题+播放器+提示+描述），
+       超出部分会被直接裁掉，看起来就是「界面展示不全」。允许纵向滚动。 */
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .modal-head { flex: none; padding: 12px 14px; align-items: center; }
   .modal-head h3 { font-size: 16px; }

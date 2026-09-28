@@ -5,6 +5,25 @@ import autoCovers from '../data/covers.generated.js';
 import { asset } from '../lib/url.js';
 import { resolveEmbed } from '../lib/embeds.js';
 import { fmtSlash, hueFor } from '../lib/format.js';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+/* 校验 videos.js 里写的 poster 文件是否真的存在。
+   为什么需要：同步工具曾经把一张抓错的图（后来被删掉）写进 poster，
+   于是页面一直去请求一个不存在的文件 —— 优先级又高于自动封面，
+   结果卡片永远空白。这里直接检查文件，不存在就当没填，
+   让下面的自动封面 / 生成底图接管。 */
+function posterExists(p) {
+  const v = String(p || '').trim();
+  if (!v) return false;
+  if (/^https?:\/\//i.test(v)) return true;      // 外链不检查
+  const rel = v.replace(/\\/g, '/').replace(/^(\.?\/)+/, '');
+  try {
+    return existsSync(join(process.cwd(), 'public', rel));
+  } catch (e) {
+    return true;   // 检查失败就按存在处理，别误伤
+  }
+}
 
 /* 每条视频先算好「播放器地址」「原站链接」「封面」「标题 / 日期 / 时长」：
    douyin / embed 里可以直接粘抖音、B站、YouTube 的分享链接，
@@ -60,7 +79,7 @@ const items = videos.map((v) => {
     live,
     playInline,
     ratioCss,
-    cover: v.poster || auto.poster || ''
+    cover: (posterExists(v.poster) ? v.poster : '') || auto.poster || ''
   };
 });
 
