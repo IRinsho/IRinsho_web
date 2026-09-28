@@ -44,10 +44,9 @@ const items = videos.map((v) => {
   const vertical = v.vertical === true;
   // 卡片里嵌播放器：默认关（抖音播放器塞进卡片会变成「黑块 + logo + 一条画面」）
   const live = v.live === true;
-  // 弹窗里嵌播放器：默认也关。抖音播放器自带 logo 头 + 黑底，且画面比例跨域读不到，
-  // 塞进来一定是大片黑。默认改成「我们自己的封面 + 去原站观看按钮」。
-  // 想让某条在页面内播，写 playInline: true。
-  const playInline = v.playInline === true;
+  // 弹窗里嵌播放器：**默认开**（不想跳转到抖音，就在页面里播）。
+  // 想改成「只给跳转按钮」：在那条上写 playInline: false。
+  const playInline = v.playInline !== false;
 
   return {
     ...v,
@@ -109,7 +108,7 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         data-platform={v.platform || '原站'}
         data-vertical={v.vertical ? '1' : ''}
         data-ratio={v.ratioCss || ''}
-        data-inline={v.playInline ? '1' : ''}
+        data-inline={v.playInline === false ? '0' : '1'}
         data-src={v.embedUrl ? '' : asset(v.src || '')}
         data-poster={v.cover ? asset(v.cover) : ''}
         data-hue={hueFor(v.title)}
@@ -210,30 +209,31 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         body.style.setProperty('--ratio', css);
         body.style.setProperty('--rn', String(num));
         body.classList.add('has-ratio');
-        // 只有竖屏才需要把弹窗收窄；横屏保持宽弹窗，让画面能占满
-        panel.classList.toggle('narrow', num < 1);
+        // 竖屏 → 弹窗收窄 + 手机上占满屏
+        // 横屏 → 手机上收成居中卡片（占满屏会在上下留一大片空黑）
+        const portrait = num < 1;
+        panel.classList.toggle('narrow', portrait);
+        panel.classList.toggle('compact', !portrait);
       };
 
-      if (ratio) {
+      // 比例来源：手写 vertical / 手写 ratio / 抓来的 ratio，都没有就按横屏 16:9
+      if (card.dataset.vertical === '1') {
+        useRatio('9 / 16', 9 / 16);
+      } else if (ratio) {
         const p = ratio.split('/').map((x) => parseFloat(x));
         if (p.length === 2) useRatio(ratio, p[0] / p[1]);
+        else useRatio('16 / 9', 16 / 9);
+      } else {
+        // 没有比例信息（抖音这类跨域 iframe 读不到尺寸）：按横屏处理，
+        // 手机上收成居中卡片，不会上下留一大片空黑
+        useRatio('16 / 9', 16 / 9);
       }
-
-      const vertical = card.dataset.vertical === '1' && !ratio;
-      body.classList.toggle('is-vertical', vertical);
-      panel.classList.toggle('is-vertical', vertical);
-      panel.classList.remove('compact');   // 只在不放播放器时才加回来
 
       if (card.dataset.embed) {
         const platform = card.dataset.platform || '原站';
         const link = card.dataset.link || '';
-        // 默认**不**把外站播放器装进页面。
-        // 原因：抖音播放器自带「抖音 logo 头 + 黑底」，而且视频是横屏还是竖屏
-        // 我们读不到（跨域），塞进任何形状的框里都会留大片黑。
-        // 想看站内播放：在那条视频上写 playInline: true。
-        const inline = card.dataset.inline === '1' && !!link;
-        // 不播播放器时，手机上让弹窗收成一张居中卡片，而不是占满整屏（下半屏空着）
-        if (!inline) panel.classList.add('compact');
+        // inline: 在页面内播放（默认）；否则只给「去原站观看」按钮
+        const inline = card.dataset.inline !== '0' && !!card.dataset.embed;
 
         const stage = document.createElement('div');
         stage.className = 'embed-stage';
@@ -285,12 +285,25 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
 
         body.appendChild(stage);
 
-        // 一行小提示（手机上 CSS 会把它收起来）
+        // 一行小提示 + 备用出口（播放器万一放不出来还能跳过去看）
         const bar = document.createElement('p');
         bar.className = 'embed-bar';
-        bar.textContent = inline
-          ? '外站播放器需要对方允许嵌入；放不出来就点画面外的链接。'
-          : platform + ' 的播放器带自己的界面，塞进页面会一片黑，所以这里直接给你跳转按钮。';
+        bar.appendChild(document.createTextNode(inline ? '放不出来？' : platform + ' 的播放器带自己的界面，'));
+        if (link) {
+          const go = document.createElement('a');
+          go.className = 'play-download';
+          go.href = link;
+          go.target = '_blank';
+          go.rel = 'noopener noreferrer';
+          go.textContent = inline ? '去' + platform + '看 ↗' : '点这里去' + platform;
+          bar.appendChild(go);
+        }
+        if (inline) {
+          const hint = document.createElement('span');
+          hint.className = 'embed-hint';
+          hint.textContent = '外站播放器需要对方允许嵌入；一直空白或提示无权限时，请点这个按钮。';
+          bar.appendChild(hint);
+        }
         body.appendChild(bar);
       } else if (!card.dataset.src) {
         const tip = document.createElement('p');
@@ -316,9 +329,9 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
           body.style.setProperty('--ratio', css);
           body.style.setProperty('--rn', String(num));
           body.classList.add('has-ratio');
-          panel.classList.toggle('narrow', num < 1);
-          body.classList.remove('is-vertical');
-          panel.classList.remove('is-vertical');
+          const portrait = num < 1;
+          panel.classList.toggle('narrow', portrait);
+          panel.classList.toggle('compact', !portrait);
         });
 
         video.addEventListener('error', () => {
