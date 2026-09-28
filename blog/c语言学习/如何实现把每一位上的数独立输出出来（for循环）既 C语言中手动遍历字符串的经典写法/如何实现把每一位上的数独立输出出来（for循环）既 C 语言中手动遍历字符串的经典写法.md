@@ -5,7 +5,7 @@ category: c语言学习
 tags:
   - C语言
 draft: false
-summary:
+summary: 如何实现把每一位上的数独立输出出来（for循环）
 cover:
 cssclasses:
 slug:

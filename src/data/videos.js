@@ -18,33 +18,14 @@
  * ======================================================= */
 export default [
   {
-    title: '示例视频 · 动画短片',
-    desc: '这是一条演示用的示例视频，把 src 换成你自己的 mp4 即可。',
-    category: '示例',
-    tags: ['demo'],
+    title: 're0',
+    desc: 're0',
+    category: '动漫 ',
+    tags: ['动漫'],
     date: '2025-06-01',
-    src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    poster: 'media/covers/cover-01.svg',
-    duration: '00:15'
+    src: 'media\videos\漪潾宵的抖音 - 抖音.mp4',
+    poster: 'media\covers\Screenshot_2026_0928_140932.png',
+    duration: '00:26'
   },
-  {
-    title: '示例视频 · 风景片段',
-    desc: '点开卡片可以用弹窗播放，支持全屏和倍速。',
-    category: '示例',
-    tags: ['demo', '风景'],
-    date: '2025-05-20',
-    src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    poster: 'media/covers/cover-02.svg',
-    duration: '00:15'
-  },
-  {
-    title: '示例视频 · 学习录屏',
-    desc: '录屏类视频可以放 B 站，用 embed 字段嵌入播放器。',
-    category: '教程',
-    tags: ['demo', '教程'],
-    date: '2025-05-06',
-    src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-    poster: 'media/covers/cover-03.svg',
-    duration: '00:60'
-  }
+ 
 ];

@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "c语言学习/c语言练习总结.md",
+                "file": "_怎么用.md",
                 "mode": "preview",
                 "source": true,
                 "backlinks": true,
@@ -28,7 +28,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "c语言练习总结"
+              "title": "_怎么用"
             }
           }
         ]
@@ -169,7 +169,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "c语言学习/c语言练习总结.md",
+                "file": "_怎么用.md",
                 "followCursor": false,
                 "showSearch": true,
                 "searchQuery": ""
@@ -200,15 +200,17 @@
   },
   "active": "26bb572852d2999d",
   "lastOpenFiles": [
-    "c语言学习/特殊换行代码.md",
-    "c语言学习/实现倒序输出（for循环）.md",
-    "c语言学习/如何输出字符串位数.md",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
+    "c语言学习/如何输出字符串位数.md",
+    "_怎么用.md",
+    "_模板.md",
+    "c语言学习/特殊换行代码.md",
+    "c语言学习/c语言练习总结.md",
+    "c语言学习/实现倒序输出（for循环）.md",
     "如何输出字符串位数.md",
     "特殊换行代码.md",
     "实现倒序输出（for循环）.md",
     "c语言练习总结.md",
-    "c语言学习/c语言练习总结.md",
     "c语言学习/代码截图/Pasted image 20260922172233.png",
     "c语言学习/代码截图/Pasted image 20260922171616.png",
     "c语言学习/代码截图/Pasted image 20260922171131.png",
@@ -220,8 +222,6 @@
     "c语言学习/代码截图/Pasted image 20260922162223.png",
     "c语言学习/代码截图/Pasted image 20260922161730.png",
     "c语言学习/代码截图",
-    "_怎么用.md",
-    "_模板.md",
     "c语言学习",
     "未命名.md",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法",
