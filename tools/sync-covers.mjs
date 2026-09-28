@@ -254,13 +254,17 @@ export async function syncCovers(options = {}) {
   }
 
   const videos = await loadVideos(root);
+  // 需要抓封面的是「填了 douyin / embed」的视频。
+  // 填了 poster 也照抓 —— 因为抖音链接的封面比手填的封面准得多，
+  // 页面在抓到之后会优先用抓来的（想保留手填的封面就写 cover: false）。
+  // 本地视频（只有 src）永远不抓。
   const targets = videos
     .map((v, i) => ({ v, i }))
-    .filter(({ v }) => (v.douyin || v.embed) && !v.poster);
+    .filter(({ v }) => (v.douyin || v.embed) && v.cover !== false);
 
   say('\n抓取视频封面…');
   if (!targets.length) {
-    say('  没有需要抓封面的视频（都填了 poster，或者没有 douyin / embed）。');
+    say('  没有需要抓封面的视频（没有 douyin / embed，或者写了 cover: false）。');
   }
 
   const out = {};

@@ -424,6 +424,11 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .video-card .thumb img { width: 100%; height: 100%; object-fit: cover; opacity: .82; transition: .45s; }
 .video-card:hover .thumb img { opacity: 1; transform: scale(1.04); }
 .thumb-fallback { width: 100%; height: 100%; background: linear-gradient(140deg, #2a2f52, #171a30); position: relative; }
+/* 封面文件坏了（被脚本摘掉 img）时，给这块缩略图补上同一套斜纹底 */
+.thumb-broken::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(140deg, #2a2f52, #171a30);
+}
 /* 没有封面时给一点斜纹，别是一块死板的纯色 */
 .thumb-fallback::after {
   content: ''; position: absolute; inset: 0;

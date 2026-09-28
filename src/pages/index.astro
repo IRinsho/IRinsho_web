@@ -2,9 +2,17 @@
 import Base from '../layouts/Base.astro';
 import config from '../data/config.js';
 import videos from '../data/videos.js';
+import autoCovers from '../data/covers.generated.js';
 import { photos } from '../lib/photos.js';
 import { asset } from '../lib/url.js';
 import { pad2 } from '../lib/format.js';
+
+// video 那一格的候选封面：抓来的抖音封面 > 手填 poster > 头像
+const videoArt = (() => {
+  const v = videos[0] || {};
+  const src = String(v.embed || v.douyin || '').trim();
+  return (v.cover === false ? '' : autoCovers[src]) || v.poster || config.avatar || '';
+})();
 
 // 每格挑一张图做底；没有图就用渐变色兜底
 // 取不到对应图片时按顺序往后找，保证每一格都有东西可看，
@@ -14,10 +22,10 @@ function firstOf(list) {
 }
 
 function panelArt(key) {
-  const pool = [config.avatar, (videos[0] && videos[0].poster), ...photos.map((p) => p.src)];
+  const pool = [config.avatar, videoArt, ...photos.map((p) => p.src)];
 
-  if (key === 'videos') return firstOf([(videos[0] && videos[0].poster), config.avatar]) || firstOf(pool);
-  if (key === 'me') return firstOf([config.avatar, (videos[0] && videos[0].poster)]) || firstOf(pool);
+  if (key === 'videos') return firstOf([videoArt, config.avatar]) || firstOf(pool);
+  if (key === 'me') return firstOf([config.avatar, videoArt]) || firstOf(pool);
 
   const idx = { home: 0, photos: 1, notes: 2 }[key];
   const picked = firstOf([photos[idx == null ? 0 : idx] && photos[idx == null ? 0 : idx].src]);
