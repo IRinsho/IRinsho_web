@@ -58,15 +58,17 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
 ---
 <Base title={`${config.name} · 个人档案`} description={config.homeMotto}>
   {/*
-    首屏舞台（Gate）：主视觉铺满 + 滚动到阈值时揭晓终幕画面。
-    用两段 CSS 变量控制：--gate-p（0~1 的滚动进度）由页面脚本写入，
-    所有位移/缩放/淡入淡出都在 CSS 里算 —— 这样即使脚本挂了，
+    首屏舞台（Gate）：主视觉铺满，往下滚时缓慢推近 + 淡出。
+    用一个 CSS 变量控制：--gate-p（0~1 的滚动进度）由页面脚本写入，
+    所有位移/缩放/淡出都在 CSS 里算 —— 这样即使脚本挂了，
     页面也只是一张静态主视觉，绝不会白屏。
+    （终幕图以前是这一层里交叉揭晓的，现在改成下面独立的 .finale 一段，
+      所以这里不再需要 --finale 变量。）
   */}
   <section
     class="gate"
     id="homeGate"
-    style={`--hero:url(${asset('media/images/home-hero.jpg')});--finale:url(${asset('media/images/home-finale.jpg')})`}
+    style={`--hero:url(${asset('media/images/home-hero.jpg')})`}
   >
     <div class="gate-bg" aria-hidden="true">
       <span class="gate-layer gate-hero"></span>
