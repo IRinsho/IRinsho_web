@@ -6,7 +6,7 @@ tags:
   - C语言
 draft: false
 summary:
-cover: p4.png
+cover: p4.jpg
 cssclasses:
 slug:
 ---
