@@ -37,7 +37,16 @@ export default [
     poster: 'media/covers/re0.svg',
     duration: '00:26'
   },
-
+  {
+    title: '奇蛋物语',
+    desc: '奇蛋物语',
+    category: '动漫',
+    tags: ['动漫'],
+    date: '2025-06-01',
+    douyin: 'https://www.douyin.com/video/jFlBIKzLFO8',
+    poster: 'media/covers/cover-01.svg',
+    duration: '00:26'
+  },
   /* 抖音示例（把 douyin 换成你自己的分享链接即可）：
   {
     title: '随手拍的一段',
