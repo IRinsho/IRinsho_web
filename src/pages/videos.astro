@@ -216,9 +216,12 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
       // 文件名里带引号、括号、中文都不会把标签拼坏
       body.replaceChildren();
 
-      // 画面比例：优先用手写的 / 抓来的真实比例；
-      // 都没有时（比如抖音这种跨域 iframe）先按平台猜，本地视频会在加载后自动纠正
-      const ratio = card.dataset.ratio || '';
+      // 比例来源分两种情况：
+      //   · 本地视频（<video>）→ 用手写/测出来的**视频比例**，最准
+      //   · 外站播放器（iframe）→ 用**播放器页自己的比例**（抖音是竖屏设计），
+      //     否则竖屏播放器被塞进方框/横框，画面会缩在左边、右边一大片黑
+      const isEmbed = !!card.dataset.embed && !card.dataset.src;
+      const ratio = isEmbed ? '' : (card.dataset.ratio || '');
       body.style.removeProperty('--ratio');
       body.style.removeProperty('--rn');
 
@@ -228,23 +231,24 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         body.style.setProperty('--ratio', css);
         body.style.setProperty('--rn', String(num));
         body.classList.add('has-ratio');
-        // 竖屏 → 弹窗收窄 + 手机上占满屏
-        // 横屏 → 手机上收成居中卡片（占满屏会在上下留一大片空黑）
         const portrait = num < 1;
         panel.classList.toggle('narrow', portrait);
         panel.classList.toggle('compact', !portrait);
       };
 
-      // 比例来源：手写 vertical / 手写 ratio / 抓来的 ratio，都没有就按横屏 16:9
-      if (card.dataset.vertical === '1') {
+      const isDouyin = /抖音|douyin/i.test(card.dataset.platform || '');
+
+      if (isEmbed) {
+        // 播放器页的比例：抖音官方播放器是竖屏页面
+        if (isDouyin) useRatio('9 / 16', 9 / 16);
+        else useRatio('16 / 9', 16 / 9);
+      } else if (card.dataset.vertical === '1') {
         useRatio('9 / 16', 9 / 16);
       } else if (ratio) {
         const p = ratio.split('/').map((x) => parseFloat(x));
         if (p.length === 2) useRatio(ratio, p[0] / p[1]);
         else useRatio('16 / 9', 16 / 9);
       } else {
-        // 没有比例信息（抖音这类跨域 iframe 读不到尺寸）：按横屏处理，
-        // 手机上收成居中卡片，不会上下留一大片空黑
         useRatio('16 / 9', 16 / 9);
       }
 
