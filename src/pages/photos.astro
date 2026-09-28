@@ -39,7 +39,19 @@ const countOf = (a) => (a === ALL ? photos.length : photos.filter((p) => p.album
         aria-label={'查看 ' + p.title}
       >
         <span class="card-no">{pad2(i + 1)}</span>
-        <img src={asset(p.src)} alt={p.title} loading="lazy" />
+        {/*
+          注意：这里不能给 <img> 加 loading="lazy"。
+          相册是多列瀑布流（CSS columns），Chrome 里 lazy 图在这个布局下
+          经常一直不进视口、永远停在「没加载」状态 —— 表现就是一整片空白卡片。
+          前 9 张直接加载，后面的交给浏览器自己决定。
+        */}
+        <img
+          src={asset(p.src)}
+          alt={p.title}
+          loading={i < 9 ? 'eager' : 'lazy'}
+          decoding="async"
+          onerror="this.closest('.photo-card').classList.add('is-broken')"
+        />
         <span class="card-corner">{p.album} LOG</span>
         <figcaption>
           <strong>{p.title}</strong>

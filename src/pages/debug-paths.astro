@@ -158,4 +158,55 @@ const hasEmbed = videos.some((v) => v.embed);
     {hasEmbed ? '注意：带 embed 的视频走的是外部播放器，不检查本地文件。' : ''}
     判定规则：把上面「数据文件里写的」当成 <code>public/</code> 下的相对路径去找文件，找得到就是 ✓。
   </p>
+
+  <!-- 说明 -->
+  <div class="dbg-howto">
+    <h2>上面是「文字版」，这里是「看得见版」</h2>
+    <p>
+      首页每一格的底图、顶栏头像，下面直接用 <code>&lt;img&gt;</code> 再渲染一遍。
+      这样一次就能看出到底是「路径不对」还是「图片本身有问题」：
+      <b>自检表里是 ✓ 但下面这一片是空框，那就是图片文件本身读不出来。</b>
+    </p>
+  </div>
+
+  <!-- 首页每一格的底图，实图预览 -->
+  <h2 class="dbg-h2">首页每一格底图 / 顶栏头像</h2>
+  <div class="dbg-previews">
+    <figure class="dbg-pv">
+      <img src={asset(config.avatar)} alt="头像" />
+      <figcaption>顶栏头像<br><code>{asset(config.avatar)}</code></figcaption>
+    </figure>
+    {PANELS.map((p) => (
+      <figure class="dbg-pv">
+        {p.raw ? <img src={asset(p.raw)} alt={p.name} /> : <div class="dbg-pv-none">没有取到图片</div>}
+        <figcaption>{p.name}<br><code>{p.raw ? asset(p.raw) : '（空）'}</code></figcaption>
+      </figure>
+    ))}
+  </div>
+
+  <!-- 相册全部图片，实图预览 -->
+  <h2 class="dbg-h2">相册里的 {photos.length} 张图</h2>
+  <div class="dbg-previews">
+    {photos.map((p) => (
+      <figure class="dbg-pv">
+        <img src={asset(p.src)} alt={p.title} />
+        <figcaption>{p.title}<br><code>{asset(p.src)}</code></figcaption>
+      </figure>
+    ))}
+  </div>
+
+  <!-- 视频封面 + 视频文件是否可访问 -->
+  <h2 class="dbg-h2">视频</h2>
+  <div class="dbg-previews">
+    {videos.map((v) => (
+      <figure class="dbg-pv dbg-pv-wide">
+        {v.poster ? <img src={asset(v.poster)} alt={v.title} /> : <div class="dbg-pv-none">没有封面</div>}
+        <figcaption>
+          {v.title}<br>
+          {v.src && <code>src: {asset(v.src)}</code>}
+          {v.embed && <code>embed: {v.embed}</code>}
+        </figcaption>
+      </figure>
+    ))}
+  </div>
 </Base>

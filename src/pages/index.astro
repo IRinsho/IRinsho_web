@@ -46,11 +46,19 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
   <div class="panels">
     {PANELS.map((p) => (
       <a class={'panel ' + p.cls} href={asset(p.href)}>
+        {/*
+          底图用 <img> 而不是 CSS background-image：
+          <img> 是浏览器最稳的加载方式（顶栏头像就是这么显示的）。
+          onerror 兜底 —— 文件缺了就把这一层收掉，露出下面的渐变，不留破图。
+        */}
         {p.art && (
-          <span
+          <img
             class="panel-art"
-            style={`background-image:url("${asset(p.art)}"),linear-gradient(140deg,#2a2f52,#171a30);background-size:cover;background-position:center;`}
-          ></span>
+            src={asset(p.art)}
+            alt=""
+            decoding="async"
+            onerror="this.classList.add('is-broken')"
+          />
         )}
         <span class="panel-plate">
           <span class="p-num">{p.no}</span>
