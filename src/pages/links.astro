@@ -1,102 +1,106 @@
 ---
 /* =========================================================
- *  友链页面（/links/）
+ *  友链页面（/links/）—— 参考 Kisara 主题的「keep the route open」
  *  ---------------------------------------------------------
- *  数据在 src/data/links.js —— 加友链只改那个文件。
- *  样式沿用站内那套（eyebrow 小标题 / 衬线大标题 / 圆角卡片），
- *  没有素材也能看：头像缺失时按站名生成一张配色底图。
+ *  结构：全屏场景背景 + 左侧大字 + 右侧玻璃面板（轨道图形 + 列表 + 空位）
+ *  数据在 src/data/links.js（加友链只改那个文件），
+ *  背景图在下面 BG 这一行改。
  * ======================================================= */
 import Base from '../layouts/Base.astro';
 import config from '../data/config.js';
 import links from '../data/links.js';
 import { asset } from '../lib/url.js';
-import { hueFor, pad2 } from '../lib/format.js';
+import { pad2 } from '../lib/format.js';
 
-// featured 优先，其余保持原顺序
-const list = links.slice().sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
-const real = list.filter((l) => !l.open);
-const openSlots = list.filter((l) => l.open);
+// 全屏场景背景：想换就改这一行（放 public/ 下的相对路径）
+const BG = 'media/images/home-finale.jpg';
 
-// 别人要加本站时需要的信息 —— 直接显示出来方便复制
-const MINE = {
-  name: config.name || 'IRinsho',
-  url: 'https://irinsho.top/',
-  desc: config.homeMotto || '把想法写下来，把喜欢的留下来。',
-  avatar: config.avatar || ''
-};
+// 面板里显示几个"槽位"（真实友链之后，剩下的显示为等待写入的空位）
+const SLOTS = 4;
+
+const list = links.filter((l) => !l.open);
+const openInfo = links.find((l) => l.open);
+const empty = Math.max(0, SLOTS - list.length);
+const mineName = config.name || 'IRinsho';
 ---
 
-<Base title={`友链 · ${config.name}`} description="交换友链，开放路线。">
-  <div class="home-head">
-    <div class="home-title-row">
+<Base title={`友链 · ${mineName}`} description="keep the route open. 友链与开放路线。">
+  <section class="route" style={`--route-bg:url(${asset(BG)})`}>
+    {/* 细弧线：纯 CSS 画的轨道/连线，零素材 */}
+    <span class="route-lines" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+
+    <div class="route-left">
       <div class="eyebrow">
-        <span class="eyebrow-num">FRIEND LINKS</span>
+        <span class="eyebrow-num">ED / 06</span>
         <span class="eyebrow-line"></span>
-        <span class="eyebrow-text">OPEN ROUTE</span>
+        <span class="eyebrow-text">FRIEND ROUTE</span>
       </div>
-      <h1 class="home-title">进入友链<em>.</em></h1>
-      <p class="home-motto">
-        一共 {pad2(real.length)} 条连接。想加进来，看最下面那张卡片。
+
+      <h1 class="route-title">
+        keep the<br />route<br /><em>open.</em>
+      </h1>
+
+      <p class="route-p">
+        有些链接不是目录里的地址，而是某一次认真看完之后，仍然愿意互相留下的坐标。
+      </p>
+      <p class="route-p route-p--dim">
+        这里预留给友链。等名字和网址被写入以后，空位会成为新的彩线交点。
       </p>
     </div>
-  </div>
 
-  <div class="link-grid">
-    {real.map((l) => (
-      <a
-        class={'link-card' + (l.featured ? ' is-featured' : '')}
-        href={l.url}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <span class="link-art" style={`--h:${hueFor(l.name)}`}>
-          {l.avatar ? (
-            <img src={asset(l.avatar)} alt="" loading="lazy" decoding="async"
-                 onerror="this.classList.add('is-broken')" />
-          ) : (
-            <b>{(l.name || '?').slice(0, 1)}</b>
-          )}
-        </span>
-
-        <span class="link-body">
-          <span class="link-name">
-            {l.name}
-            {l.featured && <i class="link-star" title="特别推荐">★</i>}
-          </span>
-          <span class="link-desc">{l.desc}</span>
-          <span class="link-meta">
-            {(l.tags || []).map((t) => <em>#{t}</em>)}
-            {l.since && <span class="link-since">{l.since}</span>}
-          </span>
-        </span>
-      </a>
-    ))}
-  </div>
-
-  {real.length === 0 && (
-    <p class="play-error">还没有友链。在 <code>src/data/links.js</code> 里加一条就会出现在这里。</p>
-  )}
-
-  {openSlots.map((l) => (
-    <section class="link-open">
-      <div class="eyebrow">
-        <span class="eyebrow-num">OPEN</span>
-        <span class="eyebrow-line"></span>
-        <span class="eyebrow-text">EXCHANGE</span>
-      </div>
-      <p class="link-open-desc">{l.desc}</p>
-
-      <div class="link-mine">
-        <div class="link-mine-row"><span>站名</span><b>{MINE.name}</b></div>
-        <div class="link-mine-row"><span>网址</span><b>{MINE.url}</b></div>
-        <div class="link-mine-row"><span>简介</span><b>{MINE.desc}</b></div>
-        {MINE.avatar && <div class="link-mine-row"><span>头像</span><b>{asset(MINE.avatar)}</b></div>}
-      </div>
-
-      <p class="link-open-hint">
-        按上面这张表把本站加进你的友链页，然后来
-        <a href={asset('me/')}>ME 页面</a>留个言，我就把你的站也加进来。
+    <aside class="route-panel">
+      <p class="route-panel-head">
+        {mineName.toUpperCase()} / FRIENDS <i>///</i> LINKS THAT STAY
       </p>
-    </section>
-  ))}
+
+      {/* 轨道图形：中心一块心形，外面两圈斜着的环在慢转 */}
+      <div class="route-orb" aria-hidden="true">
+        <span class="orb-ring orb-ring--a"></span>
+        <span class="orb-ring orb-ring--b"></span>
+        <span class="orb-core">♡</span>
+        <span class="orb-dot orb-dot--a"></span>
+        <span class="orb-dot orb-dot--b"></span>
+      </div>
+
+      <ul class="route-list">
+        {list.map((l, i) => (
+          <li>
+            <a href={l.url} target="_blank" rel="noopener noreferrer">
+              <span class="route-no">{pad2(i + 1)}</span>
+              <span class="route-info">
+                <span class="route-kicker">OPEN ROUTE</span>
+                <span class="route-name">{l.name}</span>
+                <span class="route-desc">{l.desc}</span>
+              </span>
+              <span class="route-go" aria-hidden="true">↗</span>
+            </a>
+          </li>
+        ))}
+
+        {[...Array(empty)].map((_, i) => (
+          <li class="is-empty">
+            <span class="route-no">{pad2(list.length + i + 1)}</span>
+            <span class="route-info">
+              <span class="route-kicker">OPEN ROUTE</span>
+              <span class="route-name">等待被写下的名字</span>
+              <span class="route-desc">可以放博客、作品集或小站</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <p class="route-panel-foot">
+        <span>NO DEADLINE</span>
+        <span>keep something beautiful in orbit</span>
+      </p>
+    </aside>
+
+    <div class="route-bottom">
+      <a class="route-back" href={asset('me/')}><span>←</span>BACK TO ME / PROFILE</a>
+      <span class="route-slots">
+        <b>LINK SLOTS / {pad2(SLOTS)}</b>
+        {openInfo ? '想交换友链就看这里：把我的站加进你的友链页，再来 ME 页面留言。' : ''}
+      </span>
+    </div>
+  </section>
 </Base>
