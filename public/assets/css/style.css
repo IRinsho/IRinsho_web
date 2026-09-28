@@ -701,6 +701,71 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 }
 .markdown blockquote p { margin: 6px 0; }
 
+/* =========================================================
+ *  笔记页动效（纯 CSS，尊重系统「减少动态效果」）
+ * ======================================================= */
+@keyframes mdIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes barIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 正文里的每个块依次浮现（前 12 块错开，再往后的不延迟避免等太久） */
+.markdown > * { animation: mdIn .52s cubic-bezier(.22, .61, .36, 1) both; }
+.markdown > *:nth-child(1)  { animation-delay: .02s; }
+.markdown > *:nth-child(2)  { animation-delay: .06s; }
+.markdown > *:nth-child(3)  { animation-delay: .10s; }
+.markdown > *:nth-child(4)  { animation-delay: .14s; }
+.markdown > *:nth-child(5)  { animation-delay: .18s; }
+.markdown > *:nth-child(6)  { animation-delay: .22s; }
+.markdown > *:nth-child(7)  { animation-delay: .26s; }
+.markdown > *:nth-child(8)  { animation-delay: .30s; }
+.markdown > *:nth-child(9)  { animation-delay: .34s; }
+.markdown > *:nth-child(10) { animation-delay: .38s; }
+.markdown > *:nth-child(11) { animation-delay: .42s; }
+.markdown > *:nth-child(12) { animation-delay: .46s; }
+.markdown > *:nth-child(n+13) { animation-delay: .5s; }
+
+/* 顶部的返回条（从上方滑下来） */
+.post-bar { animation: barIn .4s cubic-bezier(.22, .61, .36, 1) both; }
+
+/* 悬停反馈：图片轻微放大 + 阴影，链接变色 */
+.markdown img {
+  transition: transform .38s cubic-bezier(.22, .61, .36, 1), box-shadow .38s ease;
+}
+.markdown img:hover {
+  transform: scale(1.015);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .38);
+}
+.markdown a { transition: color .18s ease, border-color .18s ease; }
+.markdown h2, .markdown h3 {
+  scroll-margin-top: 90px;   /* 点目录/锚点跳转时别被顶部导航挡住 */
+}
+.markdown blockquote, .markdown .md-code, .markdown .md-table-wrap,
+.markdown .mermaid, .markdown .md-math-block, .markdown .md-dataview {
+  transition: border-color .3s ease, background .3s ease;
+}
+
+/* 列表页的卡片：悬停上浮 */
+.post-card, .note-card, .blog-card {
+  transition: transform .3s cubic-bezier(.22, .61, .36, 1), box-shadow .3s ease, border-color .3s ease;
+}
+.post-card:hover, .note-card:hover, .blog-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--rose-dim);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .34);
+}
+
+/* 系统开了「减少动态效果」就全部关掉 */
+@media (prefers-reduced-motion: reduce) {
+  .markdown > *, .post-bar { animation: none !important; }
+  .markdown img, .markdown a, .post-card, .note-card, .blog-card { transition: none !important; }
+  .markdown img:hover, .post-card:hover, .note-card:hover, .blog-card:hover { transform: none; }
+}
+
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }
 
 /* =========================================================

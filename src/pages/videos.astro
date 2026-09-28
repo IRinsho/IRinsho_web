@@ -256,11 +256,12 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         useRatio('16 / 9', 16 / 9);
       }
 
-      if (card.dataset.embed) {
+      // 有 stream（抓到了视频流）→ 跳过嵌入播放器，直接用原生 <video>
+      if (card.dataset.embed && !card.dataset.stream) {
         const platform = card.dataset.platform || '原站';
         const link = card.dataset.link || '';
         // inline: 在页面内播放（默认）；否则只给「去原站观看」按钮
-        const inline = card.dataset.inline !== '0' && !!card.dataset.embed;
+        const inline = card.dataset.inline !== '0';
 
         const stage = document.createElement('div');
         stage.className = 'embed-stage';
