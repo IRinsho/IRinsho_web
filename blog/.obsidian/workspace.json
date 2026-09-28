@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "_怎么用.md",
+                "file": "c语言学习/c语言练习总结.md",
                 "mode": "preview",
                 "source": true,
                 "backlinks": true,
@@ -28,7 +28,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "_怎么用"
+              "title": "c语言练习总结"
             }
           }
         ]
@@ -169,7 +169,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "_怎么用.md",
+                "file": "c语言学习/c语言练习总结.md",
                 "followCursor": false,
                 "showSearch": true,
                 "searchQuery": ""
@@ -200,28 +200,33 @@
   },
   "active": "26bb572852d2999d",
   "lastOpenFiles": [
+    "c语言学习/特殊换行代码.md",
+    "c语言学习/实现倒序输出（for循环）.md",
+    "c语言学习/如何输出字符串位数.md",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
-    "_模板.md",
+    "如何输出字符串位数.md",
+    "特殊换行代码.md",
+    "实现倒序输出（for循环）.md",
+    "c语言练习总结.md",
+    "c语言学习/c语言练习总结.md",
+    "c语言学习/代码截图/Pasted image 20260922172233.png",
+    "c语言学习/代码截图/Pasted image 20260922171616.png",
+    "c语言学习/代码截图/Pasted image 20260922171131.png",
+    "c语言学习/代码截图/Pasted image 20260922170957.png",
+    "c语言学习/代码截图/Pasted image 20260922163451.png",
+    "c语言学习/代码截图/Pasted image 20260922163129.png",
+    "c语言学习/代码截图/Pasted image 20260922162534.png",
+    "c语言学习/代码截图/Pasted image 20260922162448.png",
+    "c语言学习/代码截图/Pasted image 20260922162223.png",
+    "c语言学习/代码截图/Pasted image 20260922161730.png",
+    "c语言学习/代码截图",
     "_怎么用.md",
+    "_模板.md",
     "c语言学习",
     "未命名.md",
-    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922165116.png",
-    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164728.png",
-    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164528.png",
-    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164209.png",
-    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164034.png",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法",
-    "如何输出字符串位数.md",
     "未命名.base",
-    "c语言练习总结.md",
-    "实现倒序输出（for循环）.md",
-    "代码截图/Pasted image 20260922171131.png",
-    "代码截图/Pasted image 20260922161730.png",
-    "代码截图/Pasted image 20260922170957.png",
-    "代码截图/Pasted image 20260922171616.png",
-    "代码截图/Pasted image 20260922172233.png",
     "未命名 1.base",
-    "特殊换行代码.md",
     "未命名 1.canvas",
     "未命名.canvas",
     "代码截图",
