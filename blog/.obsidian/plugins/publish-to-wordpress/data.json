@@ -1,0 +1,9 @@
+{
+  "backend": "wordpress",
+  "wpSiteUrl": "http://www.irinsho.top",
+  "wpUsername": "irinsho_top",
+  "wpAppPassword": "",
+  "webhookDraftUrl": "",
+  "webhookQueueUrl": "",
+  "postFinalMarker": "**Post final :**"
+}

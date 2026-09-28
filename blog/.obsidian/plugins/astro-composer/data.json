@@ -1,0 +1,49 @@
+{
+  "defaultTemplate": "---\ntitle: \"{{title}}\"\ndate: {{date}}\ntags: []\n---\n",
+  "autoInsertProperties": true,
+  "dateFormat": "YYYY-MM-DD",
+  "enableCopyHeadingLink": true,
+  "copyHeadingLinkFormat": "astro",
+  "addTrailingSlashToLinks": false,
+  "enableOpenTerminalCommand": false,
+  "terminalProjectRootPath": "",
+  "terminalApplicationName": "",
+  "enableTerminalDebugLogging": false,
+  "enableTerminalRibbonIcon": false,
+  "enableOpenConfigFileCommand": false,
+  "configFilePath": "",
+  "enableConfigRibbonIcon": false,
+  "contentTypes": [
+    {
+      "id": "content-1790136903166",
+      "name": "Content 1",
+      "folder": "E:\\github_git\\source\\repos\\IRinsho\\Mizuki_blog\\src\\content\\posts\\blog",
+      "linkBasePath": "",
+      "template": "---\ntitle: \"{{title}}\"\ndate: {{date}}\n---\n",
+      "enabled": true,
+      "creationMode": "file",
+      "indexFileName": "",
+      "ignoreSubfolders": true,
+      "enableUnderscorePrefix": false,
+      "useMdxExtension": false,
+      "modifiedDateField": "",
+      "collapsed": false
+    }
+  ],
+  "migrationCompleted": true,
+  "helpButtonReplacement": {
+    "enabled": false,
+    "commandId": "edit-astro-config",
+    "iconId": "rocket"
+  },
+  "showMdxFilesInExplorer": false,
+  "processBackgroundFileChanges": true,
+  "externalNoteHandling": "prompt",
+  "syncDraftDate": true,
+  "draftDetectionMode": "property",
+  "draftProperty": "",
+  "draftLogic": "true-is-draft",
+  "publishDateField": "",
+  "renameOnTitleClick": true,
+  "showFolderNameAsInlineTitle": true
+}

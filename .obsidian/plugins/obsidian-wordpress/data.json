@@ -1,0 +1,34 @@
+{
+  "lang": "auto",
+  "profiles": [
+    {
+      "name": "irinsho_top",
+      "apiType": "xml-rpc",
+      "endpoint": "http://irinsho.top",
+      "xmlRpcPath": "/xmlrpc.php",
+      "saveUsername": true,
+      "savePassword": true,
+      "isDefault": true,
+      "lastSelectedCategories": [
+        33
+      ],
+      "username": "@IRinsho_14120",
+      "encryptedPassword": {
+        "key": "{\"alg\":\"A256GCM\",\"ext\":true,\"k\":\"BhI4P52-R7Z2Pz9WCP1Nu-AHppIWltisw8XVCurHZJY\",\"key_ops\":[\"encrypt\",\"decrypt\"],\"kty\":\"oct\"}",
+        "vector": "gANlmGoOAtSNM8zx",
+        "encrypted": "8alfnE6oJDXNVZpcChmwuaUOGGHyLft0nC8droxgosadlA=="
+      }
+    }
+  ],
+  "showRibbonIcon": true,
+  "defaultPostStatus": "publish",
+  "defaultCommentStatus": "open",
+  "rememberLastSelectedCategories": true,
+  "showWordPressEditConfirm": true,
+  "mathJaxOutputType": "svg",
+  "commentConvertMode": "ignore",
+  "enableHtml": false,
+  "replaceMediaLinks": true,
+  "version": "2",
+  "defaultPostType": "post"
+}

@@ -1,0 +1,10 @@
+{
+	"id": "blog-publisher",
+	"name": "Blog Publisher",
+	"version": "1.3.1",
+	"minAppVersion": "1.10.0",
+	"description": "Publish my posts to my site.",
+	"author": "joeytoday",
+	"authorUrl": "https://joeytoday.com",
+	"isDesktopOnly": false
+}

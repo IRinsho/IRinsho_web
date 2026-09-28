@@ -1,0 +1,21 @@
+{
+  "githubRepo": "Mizuki_blog",
+  "githubToken": "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",
+  "githubUserName": "IRinsho",
+  "contentBasePath": "src/content/posts/blog/",
+  "imagePath": "src/site/img/user/",
+  "imageUrlPrefix": "/img/user/",
+  "siteUrl": "",
+  "prHistory": [],
+  "siteName": "Blog Publisher",
+  "pathRewriteRules": "",
+  "publishPlatform": "SelfHosted",
+  "statusTrackingEnabled": true,
+  "statusFieldName": "status",
+  "trackStatusValue": "ongoing",
+  "publishedStatusValue": "done",
+  "logLevel": {
+    "value": 2,
+    "name": "DEBUG"
+  }
+}

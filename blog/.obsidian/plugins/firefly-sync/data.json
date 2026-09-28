@@ -1,0 +1,12 @@
+{
+  "blogRepositoryPath": "E:\\github_git\\source\\repos\\IRinsho\\Mizuki_blog",
+  "blogPostsPath": "src/content/posts/blog",
+  "blogImagesPath": "src/content/posts/images",
+  "remote": "origin",
+  "branch": "",
+  "commitMessage": "同步文章到 FireFly",
+  "proxyUrl": "",
+  "ignoreFolders": [
+    ".obsidian"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "image-auto-upload-pro",
+  "name": "Image Auto Upload Pro",
+  "version": "1.0.3",
+  "minAppVersion": "0.0.1",
+  "description": "This plugin uploads images from your clipboard by PicGo",
+  "author": "Alexzzw",
+  "authorUrl": "https://github.com/stackBreakerX/obsidian-image-auto-upload-plugin",
+  "isDesktopOnly": false,
+  "fundingUrl": ""
+}
