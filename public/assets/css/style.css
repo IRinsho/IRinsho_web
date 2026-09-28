@@ -591,6 +591,29 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   object-fit: contain;
   display: block;
 }
+
+/* ---------- 封面自对齐 + 风格化 ---------- */
+/* ① 自对齐：卡片高度跟着内容走。
+   原来是 grid 默认的 align-items: stretch —— 同一行里最矮的那张
+   会被最高的那张撑出下面一大块空白（截图里 01 号那块黑就是它）。 */
+.blog-grid { align-items: start; }
+
+/* ② 风格化：默认轻微降饱和，像老照片；鼠标悬停恢复通透 */
+.post-cover:has(img) img { filter: saturate(.9) contrast(1.03) brightness(.98); }
+.post:hover .post-cover:has(img) img,
+.post:focus-visible .post-cover:has(img) img {
+  filter: saturate(1.08) contrast(1.05) brightness(1.02);
+}
+
+/* ③ 底部渐隐：图片和卡片底色之间不留硬边，
+   顺带让右下角的分类标签（.cover-tag）更好读 */
+.post-cover:has(img) img {
+  -webkit-mask-image: linear-gradient(180deg, #000 74%, rgba(0, 0, 0, .55) 100%);
+  mask-image: linear-gradient(180deg, #000 74%, rgba(0, 0, 0, .55) 100%);
+}
+
+/* ④ 悬停时轻微放大改成"上浮"：不裁图的前提下也能有反应 */
+.post:hover .post-cover:has(img) img { transform: scale(1.015); }
 .post:hover .post-cover img { transform: scale(1.05); }
 .post-cover::after {
   content: ''; position: absolute; inset: 0;
