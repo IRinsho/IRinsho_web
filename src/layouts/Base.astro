@@ -18,7 +18,8 @@ const {
   heroImage = ''
 } = Astro.props;
 
-const { title = config.name, description = '' } = Astro.props;
+// 注意：属性解构统一在上面那段（title / description / hero…），
+// 这里不要再写一次 —— 否则 "The symbol title has already been declared"，构建会直接失败。
 
 // 当前在哪个板块（用于 body 的属性，个人页整页换浅粉底色）
 const path = Astro.url.pathname;
