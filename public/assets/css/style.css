@@ -962,6 +962,8 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   background: rgba(224, 70, 111, .92);
   color: #fff;
   font-size: 13.5px; letter-spacing: .12em;
+  font-family: inherit;
+  text-decoration: none;   /* 它是 <a>（去原站看）时也长得像按钮 */
   cursor: pointer;
   box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
   transition: transform .2s, background .2s;
@@ -1129,6 +1131,18 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   }
   .modal-body.has-ratio .embed-stage,
   .modal-body.is-vertical .embed-stage { width: 100%; height: 100%; aspect-ratio: auto; }
+  /* 不嵌播放器时（只显示封面 + 去原站按钮）：手机上收成一张居中卡片，
+     不占满整屏留一大片空黑 */
+  .modal-panel.compact {
+    height: auto;
+    max-height: 92vh;
+    width: calc(100% - 28px);
+    align-self: center;
+    margin: 0 auto;
+    border-radius: var(--radius);
+  }
+  .modal-panel.compact .modal-body { flex: 0 0 auto; }
+
   .embed-bar { flex: none; padding: 12px 14px 14px; font-size: 12px; }
   .embed-bar .play-download { padding: 7px 14px; margin-left: 8px; }
   /* 手机上竖向空间紧张，那行补充说明先收起来，只留「去原站看」按钮 */
