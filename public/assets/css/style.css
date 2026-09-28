@@ -1105,6 +1105,87 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   .gate-rail { display: none; }
 }
 
+/* ③ 鼠标视差：背景和文字按小系数、粒子按大系数偏移 → 产生纵深 */
+.gate-bg { transform: translate3d(calc(var(--mx, 0) * 12px), calc(var(--my, 0) * 12px), 0); }
+.gate-inner { transform: translate3d(calc(var(--mx, 0) * -6px), calc(var(--my, 0) * -6px), 0); }
+.gate-particles { transform: translate3d(calc(var(--mx, 0) * 26px), calc(var(--my, 0) * 26px), 0); }
+.gate-bg, .gate-inner, .gate-particles { transition: transform .5s cubic-bezier(.22, .61, .36, 1); }
+
+/* ① 漂浮粒子 */
+.gate-particles {
+  position: absolute; inset: 0; z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.gate-particles i {
+  position: absolute;
+  bottom: -12px;
+  width: 2px; height: 2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 0 9px rgba(255, 178, 205, .95), 0 0 18px rgba(224, 70, 111, .5);
+  opacity: 0;
+  animation: gateFloat var(--dur, 24s) linear var(--delay, 0s) infinite;
+}
+@keyframes gateFloat {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(.55); }
+  14%  { opacity: .9; }
+  70%  { opacity: .55; }
+  100% { opacity: 0; transform: translate3d(var(--dx, 14px), calc(-1 * var(--dy, 60vh)), 0) scale(1.15); }
+}
+
+/* ④ 黑场节拍：压黑一下再揭晓（--flash 由脚本按滚动位置算） */
+.gate-flash {
+  position: absolute; inset: 0; z-index: 3;
+  pointer-events: none;
+  background: #05060d;
+  opacity: var(--flash, 0);
+}
+
+/* ⑤ 光带扫过：一条斜向高光从画面外扫进来 */
+.gate-sweep {
+  position: absolute; inset: 0; z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    104deg,
+    transparent 40%,
+    rgba(255, 255, 255, .06) 46%,
+    rgba(255, 255, 255, .38) 50%,
+    rgba(255, 214, 228, .18) 54%,
+    transparent 60%
+  );
+  transform: translateX(calc(-130% + var(--sweep, 0) * 260%));
+  opacity: calc(var(--sweep, 0) * (1 - var(--sweep, 0)) * 5);
+}
+
+/* ② 标题注魔：渐变字 + clip-path 圆形揭晓（源站这个效果本来就是纯 CSS） */
+.gate-title {
+  background-image: linear-gradient(
+    100deg,
+    #ffffff 0%, #ffe6ef 30%, var(--rose) 48%, #ffd9e6 62%, #ffffff 92%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 6px 26px rgba(224, 70, 111, .38));
+}
+html.reveal .gate-title.is-in,
+html.js-motion .gate-title.is-in {
+  animation: gateEnchant 1.35s cubic-bezier(.22, .61, .36, 1) both;
+}
+@keyframes gateEnchant {
+  from { clip-path: circle(0% at 8% 55%); }
+  to   { clip-path: circle(150% at 8% 55%); }
+}
+/* 减少动效：标题直接显示完整（不做圆形揭晓） */
+@media (prefers-reduced-motion: reduce) {
+  html.reveal .gate-title.is-in, html.js-motion .gate-title.is-in { animation: none !important; }
+  .gate-title { clip-path: none !important; }
+  .gate-particles, .gate-flash, .gate-sweep { display: none !important; }
+  .gate-bg, .gate-inner, .gate-particles { transform: none !important; }
+}
+
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }
 
 /* =========================================================
