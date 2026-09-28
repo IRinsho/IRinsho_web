@@ -103,4 +103,48 @@ const mineName = config.name || 'IRinsho';
       </span>
     </div>
   </section>
+
+  <script>
+    /* =========================================================
+     *  背景跟随鼠标做视差
+     *  · 把指针位置换算成 -0.5~0.5 的 --mx / --my 写到 .route 上
+     *  · CSS 里不同层乘不同系数（背景图 / 左栏 / 列表）→ 有纵深
+     *  · 背景图用 background-position 而不是 transform ——
+     *    因为 ::before 上已经有 Ken Burns 的 transform 动画，
+     *    再写 transform 会被动画覆盖掉
+     *  · requestAnimationFrame 节流；系统开了「减少动态效果」直接不跑
+     * ======================================================= */
+    (function () {
+      const reduce = window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce) return;
+
+      let raf = 0;
+
+      function bind() {
+        const route = document.querySelector('.route');
+        // 防重复绑定：换页返回时这段脚本会再跑一遍
+        if (!route || route.dataset.parallax === '1') return;
+        route.dataset.parallax = '1';
+
+        window.addEventListener('mousemove', (e) => {
+          if (raf) return;
+          raf = requestAnimationFrame(() => {
+            raf = 0;
+            const r = route.getBoundingClientRect();
+            if (r.bottom < 0 || r.top > window.innerHeight) return;   // 不在视野里就不算
+            route.style.setProperty('--mx', (e.clientX / window.innerWidth - 0.5).toFixed(4));
+            route.style.setProperty('--my', (e.clientY / window.innerHeight - 0.5).toFixed(4));
+          });
+        }, { passive: true });
+      }
+
+      document.addEventListener('astro:page-load', bind);
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bind);
+      } else {
+        bind();
+      }
+    })();
+  </script>
 </Base>

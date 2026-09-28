@@ -1844,6 +1844,51 @@ html.reveal .finale {
   .route-lines i:nth-child(1), .route-lines i:nth-child(2) { animation: none !important; }
 }
 
+/* =========================================================
+ *  友链页：背景 + 各层跟随鼠标做视差
+ *  --mx / --my 由 links.astro 的脚本写入（-0.5 ~ 0.5）
+ *  ---------------------------------------------------------
+ *  ⚠ 背景图**必须**用 background-position，不能用 transform：
+ *    ::before 上已经有 Ken Burns 的 transform 动画，
+ *    再声明 transform 会被动画完全覆盖（等于没写）。
+ * ======================================================= */
+.route::before {
+  background-position:
+    calc(50% + var(--mx, 0) * 34px)
+    calc(42% + var(--my, 0) * 26px);
+  transition: background-position .5s cubic-bezier(.22, .61, .36, 1);
+}
+/* 渐变层反向轻移，和底图错开 → 纵深 */
+.route::after {
+  background-position:
+    calc(0% + var(--mx, 0) * -22px)
+    calc(0% + var(--my, 0) * -16px);
+  transition: background-position .6s cubic-bezier(.22, .61, .36, 1);
+}
+/* 左栏跟着走（顺向），列表反向走 —— 一前一后就有深度了 */
+.route-left {
+  transform: translate3d(calc(var(--mx, 0) * 13px), calc(var(--my, 0) * 11px), 0);
+  transition: transform .55s cubic-bezier(.22, .61, .36, 1);
+}
+.route-list {
+  transform: translate3d(calc(var(--mx, 0) * -9px), calc(var(--my, 0) * -7px), 0);
+  transition: transform .55s cubic-bezier(.22, .61, .36, 1);
+}
+/* 细弧线移动幅度最大 —— 最近的一层 */
+.route-lines {
+  translate: calc(var(--mx, 0) * 26px) calc(var(--my, 0) * 20px);
+  transition: translate .7s cubic-bezier(.22, .61, .36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route::before, .route::after, .route-left, .route-list, .route-lines {
+    transition: none !important;
+    transform: none !important;
+    translate: none !important;
+  }
+  .route::before { background-position: center 42%; }
+}
+
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }
 
 /* =========================================================
