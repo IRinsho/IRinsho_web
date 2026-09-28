@@ -50,6 +50,20 @@ export default [
     poster: '',
     duration: ''
   },
+  {
+    title: '四月是你的谎言',
+    desc: '四月是你的谎言',
+    category: '动漫',
+    tags: ['动漫'],
+    date: '',
+    // ⚠ 这里的 jFlBIKzLFO8 是「字母数字短码」，不是抖音的数字视频 id，
+    //    官方播放器不认它，多半播不出来。
+    //    换成 www.douyin.com/video/ 后面那串纯数字（或直接填数字）就能播。
+    douyin: 'https://www.douyin.com/video/7300469476099640591',
+    poster: '',
+    duration: ''
+  },
+  
   /* 抖音示例（把 douyin 换成你自己的分享链接即可）：
   {
     title: '随手拍的一段',
