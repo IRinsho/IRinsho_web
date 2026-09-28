@@ -23,8 +23,9 @@ export default [
     category: '动漫 ',
     tags: ['动漫'],
     date: '2025-06-01',
-    src: 'media\videos\漪潾宵的抖音 - 抖音.mp4',
-    poster: 'media\covers\Screenshot_2026_0928_140932.png',
+    src: 'media\videos\re0.mp4',
+    embed: 'https://v.douyin.com/jqnwNoFjWR4/',
+    poster: 'media\covers\re0.png',
     duration: '00:26'
   },
  
