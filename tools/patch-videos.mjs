@@ -116,6 +116,24 @@ function setField(block, field, value, opts = {}) {
   }
   if (insertAt < 0) return { block, changed: false };
 
+  // ★ 关键：插入之前必须保证「上一行有逗号」。
+  //   之前漏了这一步，结果往 duration: ''（没有尾逗号）后面插 ratio 就变成
+  //       duration: ''
+  //       ratio: '576:576',
+  //   → JavaScript 直接语法错误，整个 videos.js 读不出来（踩过）。
+  let prev = insertAt - 1;
+  while (prev >= 0 && (lines[prev].trim() === '' || lines[prev].trim().startsWith('//'))) {
+    prev--;
+  }
+  if (prev >= 0) {
+    const line = lines[prev];
+    const code = line.replace(/\s+$/, '');
+    // 仅当这行是「正常的属性行」且没有尾逗号时才补
+    if (code && !/,$/.test(code) && !/[{\[(]$/.test(code) && !/\}\s*,?$/.test(code)) {
+      lines[prev] = code + ',';
+    }
+  }
+
   const indentMatch = block.match(/\n([ \t]+)\S/);
   const indent = indentMatch ? indentMatch[1] : '    ';
   lines.splice(insertAt, 0, `${indent}${field}: ${valText},`);

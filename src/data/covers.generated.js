@@ -9,22 +9,22 @@
  *              （你填的值永远优先，这里只做兜底）
  *  想重新抓   → 删除 .cover-sync.json，或运行 npm run sync:covers -- --force
  *
- *  生成时间：2026/9/28 18:13:43
+ *  生成时间：2026/9/28 18:39:20
  *  共 2 条
  * ======================================================= */
 export default {
   "https://www.douyin.com/video/7338819585061178662": {
-    poster:   "media/covers/douyin-7338819585061178662.png",
+    poster:   "media/covers/douyin-7338819585061178662.jpg",
     title:    "奇蛋物语",
     date:     "2024-02-23",
-    duration: "",
-    ratio:    ""
+    duration: "00:12",
+    ratio:    "576:576"
   },
   "https://www.douyin.com/video/7300469476099640591": {
-    poster:   "media/covers/douyin-7300469476099640591.png",
+    poster:   "media/covers/douyin-7300469476099640591.jpg",
     title:    "四月是你的谎言",
     date:     "2023-11-12",
-    duration: "",
-    ratio:    ""
+    duration: "00:17",
+    ratio:    "1504:720"
   },
 };

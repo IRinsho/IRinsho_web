@@ -58,8 +58,9 @@ export default [
     //    官方播放器不认它，多半播不出来。
     //    换成 www.douyin.com/video/ 后面那串纯数字（或直接填数字）就能播。
     douyin: 'https://www.douyin.com/video/7338819585061178662',
-    poster: 'media/covers/douyin-7338819585061178662.png',
-    duration: ''
+    poster: 'media/covers/douyin-7338819585061178662.jpg',
+    duration: '00:12',
+    ratio: '576:576'
   },
   {
     title: '四月是你的谎言',
@@ -71,8 +72,9 @@ export default [
     //    官方播放器不认它，多半播不出来。
     //    换成 www.douyin.com/video/ 后面那串纯数字（或直接填数字）就能播。
     douyin: 'https://www.douyin.com/video/7300469476099640591',
-    poster: 'media/covers/douyin-7300469476099640591.png',
-    duration: ''
+    poster: 'media/covers/douyin-7300469476099640591.jpg',
+    duration: '00:17',
+    ratio: '1504:720',
   },
   
   /* 抖音示例（把 douyin 换成你自己的分享链接即可）：

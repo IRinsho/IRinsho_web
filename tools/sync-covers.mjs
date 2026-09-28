@@ -28,6 +28,8 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { patchVideos } from './patch-videos.mjs';
+// 抖音取画面：用 DevTools 协议精确截取 <video> 区域（不下载视频）
+import { captureDouyinFrame } from './douyin-frames.mjs';
 
 // 给 loadSharp() 用的 CommonJS require（sharp 是 CJS 包）
 const require = createRequire(import.meta.url);
@@ -673,80 +675,39 @@ async function resolveDouyin(raw, opts = {}) {
     }
   } catch (e) { /* 继续下面的浏览器渲染 */ }
 
-  // ② 正解：用本机浏览器无头渲染这个页面（它跑 JS，渲染后 DOM 里才有封面）
-  const browser = findBrowser();
-  if (browser) {
-    console.log(`      用本机浏览器渲染页面（${browser.split(/[\\/]/).pop()}）…`);
-    const videoUrl = `https://www.douyin.com/video/${numId}`;
-    const dom = renderDom(browser, videoUrl);
+  // ② 正解：用 DevTools 协议连上本机无头 Edge/Chrome，
+  //    跑完 JS 之后**只截 <video> 那一块**，顺便读时长 / 分辨率 / 日期。
+  //    （命令行 --screenshot 只能整页截，会带上抖音 UI 和大片灰底，不能用；
+  //      canvas 取帧会被跨域 tainted 挡住；CDP 的 captureScreenshot 两者都不受限。）
+  {
+    const cap = await captureDouyinFrame(numId, {
+      coverDir: opts.coverDir,
+      log: (m) => console.log(m)
+    });
 
-    if (process.env.DSH_DUMP_COVER === '1' && dom) {
-      try {
-        const f = join(tmpdir(), `irinsho-douyin-rendered-${numId}.html`);
-        writeFileSync(f, dom, 'utf8');
-        console.log(`      [诊断] 渲染后的 DOM → ${f}（${dom.length} 字节）`);
-      } catch (e) { /* 忽略 */ }
-    }
-
-    // ⚠ 不要拿「渲染后 DOM 里任意一张图」当封面！
-    //   实测踩坑：抖音页面里混着广告 / 活动图，第一张匹配到的图
-    //   可能是一张牛油果库存照（真的发生过）。
-    //   只认两种情况：① video 标签自己的 poster ② 直接截图。
-    const poster = dom && (dom.match(/<video[^>]+poster=["']([^"']+)["']/i) || [])[1];
-    if (poster && looksLikeCover(poster) && /aweme|~tplv|douyinpic/i.test(poster)) {
+    if (cap.ok) {
       return {
         ok: true,
-        cover: poster,
+        localFile: cap.file,
         numId,
-        source: '视频 poster',
-        meta: { date: dateFromText(dom) }
+        source: `CDP 精确截图（${cap.clip.width}×${cap.clip.height}）`,
+        meta: {
+          date: cap.date || '',
+          duration: cap.duration || '',
+          ratio: cap.ratio || ''
+        }
       };
-    }
-
-    // ② 截图当封面（渲染后的画面＝视频真实画面）。
-    //    优先截「播放器页」—— 那个页面只有播放器，没有抖音的页面外壳和广告。
-    console.log('      直接截图当封面…');
-    const playerPage = `https://open.douyin.com/player/video?vid=${numId}`;
-    let shot = renderShot(browser, playerPage, '720,1280');
-    let shotFrom = '播放器页截图';
-    if (!shot) {
-      shot = renderShot(browser, videoUrl, '900,1400');
-      shotFrom = '视频页截图';
-    }
-    if (shot && opts.coverDir) {
-      // 截图里通常有大片白边（播放器之外的空白），用 sharp 裁掉再缩放
-      const tidy = await tidyShot(shot);
-      const dest = join(opts.coverDir, 'douyin-' + numId + tidy.ext);
-      try {
-        writeFileSync(dest, tidy.buf);
-        return {
-          ok: true,
-          localFile: COVER_URL_PREFIX + '/' + dest.split(/[\\/]/).pop(),
-          numId,
-          source: shotFrom + (tidy.ext === '.jpg' ? '（已裁边）' : ''),
-          meta: { date: dom ? dateFromText(dom) : '' }
-        };
-      } catch (e) { /* 落到失败分支 */ }
     }
 
     return {
       ok: false,
       numId,
       finalUrl,
-      meta: dom ? { date: dateFromText(dom) } : {},
-      tried: [dom ? `渲染后 DOM ${dom.length} 字节，没有 video poster` : '无头渲染失败', '两种截图都失败'],
-      reason: '抖音封面：页面里没有可用的 poster，截图也没成功'
+      meta: {},
+      tried: [`CDP 截图失败：${cap.reason}`],
+      reason: '抖音不把封面交给服务端，CDP 精确截图也没成功'
     };
   }
-
-  return {
-    ok: false,
-    numId,
-    finalUrl,
-    meta: {},
-    tried: ['本机没找到 Edge / Chrome，无法无头渲染'],
-    reason: '抖音服务端拿不到封面；没找到可用的本机浏览器（装 Edge 或 Chrome 即可自动渲染）'
-  };
 }
 
 /** 用文件头判断是不是真图片（返回 'jpeg' / 'png' / 'webp' / 'gif' / 'avif' / ''） */
@@ -1048,15 +1009,24 @@ export async function syncCovers(options = {}) {
       continue;
     }
 
-    // 本机浏览器截图那条路：图已经落盘了，不用再下载
+    // CDP 精确截图那条路：图已经落盘，还带回了时长 / 比例 / 日期
     if (r.localFile) {
-      out[key] = { poster: r.localFile, title: meta.title || '', date: meta.date || '', duration: meta.duration || '' };
+      out[key] = {
+        poster: r.localFile,
+        title: meta.title || '',
+        date: meta.date || '',
+        duration: meta.duration || '',
+        ratio: meta.ratio || ''
+      };
       cache[key] = {
         file: r.localFile, at: Date.now(), fails: 0, numId: r.numId || '',
-        title: meta.title || '', date: meta.date || '', duration: meta.duration || ''
+        title: meta.title || '', date: meta.date || '',
+        duration: meta.duration || '', ratio: meta.ratio || ''
       };
       got++;
-      say(`    ✓ 封面 ${r.localFile}（${r.source || '本机浏览器截图'}）`);
+      say(`    ✓ 封面 ${r.localFile}（${r.source || '截图'}）`);
+      if (meta.duration) say(`      时长：${meta.duration}`);
+      if (meta.ratio) say(`      比例：${meta.ratio}`);
       if (meta.date) say(`      日期：${meta.date}`);
       continue;
     }
