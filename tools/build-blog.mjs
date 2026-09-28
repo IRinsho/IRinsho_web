@@ -206,6 +206,8 @@ export function buildBlog(options = {}) {
         : (data.tags ? String(data.tags).split(/[,，]\s*/).filter(Boolean) : []),
       date,
       summary: data.summary ? String(data.summary) : '',
+      // 置顶：frontmatter 里写 pinned: true → 在列表里排到最前面并带 📌
+      pinned: data.pinned === true || String(data.pinned).toLowerCase() === 'true',
       cover,
       content,
       _mtime: f.mtimeMs,
@@ -238,6 +240,7 @@ export function buildBlog(options = {}) {
     L.push(`    tags: ${JSON.stringify(n.tags)},`);
     L.push(`    date: ${esc(n.date)},`);
     L.push(`    summary: ${esc(n.summary)},`);
+    if (n.pinned) L.push('    pinned: true,');
     if (n.cover) L.push(`    cover: ${esc(n.cover)},`);
     L.push(`    content: ${esc(n.content)}`);
     L.push('  },');

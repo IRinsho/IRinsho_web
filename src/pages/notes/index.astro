@@ -47,7 +47,7 @@ const countOf = (c) => (c === ALL ? notes.length : notes.filter((n) => n.categor
           <span class="pm-cat">{n.category || '未分类'}</span>
           <time>{fmtSlash(n.date)}</time>
         </div>
-        <h3 class="post-title">{n.title}</h3>
+        <h3 class="post-title">{n.pinned ? '📌 ' : ''}{n.title}</h3>
         {n.summary && <p class="post-sum">{n.summary}</p>}
       </a>
     ))}

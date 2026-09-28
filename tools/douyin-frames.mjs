@@ -111,11 +111,22 @@ function connect(wsUrl, onEvent) {
   };
 }
 
-/** 这个地址像不像视频流？（mp4 / m3u8 / 抖音的 vod 域名） */
+/** 这个地址像不像视频流？（必须真的是媒体文件或点播 CDN，不能是网页地址） */
 function looksLikeStream(u) {
   if (!u || !/^https?:/i.test(u)) return false;
-  if (/\.(mp4|m4s|ts|webm|m3u8)(\?|$)/i.test(u)) return true;
-  if (/(douyinvod|bytev|vod-|media\.|aweme.*video|play)/i.test(u) && /video|media|vod/i.test(u)) return true;
+
+  // ⚠ 踩过的坑：播放器页地址里也带 "player/video"，曾被误判成视频流写进
+  //   videos.js，结果 <video src="网页地址"> 解不开 → 只好退回嵌入播放器。
+  if (/open\.douyin\.com\/player/i.test(u)) return false;
+  if (/\.(html?|js|css|json|png|jpe?g|webp|gif)(\?|$)/i.test(u)) return false;
+  if (/^https?:\/\/[^/]*douyin\.com\/(video|discover|user|search|note)\b/i.test(u)) return false;
+
+  // ① 明确的媒体文件后缀 —— 最可靠
+  if (/\.(mp4|m4s|ts|webm|m3u8|mov|flv)(\?|$)/i.test(u)) return true;
+
+  // ② 抖音的点播 CDN（部分地址不带扩展名，靠域名认）
+  if (/(douyinvod\.com|bytev\d*\.|vod-|v\d+-web|aweme.*play|tos-cn.*\/video\/)/i.test(u)) return true;
+
   return false;
 }
 
@@ -207,7 +218,8 @@ export async function captureDouyinFrame(numId, opts = {}) {
         const p = msg.params || {};
         const url = (p.response && p.response.url) || (p.request && p.request.url) || '';
         const type = (p.type || '').toLowerCase();
-        if (type === 'media' || looksLikeStream(url)) {
+        // 只收真正的媒体请求（type=Media），或地址本身明确是媒体文件/CDN
+        if (looksLikeStream(url) || (type === 'media' && /^https?:/i.test(url) && !/open\.douyin\.com\/player/i.test(url))) {
           if (!mediaUrls.includes(url)) mediaUrls.push(url);
         }
       }

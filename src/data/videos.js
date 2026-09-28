@@ -61,7 +61,7 @@ export default [
     poster: 'media/covers/douyin-7338819585061178662.jpg',
     duration: '00:12',
     ratio: '576:576',
-    stream: 'https://open.douyin.com/player/video?vid=7338819585061178662',
+    stream: 'https://v11-weba.douyinvod.com/3374f23734eeb4a8969418dcf4f3ed56/6aba764e/video/tos/cn/tos-cn-ve-0015c800/okFdgbA3nA2l8IeAKxDcL7Q32BDI9g4g5U9fmA/?a=6383&ch=26&cr=3&dr=0&lr=all&cd=0%7C0%7C0%7C3&cv=1&br=1724&bt=1724&cs=0&ds=3&ft=3.0nz3OOVYpVAWq9DUxLhdpEekt0E.s3-EDOm4~xKAoBBR4~fnZaaUy~vjTQ&mime_type=video_mp4&qs=0&rc=NWc6aWg7OmVlNmY7NGlmPEBpMzN3cWg6ZjVlcTMzNGkzM0BeYDA2YzQ2NTYxNTJhYy1eYSM1bGNjcjRnZ2BgLS1kLTBzcw%3D%3D&btag=c0000e00008000&cquery=100B_100H_100K_100o_100w&dy_q=1790594066&feature_id=f0150a16a324336cda5d6dd0b69ed299&l=202609281914260AD6A87D2F715D7558A5',
   },
   {
     title: '四月是你的谎言',
@@ -76,7 +76,7 @@ export default [
     poster: 'media/covers/douyin-7300469476099640591.jpg',
     duration: '00:17',
     ratio: '1504:720',
-    stream: 'https://open.douyin.com/player/video?vid=7300469476099640591',
+    stream: 'https://v11-weba.douyinvod.com/609b13e6c09a5211969ce80ccc6ff4e2/6aba7658/video/tos/cn/tos-cn-ve-0015c800/oUnrgmbogxzHl8GAl3fBAsNgDUIAeQAg9aCK8d/?a=6383&ch=26&cr=3&dr=0&lr=all&cd=0%7C0%7C0%7C3&cv=1&br=1522&bt=1522&cs=0&ds=3&ft=3.0nz3OOVYpVAWq9DUxLhdpEeat0E.s3-EDOm4~xKAoBBR4~fnZaaUy~vjTQ&mime_type=video_mp4&qs=0&rc=aDc8PDxkOWY0aDlmZmU5N0BpM3M1cmk6ZmU6bzMzNGkzM0A0NC0yYmJiXi0xNS0yNjQ0YSNsbjBucjQwaDVgLS1kLWFzcw%3D%3D&btag=c0000e00010000&cquery=100z_100o_100w_100B_100x&dy_q=1790594072&feature_id=f0150a16a324336cda5d6dd0b69ed299&l=20260928191432F100A1334F599DC5D85C',
   },
   
   /* 抖音示例（把 douyin 换成你自己的分享链接即可）：
