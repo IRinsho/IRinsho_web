@@ -990,6 +990,17 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 }
 .gate-bg { position: absolute; inset: 0; z-index: 0; }
 
+/* 进场动画放在**外层**：
+   这样即使脚本没跑（例如换页返回时脚本没重新初始化），
+   它自己也会播完并停在"完全可见"，绝不会留下一个空的首屏。
+   （之前把 opacity:0 放在 .gate-hero 上、靠脚本加 .is-ready 才显示，
+     换页回来脚本没跑 → 首屏就是一片空的，这是个真 bug） */
+.gate-bg { animation: gateBgIn .9s cubic-bezier(.22, .61, .36, 1) both; }
+@keyframes gateBgIn {
+  from { opacity: 0; transform: scale(1.02); }
+  to   { opacity: 1; transform: none; }
+}
+
 /* 两层画面：都是 cover 铺满，靠 --gate-p 交叉淡入淡出 */
 .gate-layer {
   position: absolute;
@@ -1001,18 +1012,11 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 }
 .gate-hero {
   background-image: var(--hero);
-  opacity: 0;
-  transform: scale(1.02);
-  /* 进场用长一点的过渡（好看）；滚动时进度每帧都在变，
-     过渡时间太长会"拖"，所以取 .7s/.9s 这个折中值 */
-  transition: opacity .7s cubic-bezier(.22, .61, .36, 1), transform .9s cubic-bezier(.22, .61, .36, 1);
-}
-.gate.is-ready .gate-hero { opacity: 1; transform: scale(1); }
-
-/* 滚动时：主视觉继续推近并淡出，终幕画面从 1.05 缩回 1 淡入 */
-.gate.is-ready .gate-hero {
+  /* ⚠ 这里**不能**默认 opacity:0 再等脚本加类 —— 脚本没跑（换页返回）
+     就会剩一个空首屏。默认可见，滚动进度再来接管透明度。 */
   opacity: calc(1 - var(--gate-p, 0) * 0.9);
   transform: scale(calc(1 + var(--gate-p, 0) * 0.08));
+  transition: opacity .7s cubic-bezier(.22, .61, .36, 1), transform .9s cubic-bezier(.22, .61, .36, 1);
 }
 .gate-finale {
   background-image: var(--finale);

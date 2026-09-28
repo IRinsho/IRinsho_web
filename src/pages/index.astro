@@ -147,17 +147,22 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
      *  · 全部用 requestAnimationFrame 节流，避免滚动时掉帧
      *  · 系统开了「减少动态效果」→ 不绑任何东西，直接静态显示主视觉
      * ======================================================= */
-    (function () {
+    function initGate() {
       const reduce = window.matchMedia &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const gate = document.getElementById('homeGate');
       const rail = document.getElementById('gateRail');
+
+      // ⚠ 防重复绑定：换页返回时 Astro 会把这段脚本再跑一遍，
+      //   不拦一下就会叠加一堆 scroll / mousemove 监听
+      if (!gate || gate.dataset.gateBound === '1') return;
+      gate.dataset.gateBound = '1';
+
       if (reduce) {
-        if (gate) gate.style.setProperty('--gate-p', '0');
+        gate.style.setProperty('--gate-p', '0');
         if (rail) rail.style.opacity = '0';
         return;
       }
-      if (!gate) return;
 
       let ticking = false;
 
@@ -212,6 +217,15 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       probe.src = (getComputedStyle(gate).getPropertyValue('--hero') || '')
         .replace(/^url\(["']?/, '').replace(/["']?\)$/, '').trim();
       setTimeout(() => gate.classList.add('is-ready'), 2500);   // 兜底
-    })();
+    }
+
+    /* 首次加载 + 每次换页返回都要重新初始化
+       （之前只在首次加载跑，换页回来主视觉和终幕就都不显示了） */
+    document.addEventListener('astro:page-load', initGate);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initGate);
+    } else {
+      initGate();
+    }
   </script>
 </Base>
