@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="旅行手记">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14532d"/>
+      <stop offset="0.55" stop-color="#059669"/>
+      <stop offset="1" stop-color="#14532d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.24" r="0.7">
+      <stop offset="0" stop-color="#a3e635" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#a3e635" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect width="1280" height="720" fill="url(#glow)"/>
+  <rect x="366" y="261" width="164" height="164" rx="20" fill="#fff" opacity="0.16" transform="rotate(19.8 448 343)"/><rect x="278" y="146" width="252" height="252" rx="32" fill="#fff" opacity="0.15" transform="rotate(-8.1 404 273)"/><circle cx="567" cy="638" r="160" fill="#fff" opacity="0.07"/><rect x="739" y="261" width="412" height="412" rx="51" fill="#fff" opacity="0.19" transform="rotate(-25.8 945 467)"/><circle cx="817" cy="473" r="203" fill="#fff" opacity="0.10"/><circle cx="591" cy="617" r="168" fill="#fff" opacity="0.12"/><rect x="886" y="490" width="292" height="292" rx="37" fill="#fff" opacity="0.09" transform="rotate(14.5 1032 636)"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Segoe UI, sans-serif" fill="#ffffff">
+    <text x="76.8" y="619.2" font-size="61" font-weight="700" opacity="0.95">旅行手记</text>
+    <text x="76.8" y="669.6" font-size="30" opacity="0.7">示例封面 · 请替换</text>
+  </g>
+</svg>

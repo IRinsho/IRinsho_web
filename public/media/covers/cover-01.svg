@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="风景片段">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.55" stop-color="#1e40af"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.24" r="0.7">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect width="1280" height="720" fill="url(#glow)"/>
+  <circle cx="580" cy="671" r="179" fill="#fff" opacity="0.16"/><circle cx="156" cy="313" r="211" fill="#fff" opacity="0.10"/><circle cx="630" cy="707" r="96" fill="#fff" opacity="0.18"/><circle cx="995" cy="353" r="104" fill="#fff" opacity="0.11"/><circle cx="1242" cy="312" r="229" fill="#fff" opacity="0.21"/><circle cx="331" cy="277" r="187" fill="#fff" opacity="0.08"/><circle cx="549" cy="665" r="155" fill="#fff" opacity="0.18"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Segoe UI, sans-serif" fill="#ffffff">
+    <text x="76.8" y="619.2" font-size="61" font-weight="700" opacity="0.95">风景片段</text>
+    <text x="76.8" y="669.6" font-size="30" opacity="0.7">示例封面 · 请替换</text>
+  </g>
+</svg>

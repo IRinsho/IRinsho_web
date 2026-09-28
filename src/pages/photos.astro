@@ -1,0 +1,157 @@
+---
+import Base from '../layouts/Base.astro';
+import { photos, albums, ALL } from '../lib/photos.js';
+import { asset } from '../lib/url.js';
+import { pad2, fmtCN } from '../lib/format.js';
+
+const countOf = (a) => (a === ALL ? photos.length : photos.filter((p) => p.album === a).length);
+---
+<Base title="相册 · IRinsho">
+  <div class="page-head">
+    <div class="eyebrow">
+      <span class="eyebrow-num">002</span>
+      <span class="eyebrow-line"></span>
+      <span class="eyebrow-text">GALLERY / PORTRAIT LOG</span>
+    </div>
+    <div class="page-title-row">
+      <h1 class="page-title">相册</h1>
+      <p class="page-sub">{photos.length} 张 · {albums.length - 1} 个分类</p>
+    </div>
+  </div>
+
+  <div class="filters" id="filters">
+    {albums.map((a, i) => (
+      <button class={'filter' + (i === 0 ? ' active' : '')} data-album={a}>{a}<i>{countOf(a)}</i></button>
+    ))}
+  </div>
+
+  <div class="photo-grid" id="photoGrid">
+    {photos.map((p, i) => (
+      <figure
+        class="photo-card"
+        data-index={i}
+        data-album={p.album}
+        data-src={asset(p.src)}
+        data-title={p.title}
+        data-desc={[p.desc, p.album, fmtCN(p.date)].filter(Boolean).join(' · ')}
+        tabindex="0"
+        role="button"
+        aria-label={'查看 ' + p.title}
+      >
+        <span class="card-no">{pad2(i + 1)}</span>
+        <img src={asset(p.src)} alt={p.title} loading="lazy" />
+        <span class="card-corner">{p.album} LOG</span>
+        <figcaption>
+          <strong>{p.title}</strong>
+          {p.desc && <span>{p.desc}</span>}
+          {p.tags.length > 0 && (
+            <div class="chips">
+              {p.tags.map((t) => <span class="chip">#{t}</span>)}
+            </div>
+          )}
+        </figcaption>
+      </figure>
+    ))}
+  </div>
+
+  {photos.length === 0 && (
+    <p class="empty">
+      还没有照片。把图片放进 <code>img/</code> 文件夹，然后运行 <code>npm run sync</code>。
+    </p>
+  )}
+
+  <!-- 灯箱 -->
+  <div class="lightbox" id="lightbox" hidden>
+    <button class="lb-btn lb-close" data-lb="close" aria-label="关闭">✕</button>
+    <button class="lb-btn lb-prev" data-lb="prev" aria-label="上一张">‹</button>
+    <figure class="lb-stage">
+      <img id="lbImage" alt="" />
+      <figcaption class="lb-caption">
+        <strong id="lbTitle"></strong>
+        <span id="lbDesc"></span>
+        <span class="lb-counter" id="lbCounter"></span>
+      </figcaption>
+    </figure>
+    <button class="lb-btn lb-next" data-lb="next" aria-label="下一张">›</button>
+  </div>
+
+  <script>
+    const box = document.getElementById('lightbox');
+    const imgEl = document.getElementById('lbImage');
+    const titleEl = document.getElementById('lbTitle');
+    const descEl = document.getElementById('lbDesc');
+    const counterEl = document.getElementById('lbCounter');
+    let current = -1;
+
+    const visible = () =>
+      Array.from(document.querySelectorAll('.photo-card')).filter((el) => !el.hidden);
+
+    function open(i) {
+      const list = visible();
+      if (i < 0 || i >= list.length) return;
+      current = i;
+      const el = list[i];
+      imgEl.src = el.dataset.src;
+      imgEl.alt = el.dataset.title || '';
+      titleEl.textContent = el.dataset.title || '';
+      descEl.textContent = el.dataset.desc || '';
+      counterEl.textContent = String(i + 1).padStart(2, '0') + ' / ' + String(list.length).padStart(2, '0');
+      box.hidden = false;
+      document.body.style.overflow = 'hidden';
+    }
+
+    function close() {
+      box.hidden = true;
+      imgEl.removeAttribute('src');
+      current = -1;
+      document.body.style.overflow = '';
+    }
+
+    function step(d) {
+      const list = visible();
+      if (current < 0 || !list.length) return;
+      open((current + d + list.length) % list.length);
+    }
+
+    // 分类筛选
+    document.getElementById('filters').addEventListener('click', (e) => {
+      const btn = e.target.closest('.filter');
+      if (!btn) return;
+      document.querySelectorAll('#filters .filter').forEach((b) => b.classList.toggle('active', b === btn));
+      const album = btn.dataset.album;
+      document.querySelectorAll('.photo-card').forEach((el) => {
+        el.hidden = album !== '全部' && el.dataset.album !== album;
+      });
+      close();
+    });
+
+    // 打开灯箱
+    document.getElementById('photoGrid').addEventListener('click', (e) => {
+      const card = e.target.closest('.photo-card');
+      if (card) open(visible().indexOf(card));
+    });
+    document.getElementById('photoGrid').addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const card = e.target.closest('.photo-card');
+      if (card) { e.preventDefault(); open(visible().indexOf(card)); }
+    });
+
+    box.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-lb]');
+      if (!btn) {
+        if (e.target.id === 'lightbox' || e.target.classList.contains('lb-stage')) close();
+        return;
+      }
+      if (btn.dataset.lb === 'close') close();
+      if (btn.dataset.lb === 'prev') step(-1);
+      if (btn.dataset.lb === 'next') step(1);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (box.hidden) return;
+      if (e.key === 'Escape') close();
+      if (e.key === 'ArrowLeft') step(-1);
+      if (e.key === 'ArrowRight') step(1);
+    });
+  </script>
+</Base>

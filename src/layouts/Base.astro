@@ -1,0 +1,109 @@
+---
+import config from '../data/config.js';
+import { asset } from '../lib/url.js';
+
+const { title = config.name, description = '' } = Astro.props;
+
+// 当前在哪个板块（用于 body 的属性，个人页整页换浅粉底色）
+const path = Astro.url.pathname;
+const view = path === '/' || path === ''
+  ? 'home'
+  : /^\/photos/.test(path) ? 'photos'
+  : /^\/videos/.test(path) ? 'videos'
+  : /^\/notes/.test(path) ? 'notes'
+  : /^\/me/.test(path) ? 'me'
+  : 'home';
+
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5.8 9.2V20h12.4V9.2"/>',
+  photos: '<rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.6" cy="9.6" r="1.5"/><path d="m4 17.5 5-5 4 4 3-2.5 4 3.5"/>',
+  videos: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10.5 9.2 5 2.8-5 2.8z"/>',
+  notes: '<path d="M6.5 3h8L19 7.5V21H6.5z"/><path d="M14.5 3v4.5H19"/><path d="M9.5 12.5h6M9.5 16h6"/>',
+  me: '<circle cx="12" cy="8.6" r="3.6"/><path d="M5 20.5c0-3.9 3.1-6.6 7-6.6s7 2.7 7 6.6"/>'
+};
+
+const NAV = [
+  { key: 'home', href: '/', label: 'HOME' },
+  { key: 'photos', href: '/photos/', label: 'GALLERY' },
+  { key: 'videos', href: '/videos/', label: 'VIDEO' },
+  { key: 'notes', href: '/notes/', label: 'BLOG' },
+  { key: 'me', href: '/me/', label: 'ME' }
+];
+
+// 品牌名分色
+const name = config.name || '';
+const accent = config.nameAccent || '';
+const ai = accent ? name.indexOf(accent) : -1;
+const nameBefore = ai >= 0 ? name.slice(0, ai) : name;
+const nameAfter = ai >= 0 ? name.slice(ai + accent.length) : '';
+
+const year = new Date().getFullYear();
+const footerText = String(config.footer || '').replace('{year}', year);
+---
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{title}</title>
+  <meta name="author" content={config.author || config.name}>
+  {description && <meta name="description" content={description}>}
+  <link rel="icon" href={asset('favicon.svg')}>
+  <link rel="stylesheet" href={asset('assets/css/style.css')}>
+</head>
+<body data-view={view}>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href={asset('')}>
+      <span class="brand-mark">◆</span>
+      <span class="brand-text">
+        <b>{nameBefore}{accent && <em>{accent}</em>}{nameAfter}</b>
+      </span>
+    </a>
+
+    <nav class="tabs" id="navTabs" aria-label="主导航">
+      {NAV.map((item) => (
+        <a class={'tab' + (item.key === view ? ' active' : '')} href={asset(item.href)}>
+          <svg viewBox="0 0 24 24" set:html={ICONS[item.key]} />
+          {item.label}
+        </a>
+      ))}
+    </nav>
+
+    <div class="topbar-actions">
+      <a class="avatar-btn" href={asset('me/')} title="个人档案">
+        <img src={asset(config.avatar)} alt="头像">
+      </a>
+      <button class="icon-btn menu-btn" id="menuToggle" title="菜单" aria-label="菜单">☰</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <slot />
+</main>
+
+<footer class="footer">
+  <span>{footerText}</span>
+</footer>
+
+<script>
+  // 窄屏的下拉菜单
+  const menuBtn = document.getElementById('menuToggle');
+  const tabs = document.querySelector('.tabs');
+  if (menuBtn && tabs) {
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      tabs.classList.toggle('open');
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.tabs') && !e.target.closest('#menuToggle')) {
+        tabs.classList.remove('open');
+      }
+    });
+  }
+</script>
+
+</body>
+</html>

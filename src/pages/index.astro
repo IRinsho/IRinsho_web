@@ -1,0 +1,57 @@
+---
+import Base from '../layouts/Base.astro';
+import config from '../data/config.js';
+import videos from '../data/videos.js';
+import { photos } from '../lib/photos.js';
+import { asset } from '../lib/url.js';
+import { pad2 } from '../lib/format.js';
+
+// 每格挑一张图做底；没有图就用渐变色兜底
+function panelArt(key) {
+  if (key === 'me') return config.avatar || '';
+  if (key === 'videos') return (videos[0] && videos[0].poster) || '';
+  const idx = { home: 0, photos: 1, notes: 2 }[key];
+  const p = photos[idx == null ? 0 : idx] || photos[0];
+  return p ? p.src : '';
+}
+
+const PANELS = [
+  { no: '01', name: 'HOME', sub: '首页章节', href: '/', key: 'home', cls: 'panel-home' },
+  { no: '02', name: 'GALLERY', sub: '相册库存', href: '/photos/', key: 'photos', cls: '' },
+  { no: '03', name: 'VIDEO', sub: '影像信号', href: '/videos/', key: 'videos', cls: '' },
+  { no: '04', name: 'BLOG', sub: '笔记残片', href: '/notes/', key: 'notes', cls: '' },
+  { no: '05', name: 'ME', sub: '个人档案', href: '/me/', key: 'me', cls: '' }
+].map((p) => ({ ...p, art: panelArt(p.key) }));
+
+const chapters = config.chapters || [];
+const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? '' : '.';
+---
+<Base title={`${config.name} · 个人档案`} description={config.homeMotto}>
+  <div class="home-head">
+    <div class="home-title-row">
+      <h1 class="home-title">{config.homeTitle}<em>{titleSuffix}</em></h1>
+      <p class="home-motto">{config.homeMotto}</p>
+    </div>
+  </div>
+
+  <div class="panels">
+    {PANELS.map((p) => (
+      <a class={'panel ' + p.cls} href={asset(p.href)}>
+        {p.art && <span class="panel-art" style={`background-image:url('${asset(p.art)}')`}></span>}
+        <span class="panel-plate">
+          <span class="p-num">{p.no}</span>
+          <span class="p-name">{p.name}<i>↗</i></span>
+          <span class="p-sub">{p.sub}</span>
+        </span>
+      </a>
+    ))}
+  </div>
+
+  <nav class="chapters">
+    <span class="chapters-label">首页章节</span>
+    <span class="chapters-count">{pad2(chapters.length)}</span>
+    {chapters.map((c) => (
+      <a class="chapter" href={asset(c.href)}><b>{c.no}</b>{c.label}</a>
+    ))}
+  </nav>
+</Base>

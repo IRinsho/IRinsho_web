@@ -1,0 +1,74 @@
+---
+import Base from '../../layouts/Base.astro';
+import { notes } from '../../lib/notes.js';
+import { renderMarkdown, escapeHtml } from '../../lib/markdown.js';
+import { asset } from '../../lib/url.js';
+import { fmtSlash } from '../../lib/format.js';
+
+export function getStaticPaths() {
+  return notes.map((n) => ({ params: { id: n.id }, props: { note: n } }));
+}
+
+const { note } = Astro.props;
+
+// 正文里形如 media/notes/xxx.png 的相对路径，要补上 base 前缀，
+// 否则在 /notes/xxx/ 这一层会 404
+function withBase(html) {
+  return html.replace(/(src|href)="(?!https?:|\/\/|\/|#|mailto:)([^"]+)"/g,
+    (m, attr, url) => attr + '="' + asset(url) + '"');
+}
+
+const header =
+  '<div class="eyebrow">' +
+    '<span class="eyebrow-num">' + escapeHtml(note.category || 'NOTE') + '</span>' +
+    '<span class="eyebrow-line"></span>' +
+    '<span class="eyebrow-text">' + escapeHtml(fmtSlash(note.date)) + '</span>' +
+  '</div>' +
+  '<h1>' + escapeHtml(note.title) + '</h1>' +
+  (note.summary ? '<blockquote><p>' + escapeHtml(note.summary) + '</p></blockquote>' : '');
+
+const tagsHtml = (note.tags && note.tags.length)
+  ? '<div class="chips">' +
+    note.tags.map((t) => '<span class="chip">#' + escapeHtml(t) + '</span>').join('') +
+    '</div>'
+  : '';
+
+const bodyHtml = header + withBase(renderMarkdown(note.content || '')) + tagsHtml;
+const crumb = [note.category, fmtSlash(note.date), note.title].filter(Boolean).join('  /  ');
+---
+<Base title={`${note.title} · IRinsho`} description={note.summary}>
+  <div class="post-bar">
+    <a class="post-back" href={asset('notes/')}><span>←</span>返回列表</a>
+    <span class="post-crumb">{crumb}</span>
+    <button class="icon-btn" id="copyLinkBtn" title="复制这篇的链接">🔗</button>
+  </div>
+
+  <article class="markdown" set:html={bodyHtml} />
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script>
+    const btn = document.getElementById('copyLinkBtn');
+    const toast = document.getElementById('toast');
+
+    function show(msg) {
+      toast.textContent = msg;
+      toast.hidden = false;
+      setTimeout(() => { toast.hidden = true; }, 2800);
+    }
+
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const url = location.href;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(
+            () => show('链接已复制'),
+            () => show(url)
+          );
+        } else {
+          show(url);
+        }
+      });
+    }
+  </script>
+</Base>

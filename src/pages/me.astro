@@ -1,0 +1,88 @@
+---
+import Base from '../layouts/Base.astro';
+import config from '../data/config.js';
+import { asset } from '../lib/url.js';
+
+const me = config.me || {};
+const sidenav = me.sidenav || [];
+const friend = me.friend || {};
+const friendUrl = friend.url || '';
+const friendEmpty = !friendUrl || friendUrl === '#';
+
+const linkIcon = '<path d="M10.5 13.5a5 5 0 0 0 7 0l2.5-2.5a5 5 0 0 0-7-7l-1 1"/>' +
+                 '<path d="M13.5 10.5a5 5 0 0 0-7 0L4 13a5 5 0 0 0 7 7l1-1"/>';
+---
+<Base title={`${config.name} · 个人档案`}>
+  <div class="me-grid">
+    <figure class="me-photo">
+      {me.photo && <img src={asset(me.photo)} alt="个人图片" />}
+      {me.decor && <span class="me-decor">{me.decor}</span>}
+      <figcaption class="me-photo-cap">
+        <b>{me.decorSub}</b>
+        <span>{config.name} / PERSONAL SIGNAL</span>
+      </figcaption>
+    </figure>
+
+    <div class="me-body">
+      <div class="eyebrow">
+        <span class="eyebrow-num">{me.no}</span>
+        <span class="eyebrow-line"></span>
+        <span class="eyebrow-text">{me.label}</span>
+      </div>
+
+      <h1 class="me-quote">{me.quote}</h1>
+      <p class="me-bio">{me.bio}</p>
+
+      {me.links && me.links.length > 0 && (
+        <div class="me-links">
+          {me.links.map((l) => (
+            <a href={l.url} target="_blank" rel="noopener noreferrer">
+              <svg viewBox="0 0 24 24" set:html={linkIcon} />
+              {l.label}
+              <span class="ml-arrow">↗</span>
+            </a>
+          ))}
+        </div>
+      )}
+
+      <a
+        class="me-friend"
+        id="meFriend"
+        href={friendEmpty ? asset('me/') : friendUrl}
+        data-empty={friendEmpty ? '1' : ''}
+        target={friendEmpty ? '' : '_blank'}
+        rel="noopener noreferrer"
+      >
+        <span class="mf-icon">♡</span>
+        <span class="mf-text"><i>{friend.label}</i><b>{friend.text}</b></span>
+        <span class="mf-arrow">↗</span>
+      </a>
+    </div>
+
+    <nav class="me-sidenav">
+      {sidenav.map((item) => (
+        <a class={item.view === 'me' ? 'active' : ''} href={asset(item.href)}>{item.label}</a>
+      ))}
+    </nav>
+  </div>
+
+  <div class="me-foot">
+    <span>{me.footLeft}</span>
+    <span>{me.footRight}</span>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script>
+    const friend = document.getElementById('meFriend');
+    const toast = document.getElementById('toast');
+    if (friend && friend.dataset.empty) {
+      friend.addEventListener('click', (e) => {
+        e.preventDefault();
+        toast.textContent = '把 src/data/config.js 里 friend.url 换成你的友链地址';
+        toast.hidden = false;
+        setTimeout(() => { toast.hidden = true; }, 2800);
+      });
+    }
+  </script>
+</Base>

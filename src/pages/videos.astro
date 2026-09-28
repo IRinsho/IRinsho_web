@@ -1,0 +1,140 @@
+---
+import Base from '../layouts/Base.astro';
+import videos from '../data/videos.js';
+import { asset } from '../lib/url.js';
+import { fmtSlash } from '../lib/format.js';
+
+const cats = ['全部'].concat(
+  videos.reduce((acc, v) => {
+    if (v.category && acc.indexOf(v.category) === -1) acc.push(v.category);
+    return acc;
+  }, [])
+);
+const countOf = (c) => (c === '全部' ? videos.length : videos.filter((v) => v.category === c).length);
+
+const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+---
+<Base title="视频 · IRinsho">
+  <div class="page-head">
+    <div class="eyebrow">
+      <span class="eyebrow-num">003</span>
+      <span class="eyebrow-line"></span>
+      <span class="eyebrow-text">VIDEO / SIGNAL LOG</span>
+    </div>
+    <div class="page-title-row">
+      <h1 class="page-title">视频</h1>
+      <p class="page-sub">{videos.length} 个视频</p>
+    </div>
+  </div>
+
+  <div class="filters" id="videoFilters">
+    {cats.map((c, i) => (
+      <button class={'filter' + (i === 0 ? ' active' : '')} data-category={c}>{c}<i>{countOf(c)}</i></button>
+    ))}
+  </div>
+
+  <div class="video-grid" id="videoGrid">
+    {sorted.map((v, i) => (
+      <article
+        class="video-card"
+        data-index={i}
+        data-category={v.category}
+        data-title={v.title}
+        data-meta={[v.category, fmtSlash(v.date), v.duration].filter(Boolean).join('  /  ')}
+        data-desc={v.desc || ''}
+        data-embed={v.embed || ''}
+        data-src={v.embed ? '' : (v.src || '')}
+        data-poster={v.poster ? asset(v.poster) : ''}
+        tabindex="0"
+        role="button"
+      >
+        <div class="thumb">
+          {v.poster ? <img src={asset(v.poster)} alt={v.title} loading="lazy" /> : <div class="thumb-fallback"></div>}
+          <span class="play">▶</span>
+          {v.duration && <span class="dur">{v.duration}</span>}
+        </div>
+        <div class="vc-body">
+          <h3>{v.title}</h3>
+          {v.desc && <p>{v.desc}</p>}
+          <div class="vc-meta">{v.category || '未分类'} / {fmtSlash(v.date)}{v.duration ? ' / ' + v.duration : ''}</div>
+          {v.tags && v.tags.length > 0 && (
+            <div class="chips">
+              {v.tags.map((t) => <span class="chip">#{t}</span>)}
+            </div>
+          )}
+        </div>
+      </article>
+    ))}
+  </div>
+
+  {videos.length === 0 && (
+    <p class="empty">还没有视频。把 mp4 放进 <code>public/media/videos/</code>，然后在 <code>src/data/videos.js</code> 里登记一条。</p>
+  )}
+
+  <!-- 播放弹窗 -->
+  <div class="modal" id="videoModal" hidden>
+    <div class="modal-backdrop" data-modal="close"></div>
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div>
+          <h3 id="vmTitle"></h3>
+          <p id="vmMeta"></p>
+        </div>
+        <button class="icon-btn" data-modal="close" aria-label="关闭">✕</button>
+      </div>
+      <div class="modal-body" id="vmBody"></div>
+      <p class="modal-desc" id="vmDesc"></p>
+    </div>
+  </div>
+
+  <script>
+    const modal = document.getElementById('videoModal');
+    const body = document.getElementById('vmBody');
+
+    function open(card) {
+      document.getElementById('vmTitle').textContent = card.dataset.title || '';
+      document.getElementById('vmMeta').textContent = card.dataset.meta || '';
+      document.getElementById('vmDesc').textContent = card.dataset.desc || '';
+      if (card.dataset.embed) {
+        body.innerHTML =
+          '<iframe src="' + card.dataset.embed + '" allowfullscreen scrolling="no" frameborder="0"></iframe>';
+      } else {
+        body.innerHTML =
+          '<video controls autoplay playsinline' +
+          (card.dataset.poster ? ' poster="' + card.dataset.poster + '"' : '') +
+          ' src="' + card.dataset.src + '"></video>';
+      }
+      modal.hidden = false;
+      document.body.style.overflow = 'hidden';
+    }
+
+    function close() {
+      modal.hidden = true;
+      body.innerHTML = '';   // 清空以停止播放
+      document.body.style.overflow = '';
+    }
+
+    document.getElementById('videoFilters').addEventListener('click', (e) => {
+      const btn = e.target.closest('.filter');
+      if (!btn) return;
+      document.querySelectorAll('#videoFilters .filter').forEach((b) => b.classList.toggle('active', b === btn));
+      const cat = btn.dataset.category;
+      document.querySelectorAll('.video-card').forEach((el) => {
+        el.hidden = cat !== '全部' && el.dataset.category !== cat;
+      });
+    });
+
+    document.getElementById('videoGrid').addEventListener('click', (e) => {
+      const card = e.target.closest('.video-card');
+      if (card) open(card);
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target.closest('[data-modal]')) close();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (!modal.hidden && e.key === 'Escape') close();
+    });
+  </script>
+</Base>

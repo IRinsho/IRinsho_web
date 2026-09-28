@@ -1,0 +1,106 @@
+---
+import Base from '../../layouts/Base.astro';
+import { notes, categories, ALL } from '../../lib/notes.js';
+import { asset } from '../../lib/url.js';
+import { pad2, fmtSlash, hueFor } from '../../lib/format.js';
+
+const countOf = (c) => (c === ALL ? notes.length : notes.filter((n) => n.category === c).length);
+---
+<Base title="Blog · IRinsho">
+  <div class="blog-bar">
+    <label class="blog-search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+      <input id="notesSearch" type="search" placeholder="搜索标题 / 标签 / 摘要" autocomplete="off" aria-label="搜索笔记" />
+    </label>
+
+    <div class="blog-filters" id="blogFilters">
+      {categories.map((c, i) => (
+        <button class={i === 0 ? 'active' : ''} data-cat={c}>{c}</button>
+      ))}
+    </div>
+
+    <span class="blog-count" id="notesCount">{pad2(notes.length)} SIGNALS</span>
+  </div>
+
+  <div class="blog-grid" id="blogGrid">
+    {notes.map((n, i) => (
+      <a
+        class="post"
+        href={asset('notes/' + n.id + '/')}
+        data-category={n.category}
+        data-search={[n.title, n.summary, n.category, (n.tags || []).join(' ')].join(' ').toLowerCase()}
+      >
+        {n.cover ? (
+          <div class="post-cover">
+            <img src={asset(n.cover)} alt={n.title} loading="lazy" />
+            <span class="cover-tag">{n.category || 'NOTE'}</span>
+          </div>
+        ) : (
+          <div class="post-cover post-cover--gen" style={`--h:${hueFor(n.category || n.title)}`}>
+            <b>{pad2(i + 1)}</b>
+            <span class="cover-tag">{n.category || 'NOTE'}</span>
+          </div>
+        )}
+
+        <div class="post-meta">
+          <span>{pad2(i + 1)}</span>
+          <span class="pm-cat">{n.category || '未分类'}</span>
+          <time>{fmtSlash(n.date)}</time>
+        </div>
+        <h3 class="post-title">{n.title}</h3>
+        {n.summary && <p class="post-sum">{n.summary}</p>}
+      </a>
+    ))}
+  </div>
+
+  {notes.length === 0 && (
+    <p class="empty">
+      还没有笔记。用 Obsidian 打开 <code>blog/</code> 文件夹写一篇，然后运行 <code>npm run sync</code>。
+    </p>
+  )}
+
+  <script>
+    const grid = document.getElementById('blogGrid');
+    const input = document.getElementById('notesSearch');
+    const countEl = document.getElementById('notesCount');
+    const cards = Array.from(document.querySelectorAll('.post'));
+    let cat = '全部';
+
+    function apply() {
+      const q = (input.value || '').trim().toLowerCase();
+      let shown = 0;
+      cards.forEach((el) => {
+        const okCat = cat === '全部' || el.dataset.category === cat;
+        const okQ = !q || (el.dataset.search || '').includes(q);
+        const show = okCat && okQ;
+        el.hidden = !show;
+        if (show) shown++;
+      });
+      countEl.textContent = String(shown).padStart(2, '0') + ' SIGNALS';
+    }
+
+    if (grid) {
+      document.getElementById('blogFilters').addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        document.querySelectorAll('#blogFilters button').forEach((b) => b.classList.toggle('active', b === btn));
+        cat = btn.dataset.cat;
+        apply();
+      });
+
+      let timer = null;
+      input.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(apply, 120);
+      });
+
+      // 按 / 快速跳到搜索框
+      document.addEventListener('keydown', (e) => {
+        if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+          e.preventDefault();
+          input.focus();
+        }
+      });
+    }
+  </script>
+</Base>

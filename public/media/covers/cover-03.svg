@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="学习录屏">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#450a0a"/>
+      <stop offset="0.55" stop-color="#b91c1c"/>
+      <stop offset="1" stop-color="#450a0a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.24" r="0.7">
+      <stop offset="0" stop-color="#fb923c" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#fb923c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect width="1280" height="720" fill="url(#glow)"/>
+  <circle cx="925" cy="264" r="91" fill="#fff" opacity="0.10"/><rect x="753" y="310" width="363" height="363" rx="45" fill="#fff" opacity="0.11" transform="rotate(9.9 934 491)"/><rect x="10" y="164" width="314" height="314" rx="39" fill="#fff" opacity="0.20" transform="rotate(-3.8 168 321)"/><rect x="-79" y="46" width="365" height="365" rx="46" fill="#fff" opacity="0.13" transform="rotate(-15.7 103 228)"/><rect x="177" y="508" width="234" height="234" rx="29" fill="#fff" opacity="0.17" transform="rotate(-11.1 294 625)"/><rect x="-27" y="152" width="123" height="123" rx="15" fill="#fff" opacity="0.10" transform="rotate(-0.4 34 214)"/><rect x="171" y="462" width="331" height="331" rx="41" fill="#fff" opacity="0.08" transform="rotate(27.4 336 627)"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Segoe UI, sans-serif" fill="#ffffff">
+    <text x="76.8" y="619.2" font-size="61" font-weight="700" opacity="0.95">学习录屏</text>
+    <text x="76.8" y="669.6" font-size="30" opacity="0.7">示例封面 · 请替换</text>
+  </g>
+</svg>
