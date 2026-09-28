@@ -53,12 +53,12 @@ export default [
     desc: '奇蛋物语',
     category: '动漫',
     tags: ['动漫'],
-    date: '',
+    date: '2024-02-23',
     // ⚠ 这里的 jFlBIKzLFO8 是「字母数字短码」，不是抖音的数字视频 id，
     //    官方播放器不认它，多半播不出来。
     //    换成 www.douyin.com/video/ 后面那串纯数字（或直接填数字）就能播。
     douyin: 'https://www.douyin.com/video/7338819585061178662',
-    poster: '',
+    poster: 'media/covers/7338819585061178662.jpg',
     duration: ''
   },
   {
@@ -66,12 +66,12 @@ export default [
     desc: '四月是你的谎言',
     category: '动漫',
     tags: ['动漫'],
-    date: '',
+    date: '2023-11-12',
     // ⚠ 这里的 jFlBIKzLFO8 是「字母数字短码」，不是抖音的数字视频 id，
     //    官方播放器不认它，多半播不出来。
     //    换成 www.douyin.com/video/ 后面那串纯数字（或直接填数字）就能播。
     douyin: 'https://www.douyin.com/video/7300469476099640591',
-    poster: '',
+    poster: 'media/covers/7300469476099640591.jpg',
     duration: ''
   },
   
