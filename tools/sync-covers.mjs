@@ -115,10 +115,30 @@ function isNoiseImage(u) {
   return false;
 }
 
-/** 抖音的图集/封面地址通常长这样：.../img/xxx~c5_300x400.jpeg 或 p3-sign 签名地址 */
+/**
+ * 明确不是图片的地址（脚本 / 样式 / 埋点 / 监控）。
+ * ⚠ 这条是踩过坑加的：字节的 zjcdn / snssdk 既放图片也放 JS，
+ *   之前把 `.../bdms/xxx.js` 当成封面下载了，浏览器解不开 →
+ *   卡片变成一块空的深色板。
+ */
+const NOT_IMAGE = /\.(js|mjs|css|json|map|html?)(\?|$)|(^|[/._-])(bdms|sdk|monitor|slardar|collect|analytics|log)([/._-]|$)|zijieapi|bytescm|bytecdn|bytedns|lf\d?-|snssdk|zjcdn|wallpaper|extension|sprite|banner|promo|activity|placeholder/i;
+
+/** 可能是图片的域名（图床） */
+const IMAGE_HOST = /douyinpic\.com|douyin\.com\/img|byteimg|imagex|tos-cn|[a-z0-9-]*sign\.[a-z0-9.-]*douyinpic|aweme[\w-]*\.(jpe?g|png|webp)/i;
+
+/** 明确的图片扩展名 */
+const IMAGE_EXT = /\.(jpe?g|png|webp|avif|heic|bmp)(\?|~|$|&)/i;
+
+/** 抖音图床常见特征：~tplv / ~c5_ / /img/ / origin_cover 等 */
+const IMAGE_HINT = /~tplv|~c5_|\/img\/|origin_cover|image_type=|imagex|\.image/i;
+
+/** 这个地址像不像一张封面 */
 function looksLikeCover(u) {
+  if (!u) return false;
   if (isNoiseImage(u)) return false;
-  return /douyinpic\.com|douyin\.com\/img|aweme|imagex|tos-cn|byteimg|zjcdn|snssdk/i.test(u);
+  if (NOT_IMAGE.test(u)) return false;
+  // 三条里命中一条就收：图床域名 / 明确图片扩展名 / 抖音图片特征
+  return IMAGE_HOST.test(u) || IMAGE_EXT.test(u) || IMAGE_HINT.test(u);
 }
 
 /**
@@ -640,7 +660,10 @@ async function resolveDouyin(raw, opts = {}) {
         } catch (e) { /* 忽略 */ }
       }
       const cover = extractCover(html);
-      if (cover) {
+      // 只认「抖音视频自己的封面图」那种特征（~tplv-dy-aweme / aweme-images）。
+      // 不加这道限制的话，可能抓到页面里的广告图或播放器的默认占位图
+      // （实测抓到过一张牛油果库存照）。
+      if (cover && /aweme-images|~tplv-dy-aweme|dy-aweme/i.test(cover)) {
         return { ok: true, cover, numId, source: '抖音播放器页', meta: extractMeta(html) };
       }
     }
@@ -661,22 +684,31 @@ async function resolveDouyin(raw, opts = {}) {
       } catch (e) { /* 忽略 */ }
     }
 
-    if (dom && dom.length > 2000) {
-      const cover = extractCover(dom);
-      if (cover) {
-        return {
-          ok: true,
-          cover,
-          numId,
-          source: '本机浏览器渲染',
-          meta: { date: dateFromText(dom) }
-        };
-      }
+    // ⚠ 不要拿「渲染后 DOM 里任意一张图」当封面！
+    //   实测踩坑：抖音页面里混着广告 / 活动图，第一张匹配到的图
+    //   可能是一张牛油果库存照（真的发生过）。
+    //   只认两种情况：① video 标签自己的 poster ② 直接截图。
+    const poster = dom && (dom.match(/<video[^>]+poster=["']([^"']+)["']/i) || [])[1];
+    if (poster && looksLikeCover(poster) && /aweme|~tplv|douyinpic/i.test(poster)) {
+      return {
+        ok: true,
+        cover: poster,
+        numId,
+        source: '视频 poster',
+        meta: { date: dateFromText(dom) }
+      };
     }
 
-    // ③ DOM 里找不到封面地址 → 直接截图当封面（渲染后的画面＝视频真实画面）
-    console.log('      渲染后没找到封面地址，改为直接截图…');
-    const shot = renderShot(browser, videoUrl);
+    // ② 截图当封面（渲染后的画面＝视频真实画面）。
+    //    优先截「播放器页」—— 那个页面只有播放器，没有抖音的页面外壳和广告。
+    console.log('      直接截图当封面…');
+    const playerPage = `https://open.douyin.com/player/video?vid=${numId}`;
+    let shot = renderShot(browser, playerPage, '720,1280');
+    let shotFrom = '播放器页截图';
+    if (!shot) {
+      shot = renderShot(browser, videoUrl, '900,1400');
+      shotFrom = '视频页截图';
+    }
     if (shot && opts.coverDir) {
       const dest = join(opts.coverDir, 'douyin-' + numId + '.png');
       try {
@@ -685,7 +717,7 @@ async function resolveDouyin(raw, opts = {}) {
           ok: true,
           localFile: COVER_URL_PREFIX + '/' + dest.split(/[\\/]/).pop(),
           numId,
-          source: '本机浏览器截图',
+          source: shotFrom,
           meta: { date: dom ? dateFromText(dom) : '' }
         };
       } catch (e) { /* 落到失败分支 */ }
@@ -696,8 +728,8 @@ async function resolveDouyin(raw, opts = {}) {
       numId,
       finalUrl,
       meta: dom ? { date: dateFromText(dom) } : {},
-      tried: [dom ? `渲染后 DOM ${dom.length} 字节，未找到封面` : '无头渲染失败'],
-      reason: '抖音是客户端渲染页面，本机浏览器渲染也没拿到封面'
+      tried: [dom ? `渲染后 DOM ${dom.length} 字节，没有 video poster` : '无头渲染失败', '两种截图都失败'],
+      reason: '抖音封面：页面里没有可用的 poster，截图也没成功'
     };
   }
 
@@ -709,6 +741,22 @@ async function resolveDouyin(raw, opts = {}) {
     tried: ['本机没找到 Edge / Chrome，无法无头渲染'],
     reason: '抖音服务端拿不到封面；没找到可用的本机浏览器（装 Edge 或 Chrome 即可自动渲染）'
   };
+}
+
+/** 用文件头判断是不是真图片（返回 'jpeg' / 'png' / 'webp' / 'gif' / 'avif' / ''） */
+function magicImage(buf) {
+  if (!buf || buf.length < 12) return '';
+  const b = buf;
+  if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpeg';
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'png';
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return 'gif';
+  if (b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  if (b.toString('ascii', 4, 8) === 'ftyp') {
+    const brand = b.toString('ascii', 8, 12);
+    if (/avif|avis/i.test(brand)) return 'avif';
+    if (/heic|heix|hevc|mif1/i.test(brand)) return 'heic';
+  }
+  return '';
 }
 
 /* ---------- 下载封面 ---------- */
@@ -733,16 +781,26 @@ async function download(coverUrl, destAbs) {
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length < 1024) throw new Error('文件太小（' + buf.length + ' 字节），可能不是图片');
 
-  // 判断扩展名：抖音封面主流是 jpeg/webp
+  // ★ 用文件头确认它真的是图片。
+  //   抖音对不认识的请求会返回 200 + 一段 JS（实测踩过：
+  //   下来一个 300KB 的 bdms 监控脚本，存成 .jpg 后浏览器解不开，
+  //   卡片就变成一块空的深色板）。
+  const kind = magicImage(buf);
   const type = String(res.headers.get('content-type') || '');
-  const ext = /png/i.test(type) ? '.png'
-    : /webp/i.test(type) ? '.webp'
-    : /gif/i.test(type) ? '.gif'
-    : '.jpg';
+  if (!kind) {
+    const head = buf.toString('utf8', 0, 80).replace(/\s+/g, ' ').slice(0, 60);
+    throw new Error(`返回的不是图片（content-type: ${type || '未知'}；开头是「${head}」）`);
+  }
+  if (kind === 'gif') throw new Error('返回的是 GIF，跳过');
+
+  const ext = kind === 'jpeg' ? '.jpg'
+    : kind === 'png' ? '.png'
+    : kind === 'webp' ? '.webp'
+    : '.avif';
 
   const dest = destAbs.replace(/\.[a-z0-9]+$/i, '') + ext;
   writeFileSync(dest, buf);
-  return { dest, bytes: buf.length };
+  return { dest, bytes: buf.length, kind };
 }
 
 /* ---------- 从 videos.js 里读出视频列表 ---------- */
