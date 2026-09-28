@@ -1,8 +1,16 @@
 /* =========================================================
  *  ⚠ 本文件由 tools/sync-covers.mjs 自动生成，手改会被覆盖！
- *  现在是空的 —— 运行一次 npm run sync:covers（或 npm run sync），
- *  抖音视频的封面 / 标题 / 日期 / 时长就会自动抓下来填到这里。
  *
- *  取值方式：autoCovers['视频链接'].poster / .title / .date / .duration
+ *  作用：抖音视频的「封面 / 标题 / 日期 / 时长」。
+ *        封面已下载到 public/media/covers/，不怕链接签名过期。
+ *        页面在 videos.js 里对应字段为空时，用这里的值兜底。
+ *
+ *  想自己指定 → 直接在 src/data/videos.js 里填 poster / title / date / duration
+ *              （你填的值永远优先，这里只做兜底）
+ *  想重新抓   → 删除 .cover-sync.json，或运行 npm run sync:covers -- --force
+ *
+ *  生成时间：2026/9/28 16:00:15
+ *  共 0 条
  * ======================================================= */
-export default {};
+export default {
+};
