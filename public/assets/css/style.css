@@ -435,6 +435,42 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .video-card .thumb img { width: 100%; height: 100%; object-fit: cover; opacity: .82; transition: .45s; }
 .video-card:hover .thumb img { opacity: 1; transform: scale(1.04); }
 .thumb-fallback { width: 100%; height: 100%; background: linear-gradient(140deg, #2a2f52, #171a30); position: relative; }
+
+/* 没有封面时生成的「设计底图」：色调由标题推导（--h），比一块灰色好看得多 */
+.thumb-gen {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 18px 22px; text-align: center;
+  background:
+    radial-gradient(120% 90% at 20% 12%, rgba(255, 255, 255, .14), transparent 62%),
+    linear-gradient(140deg,
+      hsl(var(--h) 40% 22%),
+      hsl(var(--h) 52% 33%) 58%,
+      hsl(calc(var(--h) + 38) 45% 24%));
+}
+.thumb-gen::after {
+  content: ''; position: absolute; inset: 0;
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 9px);
+  pointer-events: none;
+}
+.thumb-gen b {
+  position: relative; z-index: 1;
+  font-family: var(--font-serif); font-size: 22px; font-weight: 700;
+  font-style: italic; line-height: 1.4; letter-spacing: .02em;
+  color: rgba(255, 255, 255, .92);
+  max-width: 100%; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .35);
+}
+.thumb-gen .tg-hint {
+  position: relative; z-index: 1;
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: .22em; text-transform: uppercase;
+  color: rgba(255, 255, 255, .55);
+}
+/* 用生成底图时，中间那个大播放按钮会和标题打架，收掉它
+   （提示文字里已经有「▶ 点开播放」，整张卡片也是可点的） */
+.thumb--gen .play { display: none; }
 /* 封面文件坏了（被脚本摘掉 img）时，给这块缩略图补上同一套斜纹底 */
 .thumb-broken::before {
   content: ''; position: absolute; inset: 0;

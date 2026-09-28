@@ -83,6 +83,13 @@ async function saveImage(source, baseName) {
 }
 
 /* ---------- 主流程 ---------- */
+// 支持两种用法：
+//   npm run cover                                            → 交互式问
+//   node tools/set-cover.mjs "封面地址" ["视频标题关键词"]      → 一行搞定
+const argv = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const argImage = argv[0] || '';
+const argPick = argv[1] || '';
+
 const rl = createInterface({ input: stdin, output: stdout });
 
 try {
@@ -98,13 +105,15 @@ try {
     process.exit(0);
   }
 
-  console.log('现有的外链视频：');
-  for (const { v, i } of external) {
-    const has = v.poster ? '  （已有封面：' + v.poster + '）' : '';
-    console.log(`  [${i}] ${v.title || '(无标题)'}${has}`);
+  let pick = argPick;
+  if (!pick) {
+    console.log('现有的外链视频：');
+    for (const { v, i } of external) {
+      const has = v.poster ? '  （已有封面：' + v.poster + '）' : '';
+      console.log(`  [${i}] ${v.title || '(无标题)'}${has}`);
+    }
+    pick = (await rl.question('\n哪一条？（输入上面的编号 / 标题里的一段字，直接回车 = 第一条没封面的）> ')).trim();
   }
-
-  const pick = (await rl.question('\n哪一条？（输入上面的编号，直接回车 = 第一条没封面的）> ')).trim();
 
   let target = null;
   if (pick === '') {
@@ -124,7 +133,7 @@ try {
   console.log(`\n选中的是：${target.v.title || '(无标题)'}`);
   console.log(`链接：${target.v.douyin || target.v.embed}`);
 
-  const source = (await rl.question('\n封面图片地址（或本机图片路径）> ')).trim();
+  const source = (argImage || (await rl.question('\n封面图片地址（或本机图片路径）> '))).trim();
   if (!source) {
     console.log('没有输入，退出。');
     process.exit(1);

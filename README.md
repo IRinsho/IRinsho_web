@@ -263,104 +263,69 @@ B 站 / YouTube / 抖音的视频，直接粘分享链接就行，页面会自�
 >
 > 整段分享口令（含「复制打开抖音…」那些字）也可以直接粘，会自动抠出链接。
 
-### 封面 + 信息自动抓取（抖音）
+### 封面 + 信息自动抓取
 
-**抖音视频不用自己找封面、也不用自己抄标题和时长。** 只要填了 `douyin` / `embed`，
-运行同步时会自动去那一页抓：**封面、标题、发布日期、时长**。
+| 平台 | 能不能自动抓封面 | 怎么做到的 |
+| --- | --- | --- |
+| **B 站** | ✅ 能 | 公开接口 `api.bilibili.com/x/web-interface/view?bvid=`，封面 / 标题 / 日期 / 时长一次拿全 |
+| **YouTube** | ✅ 能 | 封面地址可推导：`img.youtube.com/vi/<id>/maxresdefault.jpg`（依次退到 sd/hq/mq） |
+| **抖音** | ❌ **不能**（已实测） | 见下方说明 |
 
 ```bash
-npm run sync:covers      # 只抓封面和信息
-npm run sync             # 图片 + 封面 + 笔记 一起跑（npm run dev / build 会自动执行）
+npm run sync:covers      # 抓 B站 / YouTube 封面
+npm run sync             # 图片 + 封面 + 笔记 一起跑（dev / build 会自动执行）
 ```
 
-它会做这几件事：
+#### 抖音为什么抓不到（实测结论，别再尝试正则了）
 
-1. **跟跳转**（短链 → 真实地址），顺手把真实地址里的**数字视频 id** 找出来告诉你
-2. **抓封面**：`og:image` → 页面 JSON 里的 `origin_cover`/`cover` → HTML 里的图片地址
-3. 把封面**下载到 `public/media/covers/`**（文件名用视频 id），不怕链接签名过期
-4. **读标题 / 日期 / 时长**：`og:title` / `<title>` / JSON 里的 `desc`、`create_time`、`duration`
-5. **把缺的字段补回 `videos.js`** —— 你写过的值绝对不动，只填空的
-6. 同时写一份 `src/data/covers.generated.js` 给页面兜底
+2026-09 实测，三条路全部堵死：
 
-跑完会打印改了什么，例如：
+1. **视频页 / 分享页都是客户端渲染**：抓下来 72KB / 32KB 的 HTML，
+   里面**连 `douyinpic` 图片域名都不出现**，只有 App 骨架 + JS。
+   `<script>window._ROUTER_DATA</script>` 里只有 `itemId`、`ua` 这类路由信息，**没有视频数据**。
+2. **详情接口要浏览器签名**：
+   `douyin.com/aweme/v1/web/aweme/detail/` → **HTTP 403
+   `Blocked by ArgusSecurityPlugin Uifid Not Found`**
+3. **老接口已废弃**：`iesdouyin.com/web/api/v2/aweme/iteminfo/` → HTTP 200 但**响应体为空**
 
+⇒ 所以抖音封面只能靠下面两条路（都很简单）：
+
+**办法 1：`npm run cover`（10 秒，推荐）**
+
+```bash
+npm run cover        # 或者直接双击「手动配封面.cmd」
 ```
-已把抓到的信息补进 src/data/videos.js（只填了空字段）：
-  · 奇蛋物语  →  poster、title、date、duration
-```
 
-> **回填是「安全改写」**：只替换那几个字段的字符本身，注释、缩进、换行、
-> 引号风格全部保留（不是把文件读成 JSON 再写回，那样注释会全丢）。
-> 每条记录还会用视频链接做定位校验，对不上就跳过，不会改错行。
+浏览器打开视频页 → **F12 → Network → 找一张 `douyinpic.com` 的图 → 右键 Copy image address**
+→ 粘进去。它会下载到 `public/media/covers/` 并写进 `videos.js`。
 
-封面优先级（有抖音链接时优先用抓来的）：
-
-1. **有 `douyin` / `embed` 链接 → 用抓来的真实封面**
-2. 没抓到、或只有本地 `src` → 用你手填的 `poster`
-3. 都没有 → 渐变底纹兜底
-
-想让某条**完全保持手写**（不抓封面、不回填信息），在那条记录里加：
+**办法 2：直接在 `videos.js` 里填 `coverUrl`**
 
 ```js
-{ title: '某某', douyin: '...', poster: 'media/covers/我自己的封面.jpg', cover: false }
+{ title: '奇蛋物语', douyin: '...', coverUrl: 'https://p3-sign.douyinpic.com/....jpeg' }
 ```
 
-> 抓的优先于手填，是因为抖音链接自带的封面就是那条视频的真实封面，比你随手塞一张图准。
-> 不接受这个优先级就加 `cover: false` 显式关掉。
+> **没填封面也不会难看**：卡片会自动生成一张设计过的底图
+> （色调由标题推导 + 竖排斜纹 + 标题文字 + 「▶ 点开播放」），
+> 不会再是一块灰暗的空白。
 
-抓不到也不会报错中断（视频被删、抖音改版、断网都会跳过并打印原因），
-只是那一条退回渐变封面。想重新抓一遍：删掉 `.cover-sync.json`，或者
+#### 手动抓 B 站 / YouTube 时的其它字段
 
-```bash
-node tools/sync-covers.mjs --force
-```
+B 站接口顺带给出标题、发布日期、播放时长，会自动补进 `videos.js` 的空字段
+（你写过的值不会被动）。YouTube 只给封面，标题日期请手填。
 
-### 抓不到怎么办（三条退路）
-
-抖音有时会返回「空壳页」（服务端拿不到封面），这时按顺序试：
-
-**退路 1：手动粘一张封面图地址（最快，10 秒，成功率 100%）**
-
-短视频里没有封面时，跑一下：
-
-```bash
-npm run cover
-```
-
-它会问你是哪条视频、封面图地址是什么，然后自动下载 + 写进 `videos.js`。
-图片来源：浏览器打开视频页 → **F12 → Network → 找一张 `douyinpic.com` 的图 →
-右键 Copy image address** → 粘进去即可。也可以直接给本机图片路径。
-
-**退路 2：直接在 `videos.js` 里填 `coverUrl`**
-
-```js
-{
-  title: '奇蛋物语',
-  douyin: '...',
-  coverUrl: 'https://p3-sign.douyinpic.com/....jpeg',   // 粘进来，同步时自动下载
-  date: '2025-06-01',
-  duration: '00:26'
-}
-```
-
-**退路 3：自己指定本地封面**
-
-把图片放进 `public/media/covers/`，然后 `poster: 'media/covers/xxx.jpg'`。
-
-> 封面优先级：**手填 `poster` > 自动抓取 / `coverUrl` > 渐变兜底**。
-> 想让某条完全不动，写 `cover: false`。
-> 自动抓取失败的视频按 20 秒 → 5 分钟 → 30 分钟 → 2 小时 → 12 小时退避重试，
-> 想立刻重试加 `--force`。
+优先级：**手填 `poster` > 自动抓取 / `coverUrl` > 生成底图**。
+想让某条完全不动，写 `cover: false`。
 
 ### 还是抓不到？
 
-跑一次诊断模式，它会把抖音返回的**原始页面**存到系统临时目录：
+B 站 / YouTube 抓不到时，跑一次诊断（会把返回的原始页面存到系统临时目录）：
 
 ```bash
 node tools/sync-covers.mjs --force --dump
 ```
 
-把打印出来的 `.html` 文件发出来，就能按真实结构改提取规则。
+抖音则不用再诊断了 —— 上面的结论已经是实测结果。
 
 > 清空字段等自动填是可以的：`tools/patch-videos.mjs` 会识别
 > `date: '',` / `poster: '',` 这种**空值**并填进去，而有值的字段一律不覆盖。

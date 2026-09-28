@@ -25,6 +25,8 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { patchVideos } from './patch-videos.mjs';
+// 复用页面那套链接解析（抖音 / B站 / YouTube 都能认出来），避免两处逻辑不一致
+import { resolveEmbed } from '../src/lib/embeds.js';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -120,6 +122,10 @@ function looksLikeCover(u) {
 /**
  * 从 HTML 里按优先级找一张封面。
  * 抖音的页面结构经常变，所以这里多留几条路，能命中一条就够。
+ *
+ * ⚠ 关键点：抖音把视频数据塞在 <script id="RENDER_DATA"> 这类数据脚本里，
+ *   而且内容是 **URL 编码过的**（%7B%22...%22%7D）。直接正则扫原始 HTML
+ *   是找不到封面的 —— 必须先把这些脚本解出来再扫。这是之前抓不到的根因。
  */
 export function extractCover(html) {
   if (!html) return '';
@@ -140,20 +146,24 @@ export function extractCover(html) {
   const jsonLd = html.match(/"(?:thumbnailUrl|image)"\s*:\s*"(https?:[^"]+)"/i);
   if (jsonLd && looksLikeCover(jsonLd[1])) return jsonLd[1];
 
-  // 3) 页面里的 JSON 数据（RENDER_DATA / __pace_f / 各种 state）
-  const fromJson = coversFromJson(html);
-  if (fromJson.length) return fromJson[0];
-
-  // 4) 任何抖音图床地址（放宽到「像封面」即可）
-  const anyImg = html.match(
-    /https?:\\?\/\\?\/[^"'\s\\)]+(?:douyinpic|imagex|byteimg|zjcdn)[^"'\s\\)]*/gi
-  ) || [];
-  for (const raw of anyImg) {
-    const u = raw.replace(/\\u002F/gi, '/').replace(/\\\//g, '/');
-    if (looksLikeCover(u)) return u;
+  // 3) 数据脚本里的 JSON（RENDER_DATA / _ROUTER_DATA / INITIAL_STATE ...）
+  //    这是抖音真正放封面的地方，且通常被 URL 编码过
+  for (const text of dataScripts(html)) {
+    const fromJson = coversFromJson(text);
+    if (fromJson.length) return fromJson[0];
+    const hit = firstImageUrl(text);
+    if (hit) return hit;
   }
 
-  // 5) 兜底：页面里任何 og:image（哪怕域名不认识）
+  // 4) 原始 HTML 里直接找 JSON 字段（有些接口返回没编码）
+  const fromRaw = coversFromJson(html);
+  if (fromRaw.length) return fromRaw[0];
+
+  // 5) 任何抖音图床地址（放宽到「像封面」即可）
+  const hit = firstImageUrl(html);
+  if (hit) return hit;
+
+  // 6) 兜底：页面里任何 og:image（哪怕域名不认识）
   for (const tag of meta) {
     const c = tag.match(/content=["']([^"']+)["']/i);
     if (c && !isNoiseImage(c[1])) return c[1];
@@ -162,17 +172,79 @@ export function extractCover(html) {
   return '';
 }
 
+/** 安全地做一次 URL 解码（内容里混着坏 % 时不至于抛错） */
+function safeDecode(s) {
+  try {
+    return decodeURIComponent(String(s || ''));
+  } catch (e) {
+    return String(s || '');
+  }
+}
+
+/**
+ * 把页面里的「数据脚本」内容解出来。
+ *
+ * 做法很粗暴但有效：**扫描所有 <script> 块**，只要里面提到 cover / 图床域名 /
+ * aweme 之类关键词，就把它连同「URL 解码后」的版本一起交出去。
+ * 这样不管抖音是用 <script id="RENDER_DATA">、window._ROUTER_DATA = {...}
+ * 还是 __INITIAL_STATE__，都能覆盖到。
+ *
+ * （之前只按固定 id 匹配 + 用非贪婪 {.*?} 匹配变量，会被第一个 } 截断，
+ *   是抓不到数据的另一个原因。）
+ */
+function dataScripts(html) {
+  const out = [];
+  const seen = new Set();
+
+  const push = (body) => {
+    if (!body) return;
+    const raw = String(body).trim();
+    if (!raw) return;
+    // 原文 + 一层解码 + 两层解码（抖音常做 URL 编码）
+    for (const text of [raw, safeDecode(raw), safeDecode(safeDecode(raw))]) {
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      out.push(text);
+    }
+  };
+
+  const re = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    const raw = m[1] || '';
+    if (raw.length < 20) continue;
+    // 只处理可能含数据的脚本，避免把无关的 JS 也搬来搬去
+    if (!/(cover|douyinpic|imagex|byteimg|zjcdn|aweme|create_time|RENDER_DATA|ROUTER_DATA)/i.test(raw)) continue;
+    push(raw);
+  }
+
+  return out;
+}
+
+/** 在一段文本里找第一个「像封面」的图片地址（含被转义的写法） */
+function firstImageUrl(text) {
+  // 注意：字符类里**不能**排除反斜杠，否则 https:\/\/a.com\/b.jpg
+  // 会在第一个 \/ 处被截断成半截地址。先连着反斜杠一起匹配，再统一清掉。
+  const re = /https?:(?:\\?\/){2}[^"'\s)]+/gi;
+  let m;
+  while ((m = re.exec(text))) {
+    const u = m[0].replace(/\\u002F/gi, '/').replace(/\\\//g, '/').replace(/\\/g, '');
+    if (looksLikeCover(u)) return u;
+  }
+  return '';
+}
+
 /** 把 JSON 里所有可能是封面的字段挖出来（origin_cover / cover / dynamic_cover ...） */
 function coversFromJson(text) {
   const found = [];
-  const re = /"(?:origin_cover|dynamic_cover|cover|cover_url|poster)"\s*:\s*(\{[^{}]*\}|"[^"]*")/g;
+  const re = /"(?:origin_cover|dynamic_cover|cover|cover_url|poster|thumbnail|thumb)"\s*:\s*(\{[^{}]*\}|"[^"]*")/g;
   let m;
   while ((m = re.exec(text))) {
     const chunk = m[1];
     // { "url_list": ["https://..."] }
-    const urls = chunk.match(/https?:\/\/[^"\\\s]+/g) || [];
+    const urls = chunk.match(/https?:(?:\\?\/){2}[^"\s]+/g) || [];
     for (const u of urls) {
-      const clean = u.replace(/\\u002F/gi, '/').replace(/\\\//g, '/');
+      const clean = u.replace(/\\u002F/gi, '/').replace(/\\\//g, '/').replace(/\\/g, '');
       if (looksLikeCover(clean)) found.push(clean);
     }
   }
@@ -258,174 +330,233 @@ function fmtDuration(v) {
   return h > 0 ? `${p(h)}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
 }
 
+/** 抖音的通用站点标题（这些不是视频标题，抓到要丢掉） */
+const GENERIC_TITLES = /在抖音记录美好生活|抖音记录美好生活|记录美好生活|抖音[-–|]\s*记录|抖音短视频|^抖音$|^Douyin$|抖音网页版/i;
+
 /** 从页面里读标题 / 日期 / 时长 */
 function extractMeta(html) {
   if (!html) return {};
 
-  // 标题：og:title > <title> > JSON 里的 desc
-  let title = '';
+  const scripts = dataScripts(html);   // 解码后的数据脚本（真正放信息的地方）
+
+  /* ---------- 标题 ---------- */
+  const candidates = [];
+
   const ogTitle = html.match(
     /<meta[^>]+(?:property|name)=["'](?:og:title|twitter:title)["'][^>]*content=["']([^"']+)["']/i
   );
-  if (ogTitle) title = ogTitle[1];
-  if (!title) {
-    const t = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-    if (t) title = t[1];
+  if (ogTitle) candidates.push(ogTitle[1]);
+
+  // 数据脚本里的 desc / share_title / title（抖音视频文案常放在 desc）
+  for (const text of scripts) {
+    for (const key of ['desc', 'share_title', 'title', 'item_title', 'aweme_desc']) {
+      const v = jsonScalar(text, [key]);
+      if (v) candidates.push(v);
+    }
   }
-  if (!title) title = jsonScalar(html, ['desc', 'title', 'share_title']);
 
-  title = unescapeUnicode(decodeEntities(title))
-    .replace(/\s*[-–|]\s*(抖音|Douyin)\s*$/i, '')   // 去掉「xxx - 抖音」后缀
-    .replace(/^【[^】]*】\s*/, '')                  // 去掉【作者】前缀
-    .trim();
+  // 原始 HTML 里的（没编码的情况）
+  for (const key of ['desc', 'share_title', 'item_title']) {
+    const v = jsonScalar(html, [key]);
+    if (v) candidates.push(v);
+  }
 
-  // 日期
-  const date = fmtDate(
-    jsonScalar(html, ['create_time', 'createTime', 'publish_time', 'publishTime'])
-  );
+  const t = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+  if (t) candidates.push(t[1]);
 
-  // 时长
-  const duration = fmtDuration(
-    jsonScalar(html, ['duration', 'video_duration', 'videoDuration', 'item_duration'])
-  );
+  let title = '';
+  for (const c of candidates) {
+    const cleaned = unescapeUnicode(decodeEntities(c))
+      .replace(/\s*[-–|]\s*(抖音|Douyin)\s*$/i, '')   // 去掉「xxx - 抖音」后缀
+      .replace(/^【[^】]*】\s*/, '')                  // 去掉【作者】前缀
+      .replace(/\s+/g, ' ')
+      .trim();
+    // 太短、或就是抖音通用站点标题 → 不要
+    if (!cleaned || cleaned.length < 2) continue;
+    if (GENERIC_TITLES.test(cleaned)) continue;
+    title = cleaned.slice(0, 60);
+    break;
+  }
+
+  /* ---------- 日期（create_time 通常是 10 位秒级时间戳） ---------- */
+  const dateKeys = ['create_time', 'createTime', 'publish_time', 'publishTime', 'create_date'];
+  let date = '';
+  for (const text of scripts) {
+    date = fmtDate(jsonScalar(text, dateKeys));
+    if (date) break;
+  }
+  if (!date) date = fmtDate(jsonScalar(html, dateKeys));
+
+  /* ---------- 时长（duration 通常是毫秒） ---------- */
+  const durKeys = ['duration', 'video_duration', 'videoDuration', 'item_duration'];
+  let duration = '';
+  for (const text of scripts) {
+    duration = fmtDuration(jsonScalar(text, durKeys));
+    if (duration) break;
+  }
+  if (!duration) duration = fmtDuration(jsonScalar(html, durKeys));
 
   return { title, date, duration };
 }
 
-/* ---------- 抓一条视频的封面 + 信息 ---------- */
+/* ---------- 抓一条视频的封面 + 信息 ----------
+ *
+ *  实测结论（2026-09 验证）：
+ *    · 抖音视频页 / 分享页都是**客户端渲染**：HTML 里只有 App 骨架，
+ *      连 douyinpic 图片域名都不出现，视频数据由浏览器加载 JS 后再请求
+ *    · 抖音的详情接口 /aweme/v1/web/aweme/detail/ 返回
+ *      HTTP 403 "Blocked by ArgusSecurityPlugin Uifid Not Found"
+ *      —— 需要浏览器端签名，纯服务端过不去
+ *    · 老的 /web/api/v2/aweme/iteminfo/ 已废弃，返回空
+ *  ⇒ 所以抖音封面**无法**用服务端抓取解决，只能靠播放器页面碰运气，
+ *    或者用 coverUrl / npm run cover 手动补（见 README）。
+ *
+ *  B 站 / YouTube 相反，有公开接口，可以真正自动抓：
+ *    · YouTube：https://img.youtube.com/vi/<id>/maxresdefault.jpg（试几个尺寸）
+ *    · B 站：https://api.bilibili.com/x/web-interface/view?bvid=<BV>
+ *            返回 JSON，里面 cover / title / pubdate / duration 全都有
+ */
 async function resolveOne(entry) {
   const raw = String(entry.douyin || entry.embed || '').trim();
   if (!raw) return { ok: false, reason: '没有填 douyin / embed' };
 
+  const r = resolveEmbed(raw);
+  const platform = r.platform || '';
+
+  if (platform === 'YouTube') return await resolveYouTube(r.embed);
+  if (platform === 'B站') return await resolveBilibili(r.embed);
+  if (platform === '抖音') return await resolveDouyin(raw);
+  return { ok: false, reason: '认不出这个链接属于哪个平台（支持抖音 / B站 / YouTube）' };
+}
+
+/* ---------- YouTube：封面地址是可推导的，最省事 ---------- */
+async function resolveYouTube(embedUrl) {
+  const id = (String(embedUrl).match(/\/embed\/([\w-]{6,})/) || [])[1];
+  if (!id) return { ok: false, reason: '没能从链接里取出 YouTube 视频 id' };
+
+  // 尺寸从大到小试，第一个能下到的就用
+  const sizes = ['maxresdefault', 'sddefault', 'hqdefault', 'mqdefault'];
+  for (const s of sizes) {
+    const url = `https://img.youtube.com/vi/${id}/${s}.jpg`;
+    try {
+      const res = await fetchWithTimeout(url, { headers: { 'User-Agent': UA } }, 12000);
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      // 没有大图时 YouTube 会返回一张 120x90 的灰色占位图，用体积筛掉
+      if (buf.length < 3000) continue;
+      return { ok: true, cover: url, numId: id, source: 'YouTube ' + s, meta: {} };
+    } catch (e) { /* 试下一个尺寸 */ }
+  }
+  return { ok: false, reason: 'YouTube 封面各尺寸都拿不到' };
+}
+
+/* ---------- B 站：公开接口，封面 / 标题 / 日期 / 时长一次拿全 ---------- */
+async function resolveBilibili(embedUrl) {
+  const bv = (String(embedUrl).match(/(BV[0-9A-Za-z]{8,14})/) || [])[1];
+  if (!bv) return { ok: false, reason: '没能从链接里取出 BV 号' };
+
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.bilibili.com/x/web-interface/view?bvid=${bv}`,
+      { headers: { 'User-Agent': UA, Referer: 'https://www.bilibili.com/' } },
+      15000
+    );
+    if (!res.ok) return { ok: false, reason: 'B 站接口返回 HTTP ' + res.status };
+    const json = await res.json();
+    const d = json && json.data;
+    if (!d) return { ok: false, reason: 'B 站接口没有返回数据（可能视频被删或需要登录）' };
+
+    const cover = String(d.pic || '').replace(/^http:/, 'https:');
+    return {
+      ok: true,
+      cover,
+      numId: bv,
+      source: 'B站接口',
+      meta: {
+        title: String(d.title || '').trim(),
+        date: d.pubdate ? fmtDate(d.pubdate) : '',
+        duration: d.duration ? fmtDuration(d.duration) : ''
+      }
+    };
+  } catch (e) {
+    return { ok: false, reason: 'B 站接口请求失败：' + e.message };
+  }
+}
+
+/* ---------- 抖音：只能碰碰运气（播放器页），拿不到就说清楚 ---------- */
+async function resolveDouyin(raw) {
   // 整段分享口令 → 抠链接
   const urlMatch = raw.match(/https?:\/\/[^\s"'<>）)】]+/i);
   let url = urlMatch ? urlMatch[0] : raw;
-
-  // 纯数字或纯短码 → 拼成网页地址
   if (!/^https?:\/\//i.test(url)) {
     if (/^\d{10,25}$/.test(url)) url = 'https://www.douyin.com/video/' + url;
     else return { ok: false, reason: '不是链接也不是数字 id：' + raw };
   }
 
-  if (!/douyin\.com/i.test(url)) return { ok: false, reason: '目前只支持抖音，其它平台请手填 poster' };
-
-  // 先跟跳转：短链 → 真实地址（顺带能拿到数字 id）
+  // 跟跳转：短链 → 真实地址（顺带拿数字 id）
   const hop = await followRedirect(url);
   const finalUrl = hop.url || url;
-  const idMatch = finalUrl.match(/\/video\/(\d{10,25})/);
-  const numId = idMatch ? idMatch[1] : '';
+  const numId = ((finalUrl.match(/\/video\/(\d{10,25})/) || [])[1]) || '';
 
-  // 抖音对不同入口返回的内容差别很大：分享页常有 og: 标签，桌面页常常是空壳。
-  // 所以按候选地址逐个试，谁先给出封面 / 信息就用谁。
-  const candidates = buildCandidates(numId, url, finalUrl);
+  const fail = (extra) => ({
+    ok: false,
+    numId,
+    finalUrl,
+    meta: {},
+    tried: extra
+  });
 
-  let lastReason = '没有可用的地址';
-  let lastHtmlLength = 0;
-  let best = { meta: {}, numId };
+  if (!numId) {
+    return { ...fail(['没拿到数字视频 id（短链要能跳转到 /video/<数字>）']),
+      reason: '没能拿到数字视频 id；请用 www.douyin.com/video/<数字> 这种完整链接' };
+  }
 
-  for (const cand of candidates) {
-    let html = '';
-    let status = 0;
-    try {
-      const res = await fetchWithTimeout(cand.url, { headers: { ...FETCH_HEADERS, ...(cand.headers || {}) } }, 15000);
-      status = res.status;
-      if (!res.ok) { lastReason = `${cand.label} 返回 HTTP ${res.status}`; continue; }
-      html = await res.text();
-    } catch (e) {
-      lastReason = `${cand.label} 请求失败：${e.message}`;
-      continue;
-    }
-
-    lastHtmlLength = html.length;
-
-    // 诊断模式：把每个候选地址的返回都存下来
-    if (process.env.DSH_DUMP_COVER === '1') {
-      try {
-        const f = join(tmpdir(), `irinsho-douyin-${numId || 'x'}-${cand.tag}.html`);
-        writeFileSync(f, html, 'utf8');
-        console.log(`      [诊断] ${cand.label} → ${f}（${html.length} 字节，HTTP ${status}）`);
-      } catch (e) { /* 存不下就算了 */ }
-    }
-
-    const meta = extractMeta(html);
-    // 保留「信息最多的那一次」，万一所有候选都没有封面，还能拿它补标题日期
-    const score = (meta.title ? 1 : 0) + (meta.date ? 1 : 0) + (meta.duration ? 1 : 0);
-    const bestScore = (best.meta.title ? 1 : 0) + (best.meta.date ? 1 : 0) + (best.meta.duration ? 1 : 0);
-    if (score > bestScore) best = { meta, numId };
-
-    const cover = extractCover(html);
-    if (cover) {
-      const m = extractMeta(html);
+  // 唯一还有希望的地方：官方播放器页（它的封面有时放在 og:image 里）
+  const playerUrl = `https://open.douyin.com/player/video?vid=${numId}`;
+  try {
+    const res = await fetchWithTimeout(playerUrl, {
+      headers: { ...FETCH_HEADERS, Referer: 'https://www.douyin.com/' }
+    }, 15000);
+    if (res.ok) {
+      const html = await res.text();
+      if (process.env.DSH_DUMP_COVER === '1') {
+        try {
+          const f = join(tmpdir(), `irinsho-douyin-player-${numId}.html`);
+          writeFileSync(f, html, 'utf8');
+          console.log(`      [诊断] 播放器页 → ${f}（${html.length} 字节）`);
+        } catch (e) { /* 忽略 */ }
+      }
+      const cover = extractCover(html);
+      if (cover) {
+        return { ok: true, cover, numId, source: '抖音播放器页', meta: extractMeta(html) };
+      }
       return {
-        ok: true,
-        cover,
-        finalUrl: cand.url,
-        numId,
-        source: cand.label,
-        meta: {
-          title: m.title || best.meta.title || '',
-          date: m.date || best.meta.date || '',
-          duration: m.duration || best.meta.duration || ''
-        },
-        htmlLength: html.length
+        ...fail([`播放器页: ${html.length} 字节，没有封面地址`]),
+        reason: '抖音是客户端渲染页面，服务端拿不到封面（播放器页也没有）'
       };
     }
-
-    lastReason = html.length < 3000
-      ? `${cand.label} 只返回了 ${html.length} 字节的空壳`
-      : `${cand.label} 的页面里没有封面地址`;
+    return { ...fail([`播放器页: HTTP ${res.status}`]), reason: '抖音播放器页返回 HTTP ' + res.status };
+  } catch (e) {
+    return { ...fail([`播放器页: ${e.message}`]), reason: '抖音播放器页请求失败：' + e.message };
   }
-
-  return {
-    ok: false,
-    reason: `试了 ${candidates.length} 个入口都没抓到：${lastReason}`,
-    finalUrl,
-    numId,
-    meta: best.meta,
-    htmlLength: lastHtmlLength
-  };
-}
-
-/**
- * 列出可以试的抖音页面地址（按「最可能带 og: 标签」排前面）。
- * 抖音不同入口返回的 HTML 差别很大，多试几个能显著提高成功率。
- */
-function buildCandidates(numId, originalUrl, finalUrl) {
-  const list = [];
-  const seen = new Set();
-
-  const push = (tag, label, url, headers) => {
-    if (!url || seen.has(url)) return;
-    seen.add(url);
-    list.push({ tag, label, url, headers });
-  };
-
-  if (numId) {
-    // 分享页：通常是最轻、最容易带 og:image / og:title 的那个
-    push('share', '分享页', `https://www.iesdouyin.com/share/video/${numId}/`);
-    push('share-m', '移动分享页', `https://www.iesdouyin.com/share/video/${numId}/`, { 'User-Agent': MOBILE_UA });
-    push('share-www', '分享页(备)', `https://www.douyin.com/share/video/${numId}/`);
-    // 桌面页
-    push('www', '桌面页', `https://www.douyin.com/video/${numId}`);
-    push('www-referer', '桌面页(带 referer)', `https://www.douyin.com/video/${numId}`, {
-      Referer: 'https://www.douyin.com/'
-    });
-    // 移动端站
-    push('m', '移动站', `https://m.douyin.com/share/video/${numId}`, { 'User-Agent': MOBILE_UA });
-  }
-
-  // 用户自己填的地址也试一次（万一它本身就带 og:）
-  if (originalUrl) push('origin', '你填的地址', originalUrl);
-  if (finalUrl && finalUrl !== originalUrl) push('final', '跳转后的地址', finalUrl);
-
-  return list;
 }
 
 /* ---------- 下载封面 ---------- */
 async function download(coverUrl, destAbs) {
+  // 抖音的图床有时会检查 Referer，带上更稳（对别的域名也无害）
+  const referer = /douyinpic|douyin\.com|byteimg|zjcdn/i.test(coverUrl)
+    ? 'https://www.douyin.com/'
+    : undefined;
+
   const res = await fetchWithTimeout(
     coverUrl,
-    { headers: { 'User-Agent': UA, 'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8' } },
+    {
+      headers: {
+        'User-Agent': UA,
+        'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8',
+        ...(referer ? { Referer: referer } : {})
+      }
+    },
     20000
   );
   if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -556,11 +687,15 @@ export async function syncCovers(options = {}) {
       continue;
     }
 
-    // 上次没抓到 → 按退避策略决定这次还试不试
+    // 上次没抓到 → 按退避策略决定这次还试不试。
+    // 注意：时间戳可能是「未来」（系统时间改过、机器时钟漂移），
+    // 那种情况下 now - at 是负数，会永远小于间隔 → 永久跳过。
+    // 所以这里限制最多跳过 2 倍间隔，保证一定会重试。
     if (!force && prev && prev.fails) {
       const waitMs = FAIL_BACKOFF_SEC[Math.min(prev.fails, FAIL_BACKOFF_SEC.length - 1)] * 1000;
       const since = Date.now() - (prev.at || 0);
-      if (since < waitMs) {
+      const shouldTry = since >= waitMs || since < -waitMs;
+      if (!shouldTry) {
         skipped++;
         const left = Math.ceil((waitMs - since) / 1000);
         const leftText = left >= 60 ? Math.ceil(left / 60) + ' 分钟' : left + ' 秒';
@@ -595,12 +730,19 @@ export async function syncCovers(options = {}) {
     if (!r.ok) {
       failed++;
       say(`    ✗ ${r.reason}`);
-      if (typeof r.htmlLength === 'number') say(`      页面大小：${r.htmlLength} 字节`);
+      if (Array.isArray(r.tried) && r.tried.length) {
+        for (const line of r.tried) say('        · ' + line);
+      }
       if (r.numId) say(`      视频 id：${r.numId}`);
-      if (r.finalUrl) say(`      真实地址：${r.finalUrl}`);
-      say('      想让我按真实页面结构改提取规则的话，用这个命令再跑一次：');
-      say('        node tools/sync-covers.mjs --force --dump');
-      say('      它会把抖音返回的原始页面存到系统临时目录并打印路径，把那个文件发我即可。');
+
+      // 抖音这种情况给明确的下一步，而不是让人反复跑
+      if (String(r.reason).includes('抖音')) {
+        say('      抖音的视频页是客户端渲染，详情接口需要浏览器签名（实测 403），');
+        say('      所以服务端抓不到封面。两个办法，任选其一：');
+        say('        1) 双击「手动配封面.cmd」，粘一张封面图地址（10 秒，最省事）');
+        say('        2) 在 src/data/videos.js 这条里加 coverUrl: \'图片地址\'');
+        say('      另外：卡片不填封面也不会再是空白块了，页面会给它生成一张设计过的底图。');
+      }
       // 封面没抓到，但标题/日期/时长可能抓到了，先留着
       const preTitle = (prev && prev.title) || '';
       const preDate = (prev && prev.date) || '';

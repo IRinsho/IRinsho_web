@@ -4,7 +4,7 @@ import videos from '../data/videos.js';
 import autoCovers from '../data/covers.generated.js';
 import { asset } from '../lib/url.js';
 import { resolveEmbed } from '../lib/embeds.js';
-import { fmtSlash } from '../lib/format.js';
+import { fmtSlash, hueFor } from '../lib/format.js';
 
 /* 每条视频先算好「播放器地址」「原站链接」「封面」「标题 / 日期 / 时长」：
    douyin / embed 里可以直接粘抖音、B站、YouTube 的分享链接，
@@ -82,7 +82,7 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         tabindex="0"
         role="button"
       >
-        <div class="thumb">
+        <div class={'thumb' + (!v.cover && v.embedUrl ? ' thumb--gen' : '')}>
           {v.cover ? (
             <img
               src={asset(v.cover)}
@@ -91,6 +91,13 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
               data-fallback={v.poster && v.poster !== v.cover ? asset(v.poster) : ''}
               onerror="const fb=this.dataset.fallback;if(fb){this.dataset.fallback='';this.src=fb;}else{console.warn('[视频封面加载失败]',this.getAttribute('src'));this.parentNode.classList.add('thumb-broken');this.remove();}"
             />
+          ) : v.embedUrl ? (
+            /* 没有封面（外链视频常见）：生成一张设计过的底图，
+               而不是留一块灰暗的空白 —— 色调由标题推导，稳定不随机 */
+            <div class="thumb-gen" style={`--h:${hueFor(v.title)}`}>
+              <b>{v.title}</b>
+              <span class="tg-hint">▶ 点开播放</span>
+            </div>
           ) : <div class="thumb-fallback"></div>}
           <span class="play">▶</span>
           {v.duration && <span class="dur">{v.duration}</span>}
