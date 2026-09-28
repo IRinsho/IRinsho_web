@@ -24,6 +24,8 @@ import {
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
 import { patchVideos } from './patch-videos.mjs';
 // 复用页面那套链接解析（抖音 / B站 / YouTube 都能认出来），避免两处逻辑不一致
 import { resolveEmbed } from '../src/lib/embeds.js';
@@ -399,6 +401,85 @@ function extractMeta(html) {
   return { title, date, duration };
 }
 
+/* ---------- 本机浏览器当渲染引擎（抖音这类客户端渲染页面的正解） ----------
+ *  抖音的 HTML 里没有封面，但**渲染之后**的页面里有。
+ *  Windows 自带 Edge（或装了 Chrome），它们都能无头运行：
+ *      msedge --headless=new --dump-dom <url>
+ *  等于用你自己的浏览器把页面跑一遍，再把渲染后的 DOM 吐出来给我们找封面。
+ *  全程自动，不需要登录，也不需要 npm 装任何依赖。 */
+const BROWSER_CANDIDATES = [
+  process.env['PROGRAMFILES'] && `${process.env['PROGRAMFILES']}\\Microsoft\\Edge\\Application\\msedge.exe`,
+  process.env['PROGRAMFILES(X86)'] && `${process.env['PROGRAMFILES(X86)']}\\Microsoft\\Edge\\Application\\msedge.exe`,
+  process.env['LOCALAPPDATA'] && `${process.env['LOCALAPPDATA']}\\Microsoft\\Edge\\Application\\msedge.exe`,
+  process.env['PROGRAMFILES'] && `${process.env['PROGRAMFILES']}\\Google\\Chrome\\Application\\chrome.exe`,
+  process.env['PROGRAMFILES(X86)'] && `${process.env['PROGRAMFILES(X86)']}\\Google\\Chrome\\Application\\chrome.exe`,
+  process.env['LOCALAPPDATA'] && `${process.env['LOCALAPPDATA']}\\Google\\Chrome\\Application\\chrome.exe`
+].filter(Boolean);
+
+function findBrowser() {
+  for (const p of BROWSER_CANDIDATES) {
+    if (existsSync(p)) return p;
+  }
+  return '';
+}
+
+/** 无头渲染一个页面，返回渲染后的 DOM（失败返回空串） */
+function renderDom(browser, url, waitMs = 10000) {
+  const profile = mkdtempSync(join(tmpdir(), 'irinsho-render-'));
+  const args = [
+    '--headless=new',
+    '--disable-gpu',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-extensions',
+    '--mute-audio',
+    '--hide-scrollbars',
+    '--user-data-dir=' + profile,
+    `--virtual-time-budget=${waitMs}`,
+    '--dump-dom',
+    url
+  ];
+  const r = spawnSync(browser, args, {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: 60000
+  });
+  return r.stdout || '';
+}
+
+/** 无头渲染并截图，返回图片 Buffer（失败返回 null） */
+function renderShot(browser, url, size = '900,1400') {
+  const profile = mkdtempSync(join(tmpdir(), 'irinsho-shot-'));
+  const out = join(profile, 'shot.png');
+  spawnSync(browser, [
+    '--headless=new',
+    '--disable-gpu',
+    '--no-first-run',
+    '--hide-scrollbars',
+    '--user-data-dir=' + profile,
+    `--window-size=${size}`,
+    '--virtual-time-budget=10000',
+    '--screenshot=' + out,
+    url
+  ], { encoding: 'utf8', timeout: 60000 });
+  try {
+    if (existsSync(out)) {
+      const buf = readFileSync(out);
+      if (buf.length > 4096) return buf;
+    }
+  } catch (e) { /* 忽略 */ }
+  return null;
+}
+
+/** 从渲染后的页面文字里找发布日期 */
+function dateFromText(html) {
+  const text = String(html || '').replace(/<[^>]+>/g, ' ');
+  const m = text.match(/(\d{4})\s*[-/年.]\s*(\d{1,2})\s*[-/月.]\s*(\d{1,2})/);
+  if (!m) return '';
+  const p = (x) => String(x).padStart(2, '0');
+  return `${m[1]}-${p(m[2])}-${p(m[3])}`;
+}
+
 /* ---------- 抓一条视频的封面 + 信息 ----------
  *
  *  实测结论（2026-09 验证）：
@@ -416,7 +497,7 @@ function extractMeta(html) {
  *    · B 站：https://api.bilibili.com/x/web-interface/view?bvid=<BV>
  *            返回 JSON，里面 cover / title / pubdate / duration 全都有
  */
-async function resolveOne(entry) {
+async function resolveOne(entry, opts = {}) {
   const raw = String(entry.douyin || entry.embed || '').trim();
   if (!raw) return { ok: false, reason: '没有填 douyin / embed' };
 
@@ -425,16 +506,39 @@ async function resolveOne(entry) {
 
   if (platform === 'YouTube') return await resolveYouTube(r.embed);
   if (platform === 'B站') return await resolveBilibili(r.embed);
-  if (platform === '抖音') return await resolveDouyin(raw);
+  if (platform === '抖音') return await resolveDouyin(raw, opts);
   return { ok: false, reason: '认不出这个链接属于哪个平台（支持抖音 / B站 / YouTube）' };
 }
 
-/* ---------- YouTube：封面地址是可推导的，最省事 ---------- */
+/* ---------- YouTube：封面地址可推导，标题 / 日期 / 时长在 watch 页里 ---------- */
 async function resolveYouTube(embedUrl) {
   const id = (String(embedUrl).match(/\/embed\/([\w-]{6,})/) || [])[1];
   if (!id) return { ok: false, reason: '没能从链接里取出 YouTube 视频 id' };
 
-  // 尺寸从大到小试，第一个能下到的就用
+  // 顺手读 watch 页：YouTube 把标题 / 发布日期 / 时长服务端渲染在 HTML 里，
+  // 不需要任何签名（和抖音完全不同）
+  let meta = {};
+  try {
+    const res = await fetchWithTimeout(
+      `https://www.youtube.com/watch?v=${id}`,
+      { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' } },
+      15000
+    );
+    if (res.ok) {
+      const html = await res.text();
+      const len = (html.match(/"lengthSeconds":"(\d+)"/) || [])[1];
+      const up = (html.match(/"uploadDate":"([^"]+)"/) || [])[1]
+        || (html.match(/"publishDate":"([^"]+)"/) || [])[1];
+      const t = (html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]*)"/) || [])[1];
+      meta = {
+        title: t ? unescapeUnicode(decodeEntities(t)) : '',
+        date: up ? fmtDate(up) : '',
+        duration: len ? fmtDuration(Number(len)) : ''
+      };
+    }
+  } catch (e) { /* 读不到就只给封面 */ }
+
+  // 封面：尺寸从大到小试，第一个能下到的就用
   const sizes = ['maxresdefault', 'sddefault', 'hqdefault', 'mqdefault'];
   for (const s of sizes) {
     const url = `https://img.youtube.com/vi/${id}/${s}.jpg`;
@@ -444,8 +548,14 @@ async function resolveYouTube(embedUrl) {
       const buf = Buffer.from(await res.arrayBuffer());
       // 没有大图时 YouTube 会返回一张 120x90 的灰色占位图，用体积筛掉
       if (buf.length < 3000) continue;
-      return { ok: true, cover: url, numId: id, source: 'YouTube ' + s, meta: {} };
+      // YouTube 缩略图固定 16:9
+      return { ok: true, cover: url, numId: id, source: 'YouTube ' + s, meta: { ...meta, ratio: '16:9' } };
     } catch (e) { /* 试下一个尺寸 */ }
+  }
+
+  // 封面拿不到但信息拿到了，也算有用
+  if (meta.title || meta.date || meta.duration) {
+    return { ok: false, reason: '封面各尺寸都没取到', meta };
   }
   return { ok: false, reason: 'YouTube 封面各尺寸都拿不到' };
 }
@@ -489,7 +599,7 @@ async function resolveBilibili(embedUrl) {
 }
 
 /* ---------- 抖音：只能碰碰运气（播放器页），拿不到就说清楚 ---------- */
-async function resolveDouyin(raw) {
+async function resolveDouyin(raw, opts = {}) {
   // 整段分享口令 → 抠链接
   const urlMatch = raw.match(/https?:\/\/[^\s"'<>）)】]+/i);
   let url = urlMatch ? urlMatch[0] : raw;
@@ -503,20 +613,18 @@ async function resolveDouyin(raw) {
   const finalUrl = hop.url || url;
   const numId = ((finalUrl.match(/\/video\/(\d{10,25})/) || [])[1]) || '';
 
-  const fail = (extra) => ({
-    ok: false,
-    numId,
-    finalUrl,
-    meta: {},
-    tried: extra
-  });
-
   if (!numId) {
-    return { ...fail(['没拿到数字视频 id（短链要能跳转到 /video/<数字>）']),
-      reason: '没能拿到数字视频 id；请用 www.douyin.com/video/<数字> 这种完整链接' };
+    return {
+      ok: false,
+      numId,
+      finalUrl,
+      meta: {},
+      tried: ['没拿到数字视频 id（短链要能跳转到 /video/<数字>）'],
+      reason: '没能拿到数字视频 id；请用 www.douyin.com/video/<数字> 这种完整链接'
+    };
   }
 
-  // 唯一还有希望的地方：官方播放器页（它的封面有时放在 og:image 里）
+  // ① 官方播放器页（有时带 og:image）
   const playerUrl = `https://open.douyin.com/player/video?vid=${numId}`;
   try {
     const res = await fetchWithTimeout(playerUrl, {
@@ -535,15 +643,72 @@ async function resolveDouyin(raw) {
       if (cover) {
         return { ok: true, cover, numId, source: '抖音播放器页', meta: extractMeta(html) };
       }
-      return {
-        ...fail([`播放器页: ${html.length} 字节，没有封面地址`]),
-        reason: '抖音是客户端渲染页面，服务端拿不到封面（播放器页也没有）'
-      };
     }
-    return { ...fail([`播放器页: HTTP ${res.status}`]), reason: '抖音播放器页返回 HTTP ' + res.status };
-  } catch (e) {
-    return { ...fail([`播放器页: ${e.message}`]), reason: '抖音播放器页请求失败：' + e.message };
+  } catch (e) { /* 继续下面的浏览器渲染 */ }
+
+  // ② 正解：用本机浏览器无头渲染这个页面（它跑 JS，渲染后 DOM 里才有封面）
+  const browser = findBrowser();
+  if (browser) {
+    console.log(`      用本机浏览器渲染页面（${browser.split(/[\\/]/).pop()}）…`);
+    const videoUrl = `https://www.douyin.com/video/${numId}`;
+    const dom = renderDom(browser, videoUrl);
+
+    if (process.env.DSH_DUMP_COVER === '1' && dom) {
+      try {
+        const f = join(tmpdir(), `irinsho-douyin-rendered-${numId}.html`);
+        writeFileSync(f, dom, 'utf8');
+        console.log(`      [诊断] 渲染后的 DOM → ${f}（${dom.length} 字节）`);
+      } catch (e) { /* 忽略 */ }
+    }
+
+    if (dom && dom.length > 2000) {
+      const cover = extractCover(dom);
+      if (cover) {
+        return {
+          ok: true,
+          cover,
+          numId,
+          source: '本机浏览器渲染',
+          meta: { date: dateFromText(dom) }
+        };
+      }
+    }
+
+    // ③ DOM 里找不到封面地址 → 直接截图当封面（渲染后的画面＝视频真实画面）
+    console.log('      渲染后没找到封面地址，改为直接截图…');
+    const shot = renderShot(browser, videoUrl);
+    if (shot && opts.coverDir) {
+      const dest = join(opts.coverDir, 'douyin-' + numId + '.png');
+      try {
+        writeFileSync(dest, shot);
+        return {
+          ok: true,
+          localFile: COVER_URL_PREFIX + '/' + dest.split(/[\\/]/).pop(),
+          numId,
+          source: '本机浏览器截图',
+          meta: { date: dom ? dateFromText(dom) : '' }
+        };
+      } catch (e) { /* 落到失败分支 */ }
+    }
+
+    return {
+      ok: false,
+      numId,
+      finalUrl,
+      meta: dom ? { date: dateFromText(dom) } : {},
+      tried: [dom ? `渲染后 DOM ${dom.length} 字节，未找到封面` : '无头渲染失败'],
+      reason: '抖音是客户端渲染页面，本机浏览器渲染也没拿到封面'
+    };
   }
+
+  return {
+    ok: false,
+    numId,
+    finalUrl,
+    meta: {},
+    tried: ['本机没找到 Edge / Chrome，无法无头渲染'],
+    reason: '抖音服务端拿不到封面；没找到可用的本机浏览器（装 Edge 或 Chrome 即可自动渲染）'
+  };
 }
 
 /* ---------- 下载封面 ---------- */
@@ -632,7 +797,9 @@ export async function syncCovers(options = {}) {
   const notes = [];
 
   // 总时间预算：断网 / 抖音卡住时，不要让 npm run dev 卡在抓封面这一步
-  const budgetMs = options.budgetMs || 45000;
+  // 总时间预算：断网 / 抖音卡住时不要让同步卡太久
+  // （无头渲染一条抖音大约 10~20 秒，所以留宽一点）
+  const budgetMs = options.budgetMs || 90000;
   const startedAt = Date.now();
   let budgetOut = false;
 
@@ -721,7 +888,7 @@ export async function syncCovers(options = {}) {
     say(`  → ${label}  正在抓…`);
     let r;
     try {
-      r = await resolveOne(v);
+      r = await resolveOne(v, { coverDir });
     } catch (e) {
       r = { ok: false, reason: e.message };
     }
@@ -766,6 +933,19 @@ export async function syncCovers(options = {}) {
         date: meta.date || preDate,
         duration: meta.duration || preDur
       };
+      continue;
+    }
+
+    // 本机浏览器截图那条路：图已经落盘了，不用再下载
+    if (r.localFile) {
+      out[key] = { poster: r.localFile, title: meta.title || '', date: meta.date || '', duration: meta.duration || '' };
+      cache[key] = {
+        file: r.localFile, at: Date.now(), fails: 0, numId: r.numId || '',
+        title: meta.title || '', date: meta.date || '', duration: meta.duration || ''
+      };
+      got++;
+      say(`    ✓ 封面 ${r.localFile}（${r.source || '本机浏览器截图'}）`);
+      if (meta.date) say(`      日期：${meta.date}`);
       continue;
     }
 

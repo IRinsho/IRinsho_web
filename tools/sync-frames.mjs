@@ -49,6 +49,44 @@ function ffmpegVersion() {
   }
 }
 
+/**
+ * 用 ffprobe 读视频信息（时长 / 画面尺寸）。
+ * ffprobe 跟 ffmpeg 一起装，一般同在 PATH 里。
+ */
+function probeVideo(srcAbs) {
+  try {
+    const r = spawnSync('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height:format=duration',
+      '-of', 'json',
+      srcAbs
+    ], { encoding: 'utf8' });
+    if (r.status !== 0) return null;
+    const info = JSON.parse(r.stdout || '{}');
+    const st = (info.streams && info.streams[0]) || {};
+    const dur = Number((info.format && info.format.duration) || 0);
+    return {
+      width: Number(st.width) || 0,
+      height: Number(st.height) || 0,
+      seconds: isFinite(dur) && dur > 0 ? dur : 0
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+/** 秒 → 00:26 / 01:02:03 */
+function fmtDuration(sec) {
+  const n = Math.round(Number(sec) || 0);
+  if (n <= 0) return '';
+  const h = Math.floor(n / 3600);
+  const m = Math.floor((n % 3600) / 60);
+  const s = n % 60;
+  const p = (x) => String(x).padStart(2, '0');
+  return h > 0 ? `${p(h)}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+}
+
 /** 用 ffmpeg 截一帧 */
 function grabFrame(srcAbs, destAbs, atSec) {
   const args = [
@@ -93,21 +131,22 @@ export async function syncFrames(options = {}) {
 
   const videos = await loadVideos(root);
 
-  // 只处理「有本地 src、且没填 poster」的视频（你填过的一律不动）
+  // 只处理本地视频（有 src）。封面、时长、日期、比例都尽量自动补齐，
+  // 但**只填空字段**，你写过的值一律不动。
   const targets = videos
     .map((v, i) => ({ v, i }))
-    .filter(({ v }) => v.src && !v.poster && v.cover !== false);
+    .filter(({ v }) => v.src && v.cover !== false);
 
   if (!targets.length) return { total: 0, got: 0, skipped: 0, failed: 0, hasFfmpeg: true };
 
   const version = ffmpegVersion();
   if (!version) {
     if (!quiet) {
-      console.log('\n本地视频截帧：');
-      console.log('  ! 没找到 ffmpeg，跳过（不影响其它同步）。');
-      console.log('    想要自动从本地视频截封面，装一个 ffmpeg 并把它加入 PATH：');
+      console.log('\n本地视频自动补信息：');
+      console.log('  ! 没找到 ffmpeg / ffprobe，跳过（不影响其它同步）。');
+      console.log('    装上之后可以自动做三件事：截封面、读时长、读画面比例。');
       console.log('      winget install Gyan.FFmpeg        （或到 ffmpeg.org 下 Windows 版）');
-      console.log('    也可以先不管：在 videos.js 里给这条填 poster 就行。');
+      console.log('    不装也行：在 videos.js 里给这条填 poster / duration / ratio。');
     }
     return { total: targets.length, got: 0, skipped: 0, failed: 0, hasFfmpeg: false };
   }
@@ -136,31 +175,68 @@ export async function syncFrames(options = {}) {
       continue;
     }
 
-    const mtime = statSync(srcAbs).mtimeMs;
+    const st = statSync(srcAbs);
+    const mtime = st.mtimeMs;
     const at = Number(v.frameAt) > 0 ? Number(v.frameAt) : DEFAULT_AT;
     const prev = cache[srcRel];
 
-    // 已经截过、视频没改过、图还在 → 跳过
-    if (!force && prev && prev.file && prev.mtime === mtime &&
-        existsSync(join(root, 'public', prev.file))) {
-      skipped++;
-      patchEntries.push({ index: i, title: label, match: [String(v.src)], fields: { poster: prev.file } });
-      continue;
+    // 封面这块：已经截过、视频没改过、图还在 → 不用重截
+    const coverReady = !v.poster && prev && prev.file && prev.mtime === mtime &&
+      existsSync(join(root, 'public', prev.file));
+
+    // 需要补哪些字段（只填空的，你写过的绝不动）
+    const fields = {};
+    if (v.poster) fields.poster = '';                     // 已有封面 → 不碰
+    else if (prev && prev.file && existsSync(join(root, 'public', prev.file))) fields.poster = prev.file;
+
+    // 用 ffprobe 读时长 / 画面尺寸（读不到就跳过，不影响其它字段）
+    const probe = probeVideo(srcAbs);
+    if (probe) {
+      if (!v.duration && probe.seconds) fields.duration = fmtDuration(probe.seconds);
+      if (!v.ratio && probe.width && probe.height) fields.ratio = `${probe.width}:${probe.height}`;
     }
 
-    const name = safeName(v.title || srcRel.replace(extname(srcRel), ''));
-    const destAbs = join(coverDir, name + '.jpg');
-    say(`  → ${label}  正在截第 ${at} 秒…`);
-    try {
-      const bytes = grabFrame(srcAbs, destAbs, at);
-      const rel = COVER_URL_PREFIX + '/' + destAbs.split(/[\\/]/).pop();
-      cache[srcRel] = { file: rel, mtime, at, bytes };
-      patchEntries.push({ index: i, title: label, match: [String(v.src)], fields: { poster: rel } });
-      got++;
-      say(`    ✓ ${rel}  (${(bytes / 1024).toFixed(0)} KB)`);
-    } catch (e) {
-      failed++;
-      say(`    ✗ 截帧失败：${e.message}`);
+    // 日期：没有就用视频文件的修改时间（你随时可以手改覆盖）
+    if (!v.date) {
+      const d = new Date(st.mtimeMs);
+      const p = (x) => String(x).padStart(2, '0');
+      fields.date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    }
+
+    // 封面：需要截就截
+    if (!v.poster && !coverReady) {
+      const name = safeName(v.title || srcRel.replace(extname(srcRel), ''));
+      const destAbs = join(coverDir, name + '.jpg');
+      say(`  → ${label}  正在截第 ${at} 秒…`);
+      try {
+        const bytes = grabFrame(srcAbs, destAbs, at);
+        const rel = COVER_URL_PREFIX + '/' + destAbs.split(/[\\/]/).pop();
+        cache[srcRel] = { file: rel, mtime, at, bytes };
+        fields.poster = rel;
+        got++;
+        say(`    ✓ 封面 ${rel}  (${(bytes / 1024).toFixed(0)} KB)`);
+        if (fields.duration) say(`      时长：${fields.duration}`);
+        if (fields.ratio) say(`      比例：${fields.ratio}`);
+        if (fields.date) say(`      日期：${fields.date}（取自文件修改时间）`);
+      } catch (e) {
+        failed++;
+        say(`    ✗ 截帧失败：${e.message}`);
+      }
+    } else {
+      skipped++;
+      const extra = [fields.duration && '时长', fields.ratio && '比例', fields.date && '日期']
+        .filter(Boolean).join('、');
+      if (extra) say(`  · ${label}  封面已有，补 ${extra}`);
+    }
+
+    const real = Object.entries(fields).filter(([, val]) => val);
+    if (real.length) {
+      patchEntries.push({
+        index: i,
+        title: label,
+        match: [String(v.src)],
+        fields: Object.fromEntries(real)
+      });
     }
   }
 
