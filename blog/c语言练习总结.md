@@ -7,7 +7,7 @@ tags:
   - C语言
 draft: false
 summary: c语言练习总结
-cover:
+cover: p1.png
 cssclasses:
 slug:
 ---

@@ -6,7 +6,7 @@ tags:
   - C语言
 draft: false
 summary: 如何实现把每一位上的数独立输出出来（for循环）
-cover:
+cover: p2.png
 cssclasses:
 slug:
 ---
