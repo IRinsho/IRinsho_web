@@ -10,8 +10,9 @@ import { pad2 } from '../lib/format.js';
 // video 那一格的候选封面：抓来的抖音封面 > 手填 poster > 头像
 const videoArt = (() => {
   const v = videos[0] || {};
-  const src = String(v.embed || v.douyin || '').trim();
-  return (v.cover === false ? '' : autoCovers[src]) || v.poster || config.avatar || '';
+  const key = String(v.embed || v.douyin || '').trim();
+  const auto = v.cover === false ? {} : (autoCovers[key] || {});
+  return auto.poster || v.poster || config.avatar || '';
 })();
 
 // 每格挑一张图做底；没有图就用渐变色兜底

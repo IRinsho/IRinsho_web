@@ -6,7 +6,7 @@ import { asset } from '../lib/url.js';
 import { resolveEmbed } from '../lib/embeds.js';
 import { fmtSlash } from '../lib/format.js';
 
-/* 每条视频先算好「播放器地址」「原站链接」和「封面」：
+/* 每条视频先算好「播放器地址」「原站链接」「封面」「标题 / 日期 / 时长」：
    douyin / embed 里可以直接粘抖音、B站、YouTube 的分享链接，
    这里统一翻译成 iframe 能用的地址。
 
@@ -14,17 +14,23 @@ import { fmtSlash } from '../lib/format.js';
      1. tools/sync-covers.mjs 抓来的抖音封面（有 douyin / embed 链接时优先）
      2. videos.js 里手填的 poster
      3. 渐变兜底
-   想保留手填的封面、不要自动封面 → 在那条记录里写 cover: false */
+   想保留手填的封面、不要自动封面 → 在那条记录里写 cover: false
+
+   标题 / 日期 / 时长：videos.js 里写了就用你的，空着就用抓来的值兜底。 */
 const items = videos.map((v) => {
   const source = v.embed || v.douyin || '';
+  const key = String(source).trim();
   const r = resolveEmbed(source);
-  const auto = v.cover === false ? '' : (autoCovers[String(source).trim()] || '');
+  const auto = v.cover === false ? {} : (autoCovers[key] || {});
   return {
     ...v,
+    title: v.title || auto.title || '未命名',
+    date: v.date || auto.date || '',
+    duration: v.duration || auto.duration || '',
     embedUrl: r.embed,
     sourceUrl: v.link || r.link || r.embed,
     platform: v.platform || r.platform || '',
-    cover: auto || v.poster || ''
+    cover: auto.poster || v.poster || ''
   };
 });
 

@@ -1,18 +1,21 @@
 /* =========================================================
- *  封面抓取引擎（抖音）
+ *  封面 + 信息抓取引擎（抖音）
  *  ---------------------------------------------------------
- *  职责：读到 src/data/videos.js 里填了 douyin 的视频，
- *        联网把那一页的封面图抓下来，存进 public/media/covers/，
- *        并生成 src/data/covers.generated.js 给页面用。
+ *  职责：读到 src/data/videos.js 里填了 douyin / embed 的视频，联网：
+ *        1. 跟跳转，拿到真实的数字视频 id（短码 / 短链都能纠正）
+ *        2. 抓封面 → 下载到 public/media/covers/（存本地，不怕签名过期）
+ *        3. 顺便读标题 / 发布日期 / 时长
+ *        4. 把「缺的字段」补回 videos.js（已有的值绝不覆盖）
+ *        5. 生成 src/data/covers.generated.js 和 meta 给页面兜底
  *
  *  用法： npm run sync:covers      （或 npm run sync 一起跑）
  *
- *  为什么做成「下载到本地」而不是直接引用抖音的图片地址：
+ *  为什么封面要下载到本地：
  *    · 抖音的图片地址带签名，过一段时间就失效，页面会变空图
  *    · 直接引外链，用户浏览器每次都要连抖音，慢且可能被防盗链挡
  *    · 存成本地 webp 之后，封面永久有效、离线也能看
  *
- *  抓不到封面时（视频被删、抖音改版、网络不通）不会报错退出，
+ *  抓不到时（视频被删、抖音改版、网络不通）不会报错退出，
  *  只是跳过那一条并打印原因，页面会退回用 poster 或渐变兜底。
  * ======================================================= */
 import {
@@ -20,6 +23,7 @@ import {
 } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { patchVideos } from './patch-videos.mjs';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -40,7 +44,6 @@ const FETCH_HEADERS = {
 };
 
 /* ---------- 小工具 ---------- */
-function log(...a) { console.log(...a); }
 
 /** 文件名安全化（保留中文，去掉非法字符） */
 function safeName(s, fallback = 'cover') {
@@ -115,10 +118,124 @@ function coversFromJson(text) {
     // { "url_list": ["https://..."] }
     const urls = chunk.match(/https?:\/\/[^"\\\s]+/g) || [];
     for (const u of urls) {
-      const clean = u.replace(/\\u002F/gi, '/').replace(/\\\//g, '/');      if (looksLikeCover(clean)) found.push(clean);
+      const clean = u.replace(/\\u002F/gi, '/').replace(/\\\//g, '/');
+      if (looksLikeCover(clean)) found.push(clean);
     }
   }
   return found;
+}
+
+/* ---------- 元信息：标题 / 日期 / 时长 ---------- */
+
+/** HTML 实体还原（&amp; &#39; 之类） */
+function decodeEntities(s) {
+  return String(s || '')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .trim();
+}
+
+/**
+ * 从页面 JSON 里取一个标量字段。
+ * 兼容 "create_time":1700000000 和 "createTime":"1700000000" 两种写法。
+ */
+function jsonScalar(html, keys) {
+  for (const key of keys) {
+    const re = new RegExp('"' + key + '"\\s*:\\s*("([^"]*)"|(\\d+(?:\\.\\d+)?))');
+    const m = html.match(re);
+    if (m) {
+      const val = m[2] !== undefined ? m[2] : m[3];
+      if (val !== undefined && val !== null && String(val).trim() !== '') return String(val).trim();
+    }
+  }
+  return '';
+}
+
+/** 抖音把中文转义成 \uXXXX，还原一下 */
+function unescapeUnicode(s) {
+  return String(s || '').replace(/\\u([0-9a-fA-F]{4})/g, (_, h) =>
+    String.fromCharCode(parseInt(h, 16))
+  );
+}
+
+/** 时间戳 / 各种日期写法 → 2026-09-28 */
+function fmtDate(v) {
+  const raw = String(v || '').trim();
+  if (!raw) return '';
+  if (/^\d{9,13}$/.test(raw)) {
+    let n = Number(raw);
+    if (n < 1e12) n *= 1000; // 10 位是秒，补成毫秒
+    const d = new Date(n);
+    if (!isNaN(d.getTime())) {
+      const p = (x) => String(x).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    }
+    return '';
+  }
+  const m = raw.match(/(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})/);
+  if (m) {
+    const p = (x) => String(x).padStart(2, '0');
+    return `${m[1]}-${p(m[2])}-${p(m[3])}`;
+  }
+  return '';
+}
+
+/** 毫秒 / 秒 / "00:26" → "00:26" */
+function fmtDuration(v) {
+  const raw = String(v || '').trim();
+  if (!raw) return '';
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(raw)) {
+    const parts = raw.split(':');
+    return parts.length === 2 ? `${parts[0].padStart(2, '0')}:${parts[1]}` : raw;
+  }
+  const n = Number(raw);
+  if (!isFinite(n) || n <= 0) return '';
+  let sec = n > 1000 ? Math.round(n / 1000) : Math.round(n); // >1000 当毫秒
+  const h = Math.floor(sec / 3600);
+  sec -= h * 3600;
+  const m = Math.floor(sec / 60);
+  const s = sec - m * 60;
+  const p = (x) => String(x).padStart(2, '0');
+  return h > 0 ? `${p(h)}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+}
+
+/** 从页面里读标题 / 日期 / 时长 */
+function extractMeta(html) {
+  if (!html) return {};
+
+  // 标题：og:title > <title> > JSON 里的 desc
+  let title = '';
+  const ogTitle = html.match(
+    /<meta[^>]+(?:property|name)=["'](?:og:title|twitter:title)["'][^>]*content=["']([^"']+)["']/i
+  );
+  if (ogTitle) title = ogTitle[1];
+  if (!title) {
+    const t = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+    if (t) title = t[1];
+  }
+  if (!title) title = jsonScalar(html, ['desc', 'title', 'share_title']);
+
+  title = unescapeUnicode(decodeEntities(title))
+    .replace(/\s*[-–|]\s*(抖音|Douyin)\s*$/i, '')   // 去掉「xxx - 抖音」后缀
+    .replace(/^【[^】]*】\s*/, '')                  // 去掉【作者】前缀
+    .trim();
+
+  // 日期
+  const date = fmtDate(
+    jsonScalar(html, ['create_time', 'createTime', 'publish_time', 'publishTime'])
+  );
+
+  // 时长
+  const duration = fmtDuration(
+    jsonScalar(html, ['duration', 'video_duration', 'videoDuration', 'item_duration'])
+  );
+
+  return { title, date, duration };
 }
 
 /** 从 HTML 里按优先级找一张封面 */
@@ -147,7 +264,7 @@ export function extractCover(html) {
   return '';
 }
 
-/* ---------- 抓一条视频的封面 ---------- */
+/* ---------- 抓一条视频的封面 + 信息 ---------- */
 async function resolveOne(entry) {
   const raw = String(entry.douyin || entry.embed || '').trim();
   if (!raw) return { ok: false, reason: '没有填 douyin / embed' };
@@ -182,6 +299,9 @@ async function resolveOne(entry) {
     return { ok: false, reason: '请求失败：' + e.message, finalUrl, numId };
   }
 
+  // 标题 / 日期 / 时长：抓不到封面也要拿，能补一点是一点
+  const meta = extractMeta(html);
+
   const cover = extractCover(html);
   if (!cover) {
     return {
@@ -190,11 +310,12 @@ async function resolveOne(entry) {
         ? '页面是 JS 空壳（抖音可能挡了请求），没抓到封面'
         : '页面里没找到 og:image 之类的封面地址（抖音可能改版了）',
       finalUrl,
-      numId
+      numId,
+      meta
     };
   }
 
-  return { ok: true, cover, finalUrl, numId, pageTitle: (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || '' };
+  return { ok: true, cover, finalUrl, numId, meta };
 }
 
 /* ---------- 下载封面 ---------- */
@@ -281,9 +402,14 @@ export async function syncCovers(options = {}) {
     const key = String(v.douyin || v.embed).trim();
     const prev = cache[key];
 
-    // 已经抓过、文件还在 → 直接用
+    // 已经抓过、文件还在 → 直接用（信息也一并沿用）
     if (!force && prev && prev.file && existsSync(join(root, 'public', prev.file))) {
-      out[key] = { poster: prev.file, title: v.title };
+      out[key] = {
+        poster: prev.file,
+        title: prev.title || v.title || '',
+        date: prev.date || '',
+        duration: prev.duration || ''
+      };
       skipped++;
       say(`  · ${label}  已有封面，跳过（${prev.file}）`);
       continue;
@@ -310,10 +436,21 @@ export async function syncCovers(options = {}) {
       notes.push({ label, douyin: v.douyin || v.embed, numId: r.numId, finalUrl: r.finalUrl });
     }
 
+    const meta = r.meta || {};
+
     if (!r.ok) {
       failed++;
       say(`    ✗ ${r.reason}`);
       if (r.numId) say(`      真实地址：${r.finalUrl}`);
+      // 封面没抓到，但标题/日期/时长可能抓到了，先留着
+      if (meta.title || meta.date || meta.duration) {
+        out[key] = { poster: '', title: meta.title || '', date: meta.date || '', duration: meta.duration || '' };
+        cache[key] = {
+          file: '', at: Date.now(), numId: r.numId || '',
+          title: meta.title || '', date: meta.date || '', duration: meta.duration || ''
+        };
+        say(`      但抓到了信息：${[meta.title, meta.date, meta.duration].filter(Boolean).join('  /  ')}`);
+      }
       continue;
     }
 
@@ -321,14 +458,69 @@ export async function syncCovers(options = {}) {
     try {
       const saved = await download(r.cover, join(coverDir, name + '.jpg'));
       const rel = COVER_URL_PREFIX + '/' + saved.dest.split(/[\\/]/).pop();
-      out[key] = { poster: rel, title: v.title };
-      cache[key] = { file: rel, at: Date.now(), source: r.cover, numId: r.numId || '' };
+      out[key] = { poster: rel, title: meta.title || '', date: meta.date || '', duration: meta.duration || '' };
+      cache[key] = {
+        file: rel, at: Date.now(), source: r.cover, numId: r.numId || '',
+        title: meta.title || '', date: meta.date || '', duration: meta.duration || ''
+      };
       got++;
-      say(`    ✓ ${rel}  (${(saved.bytes / 1024).toFixed(0)} KB)`);
+      say(`    ✓ 封面 ${rel}  (${(saved.bytes / 1024).toFixed(0)} KB)`);
+      if (meta.title) say(`      标题：${meta.title}`);
+      if (meta.date) say(`      日期：${meta.date}`);
+      if (meta.duration) say(`      时长：${meta.duration}`);
     } catch (e) {
       failed++;
       say(`    ✗ 下载封面失败：${e.message}`);
     }
+  }
+
+  /* ---------- 把抓到的信息补回 videos.js（只填空的，不覆盖你写的） ---------- */
+  const patchEntries = videos
+    .map((v, i) => {
+      const key = String(v.douyin || v.embed || '').trim();
+      const info = out[key];
+      if (!key || !info) return null;
+
+      const fields = {};
+      if (info.title && !v.title) fields.title = info.title;
+      if (info.date && !v.date) fields.date = info.date;
+      if (info.duration && !v.duration) fields.duration = info.duration;
+      if (info.poster && v.cover !== false) fields.poster = info.poster;
+
+      if (!Object.keys(fields).length) return null;
+      return {
+        index: i,
+        title: v.title || info.title || '',
+        match: [key],
+        fields
+      };
+    })
+    .filter(Boolean);
+
+  let patched = [];
+  if (patchEntries.length) {
+    try {
+      const res = patchVideos({ root, entries: patchEntries });
+      patched = res.changed || [];
+    } catch (e) {
+      say('  ! 回填 videos.js 失败（不影响页面显示）：' + e.message);
+    }
+  }
+
+  /* ---------- 页面兜底：重新读一次 videos.js ---------- */
+  // 能写进 videos.js 的已经写了；读不出来的（字段已被你填过、或文件改写失败）
+  // 由生成的这个文件兜底，保证页面一定有值可用
+  const videosAfter = await loadVideos(root);
+  const byKey = {};
+  for (const v of videosAfter) {
+    const key = String(v.douyin || v.embed || '').trim();
+    if (key) byKey[key] = v;
+  }
+  for (const [key, info] of Object.entries(out)) {
+    const cur = byKey[key] || {};
+    info.title = cur.title || info.title || '';
+    info.date = cur.date || info.date || '';
+    info.duration = cur.duration || info.duration || '';
   }
 
   /* ---------- 写缓存 ---------- */
@@ -340,22 +532,39 @@ export async function syncCovers(options = {}) {
   L.push('/* =========================================================');
   L.push(' *  ⚠ 本文件由 tools/sync-covers.mjs 自动生成，手改会被覆盖！');
   L.push(' *');
-  L.push(' *  作用：把「抖音视频链接」对应的封面图（已下载到 public/media/covers/）');
-  L.push(' *        关联到视频上。页面在视频没填 poster 时用这里的封面兜底。');
+  L.push(' *  作用：抖音视频的「封面 / 标题 / 日期 / 时长」。');
+  L.push(' *        封面已下载到 public/media/covers/，不怕链接签名过期。');
+  L.push(' *        页面在 videos.js 里对应字段为空时，用这里的值兜底。');
   L.push(' *');
-  L.push(' *  想自己指定封面 → 在 src/data/videos.js 里填 poster 字段（优先级更高）');
-  L.push(' *  想重新抓一遍  → 删除 .cover-sync.json，或运行 npm run sync:covers -- --force');
+  L.push(' *  想自己指定 → 直接在 src/data/videos.js 里填 poster / title / date / duration');
+  L.push(' *              （你填的值永远优先，这里只做兜底）');
+  L.push(' *  想重新抓   → 删除 .cover-sync.json，或运行 npm run sync:covers -- --force');
   L.push(' *');
   L.push(' *  生成时间：' + new Date().toLocaleString('zh-CN'));
   L.push(` *  共 ${Object.keys(out).length} 条`);
   L.push(' * ======================================================= */');
   L.push('export default {');
   for (const [k, val] of Object.entries(out)) {
-    L.push(`  ${q(k)}: ${q(val.poster)},`);
+    L.push(`  ${q(k)}: {`);
+    L.push(`    poster:   ${q(val.poster)},`);
+    if (val.title || val.date || val.duration) {
+      L.push(`    title:    ${q(val.title)},`);
+      L.push(`    date:     ${q(val.date)},`);
+      L.push(`    duration: ${q(val.duration)}`);
+    }
+    L.push('  },');
   }
   L.push('};');
   L.push('');
   writeFileSync(dataPath, L.join('\n'), 'utf8');
+
+  /* ---------- 报告回填结果 ---------- */
+  if (!quiet && patched.length) {
+    console.log('\n已把抓到的信息补进 src/data/videos.js（只填了空字段）：');
+    for (const p of patched) {
+      console.log(`  · ${p.title || ('第 ' + (p.index + 1) + ' 条')}  →  ${p.fields.join('、')}`);
+    }
+  }
 
   /* ---------- 给一条「可以更好」的建议 ---------- */
   if (!quiet) {
