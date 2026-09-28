@@ -143,29 +143,37 @@ const footerText = footerRaw.includes('{year}')
   const prefersReduced = window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  if (!prefersReduced) {
-    document.documentElement.classList.add('reveal');
+  /* ⚠ 两块动效互相隔离：任何一块出错都不许连累另一块。
+     之前它们写在一个作用域里，前面一抛错，后面的鼠标就完全不执行 ——
+     表现出来就是「首屏没有鼠标圈，换一次页才生效」。 */
+  function startReveal() {
+    try {
+      if (prefersReduced) return;
+      document.documentElement.classList.add('reveal');
 
-    const targets = document.querySelectorAll(
-      '.markdown > *, .post-bar, .post, .gallery-item, .video-card, .panel'
-    );
+      const targets = document.querySelectorAll(
+        '.markdown > *, .post-bar, .post, .gallery-item, .video-card, .panel'
+      );
 
-    if ('IntersectionObserver' in window && targets.length) {
-      const io = new IntersectionObserver((entries) => {
-        for (const en of entries) {
-          if (!en.isIntersecting) continue;
-          en.target.classList.add('is-in');
-          io.unobserve(en.target);
-        }
-      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
+      if ('IntersectionObserver' in window && targets.length) {
+        const io = new IntersectionObserver((entries) => {
+          for (const en of entries) {
+            if (!en.isIntersecting) continue;
+            en.target.classList.add('is-in');
+            io.unobserve(en.target);
+          }
+        }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
 
-      targets.forEach((el, i) => {
-        // 同一屏内依次错开一点点，像涟漪一样浮上来
-        el.style.setProperty('--reveal-delay', (i % 8) * 55 + 'ms');
-        io.observe(el);
-      });
-    } else {
-      targets.forEach((el) => el.classList.add('is-in'));
+        targets.forEach((el, i) => {
+          el.style.setProperty('--reveal-delay', (i % 8) * 55 + 'ms');
+          io.observe(el);
+        });
+      } else {
+        targets.forEach((el) => el.classList.add('is-in'));
+      }
+    } catch (e) {
+      console.warn('[浮现动效初始化失败]', e);
+      document.querySelectorAll('.markdown > *, .post, .panel').forEach((el) => el.classList.add('is-in'));
     }
   }
 
@@ -179,8 +187,11 @@ const footerText = footerRaw.includes('{year}')
    *  · ⚠ 开了页面过渡后这个脚本会在每次换页时重新执行，
    *    所以要先检查元素是否已经存在，避免叠加出好几个圈
    * ======================================================= */
-  if (!document.querySelector('.cur-ring')) {
-    initCursor();
+  try {
+    if (!document.querySelector('.cur-ring')) initCursor();
+  } catch (e) {
+    console.warn('[鼠标动效初始化失败]', e);
+    document.documentElement.classList.remove('has-cursor');   // 别让用户没有光标
   }
 
   function initCursor() {
@@ -207,7 +218,9 @@ const footerText = footerRaw.includes('{year}')
     let ry = my;
     let visible = false;
 
-    window.addEventListener('mousemove', (e) => {
+    // pointermove 比 mousemove 更可靠（鼠标 / 触控板 / 触控笔都算），
+    // 挂在 document 上，避免指针在 iframe 上方时收不到事件
+    const onMove = (e) => {
       mx = e.clientX;
       my = e.clientY;
       if (!visible) {
@@ -215,16 +228,20 @@ const footerText = footerRaw.includes('{year}')
         dot.classList.add('is-on');
         ring.classList.add('is-on');
       }
-      const hot = e.target.closest(
-        'a, button, .post, .video-card, .gallery-item, .chip, input, textarea, [role="button"]'
-      );
+      const hot = e.target && e.target.closest
+        ? e.target.closest('a, button, .post, .video-card, .gallery-item, .chip, input, textarea, [role="button"]')
+        : null;
       const isCard = !!(hot && hot.matches('.post, .video-card, .gallery-item'));
       ring.classList.toggle('is-hot', !!hot);
       ring.classList.toggle('is-card', isCard);
       dot.classList.toggle('is-hot', !!hot);
       label.textContent = isCard ? 'OPEN' : '';
       if (hot && hot.dataset && hot.dataset.cursorLabel) label.textContent = hot.dataset.cursorLabel;
-    }, { passive: true });
+    };
+
+    document.addEventListener('pointermove', onMove, { passive: true });
+    document.addEventListener('mousemove', onMove, { passive: true });   // 双保险
+    document.addEventListener('pointerover', onMove, { passive: true });
 
     document.addEventListener('mouseleave', () => {
       visible = false;
@@ -251,7 +268,7 @@ const footerText = footerRaw.includes('{year}')
    *    （比单纯给每个链接加下划线更活）
    *  · 点击后立刻把指示条挪到目标位置，换页不闪
    * ======================================================= */
-  (function navIndicator() {
+  function startNavIndicator() {
     const nav = document.getElementById('navTabs');
     if (!nav || prefersReduced) return;
 
@@ -290,7 +307,43 @@ const footerText = footerRaw.includes('{year}')
       if (t) moveTo(t, true);
     });
     window.addEventListener('resize', () => moveTo(active, true), { passive: true });
-  })();
+  }
+
+  /* =========================================================
+   *  ④ 换页后重启（关键！）
+   *  ---------------------------------------------------------
+   *  开了页面过渡（ClientRouter）后，Astro 换页时会把旧 DOM 整个换掉：
+   *    · 鼠标圈 / 光点被删掉了 → 不重建就「切页后鼠标失效」
+   *    · html 上的 .has-cursor 还留着 → 系统光标也隐藏了
+   *      ⇒ 结果是**完全看不到光标**，这比动效失效更糟
+   *    · 新页面的内容没有 .is-in → 会一直停在「隐藏」状态（白页）
+   *
+   *  astro:page-load 在「首次加载」和「每次换页完成」都会触发，
+   *  所以把三套动效都挂到它上面，每次换页重新初始化一遍。
+   *  三个初始化函数内部都有幂等保护，重复调用安全。
+   * ======================================================= */
+  function bootMotion() {
+    startReveal();
+    if (!document.querySelector('.cur-ring')) initCursor();
+    startNavIndicator();
+  }
+
+  // 换页刚开始（新 DOM 已换入、脚本还没跑）：如果鼠标圈被换掉了，
+  // 立刻恢复系统光标，绝不留下「一个光标都没有」的状态
+  document.addEventListener('astro:after-swap', () => {
+    if (!document.querySelector('.cur-ring')) {
+      document.documentElement.classList.remove('has-cursor');
+    }
+  });
+
+  document.addEventListener('astro:page-load', bootMotion);
+
+  // 没启用页面过渡时的兜底（此时只有一次 DOMContentLoaded）
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootMotion);
+  } else {
+    bootMotion();
+  }
 </script>
 
 </body>
