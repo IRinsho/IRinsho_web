@@ -78,6 +78,16 @@ export default [
     ratio: '1504:720',
     stream: 'https://v11-weba.douyinvod.com/609b13e6c09a5211969ce80ccc6ff4e2/6aba7658/video/tos/cn/tos-cn-ve-0015c800/oUnrgmbogxzHl8GAl3fBAsNgDUIAeQAg9aCK8d/?a=6383&ch=26&cr=3&dr=0&lr=all&cd=0%7C0%7C0%7C3&cv=1&br=1522&bt=1522&cs=0&ds=3&ft=3.0nz3OOVYpVAWq9DUxLhdpEeat0E.s3-EDOm4~xKAoBBR4~fnZaaUy~vjTQ&mime_type=video_mp4&qs=0&rc=aDc8PDxkOWY0aDlmZmU5N0BpM3M1cmk6ZmU6bzMzNGkzM0A0NC0yYmJiXi0xNS0yNjQ0YSNsbjBucjQwaDVgLS1kLWFzcw%3D%3D&btag=c0000e00010000&cquery=100z_100o_100w_100B_100x&dy_q=1790594072&feature_id=f0150a16a324336cda5d6dd0b69ed299&l=20260928191432F100A1334F599DC5D85C',
   },
+  {
+    title: '天气之子',
+    desc: '天气之子',
+    category: '动漫',
+    tags: ['动漫'],
+    date: '2026-01-20',
+    douyin: 'https://www.douyin.com/video/7330654762230238498',
+    poster: '',
+    duration: ''
+  },
   
   /* 抖音示例（把 douyin 换成你自己的分享链接即可）：
   {
