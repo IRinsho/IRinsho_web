@@ -85,8 +85,10 @@ export default [
     tags: ['动漫'],
     date: '2026-01-20',
     douyin: 'https://www.douyin.com/video/7330654762230238498',
-    poster: '',
-    duration: ''
+    poster: 'media/covers/douyin-7330654762230238498.jpg',
+    duration: '00:16',
+    ratio: '1280:720',
+    stream: 'https://v26-web.douyinvod.com/d203fccbd15ac5cd787bfe62d36e9b66/6aba7b59/video/tos/cn/tos-cn-ve-0015c800/ocnoCDPgdIbu4efARNBblYq667IYB9g53lQ7AA/?a=6383&ch=26&cr=3&dr=0&lr=all&cd=0%7C0%7C0%7C3&cv=1&br=2049&bt=2049&cs=0&ds=3&ft=3.0nz3OOVYpVAWq9DUxLhdpEesy-E.s3-EDOm4~xKAoBBR4~fnZaaUy~vjTQ&mime_type=video_mp4&qs=0&rc=OWY5ZmQ8Zzc8ZjY5OmVlNkBpMztrZzo6Znh1cDMzNGkzM0BfXmJfNWM0Xy8xLjZfX2NfYSNqby5ycjQwYnFgLS1kLWFzcw%3D%3D&btag=c0000e00010000&cquery=100w_100B_100x_100z_100o&dy_q=1790595353&feature_id=f0150a16a324336cda5d6dd0b69ed299&l=20260928193552EEA51DB57204B1CE067E',
   },
   
   /* 抖音示例（把 douyin 换成你自己的分享链接即可）：

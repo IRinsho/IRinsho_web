@@ -9,8 +9,8 @@
  *              （你填的值永远优先，这里只做兜底）
  *  想重新抓   → 删除 .cover-sync.json，或运行 npm run sync:covers -- --force
  *
- *  生成时间：2026/9/28 19:14:35
- *  共 2 条
+ *  生成时间：2026/9/28 19:35:56
+ *  共 3 条
  * ======================================================= */
 export default {
   "https://www.douyin.com/video/7338819585061178662": {
@@ -26,5 +26,12 @@ export default {
     date:     "2023-11-12",
     duration: "00:17",
     ratio:    "1504:720"
+  },
+  "https://www.douyin.com/video/7330654762230238498": {
+    poster:   "media/covers/douyin-7330654762230238498.jpg",
+    title:    "天气之子",
+    date:     "2026-01-20",
+    duration: "00:16",
+    ratio:    "1280:720"
   },
 };
