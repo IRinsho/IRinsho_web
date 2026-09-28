@@ -1756,6 +1756,63 @@ html.reveal .finale {
   .route-list li > a:hover { padding-left: 8px; }
 }
 
+/* =========================================================
+ *  友链页进场编排（纯 CSS 动画：不依赖脚本，一定会播完并停在可见）
+ *  顺序：标题 → 正文 → 面板 → 轨道图形 → 列表逐行 → 底部
+ * ======================================================= */
+@keyframes routeIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes routePanelIn {
+  from { opacity: 0; transform: translateY(26px) scale(.986); filter: blur(7px); }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+@keyframes routeRowIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes routeOrbIn {
+  from { opacity: 0; transform: scale(.8); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 左栏：eyebrow → 大标题 → 两段正文，依次落下 */
+.route-left > * { animation: routeIn .85s cubic-bezier(.22, .61, .36, 1) both; }
+.route-left > *:nth-child(1) { animation-delay: .04s; }
+.route-left > *:nth-child(2) { animation-delay: .12s; }
+.route-left > *:nth-child(3) { animation-delay: .28s; }
+.route-left > *:nth-child(4) { animation-delay: .4s; }
+
+/* 大标题：稍微放大着落下来，比正文更"重" */
+.route-title { animation: routeIn 1.05s cubic-bezier(.22, .61, .36, 1) .12s both; }
+
+/* 玻璃面板：从下方升起 + 从模糊到清晰 */
+.route-panel { animation: routePanelIn 1.05s cubic-bezier(.22, .61, .36, 1) .3s both; }
+
+/* 轨道图形：单独放大入场（它自己有浮动/旋转的循环动画，互不干扰） */
+.route-orb { animation: routeOrbIn .95s cubic-bezier(.22, .61, .36, 1) .42s both; }
+
+/* 列表逐行从右侧滑入（含空位那几行） */
+.route-list li { animation: routeRowIn .62s cubic-bezier(.22, .61, .36, 1) both; }
+.route-list li:nth-child(1) { animation-delay: .5s; }
+.route-list li:nth-child(2) { animation-delay: .58s; }
+.route-list li:nth-child(3) { animation-delay: .66s; }
+.route-list li:nth-child(4) { animation-delay: .74s; }
+.route-list li:nth-child(5) { animation-delay: .82s; }
+.route-list li:nth-child(n+6) { animation-delay: .88s; }
+
+/* 底部那一行最后出现 */
+.route-bottom { animation: routeIn .7s cubic-bezier(.22, .61, .36, 1) .9s both; }
+
+/* 细弧线也慢慢淡入，别一开始就杵在那里 */
+.route-lines { animation: routeIn 1.6s ease .1s both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .route-left > *, .route-title, .route-panel, .route-orb,
+  .route-list li, .route-bottom, .route-lines { animation: none !important; }
+}
+
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }
 
 /* =========================================================
