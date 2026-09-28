@@ -1010,25 +1010,41 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   /* ---------- 视频弹窗：手机上几乎全屏 ---------- */
   .modal { padding: 0; align-items: stretch; }
   .modal-panel {
-    width: 100%; max-height: 100vh; height: 100vh;
+    width: 100%;
+    /* 100vh 在手机上会被地址栏骗到（内容超出被切），dvh 才是真实可视高度 */
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
     border-radius: 0; border: 0;
     display: flex; flex-direction: column;
+    overflow: hidden;
   }
-  .modal-head { padding: 12px 14px; align-items: center; }
+  .modal-head { flex: none; padding: 12px 14px; align-items: center; }
   .modal-head h3 { font-size: 16px; }
   .modal-head p { font-size: 10.5px; margin-top: 2px; }
   /* 关闭按钮做大，手指好点 */
   .modal-head .icon-btn { width: 42px; height: 42px; font-size: 15px; }
-  .modal-body { flex: 1 1 auto; display: grid; place-items: center; min-height: 0; }
-  /* 竖屏视频在手机上按可用高度撑满，不要黑边 */
+  /* 播放区吃掉剩下的高度；内容太长时它自己滚 */
+  .modal-body {
+    flex: 1 1 auto; min-height: 0;
+    display: grid; place-items: center;
+    overflow: auto;
+  }
+  .modal-body video, .modal-body iframe { width: 100%; max-height: 100%; }
+  /* 竖屏视频：按 9:16 居中，撑满可用高度但不留黑边 */
   .modal-body.is-vertical video,
-  .modal-body.is-vertical iframe { max-height: 100%; }
-  .modal-body video, .modal-body iframe { max-height: 100%; }
-  .embed-bar { padding: 12px 14px 14px; font-size: 12px; }
+  .modal-body.is-vertical iframe {
+    width: auto; max-width: 100%; max-height: 100%;
+    aspect-ratio: 9 / 16;
+  }
+  .embed-bar { flex: none; padding: 12px 14px 14px; font-size: 12px; }
   .embed-bar .play-download { padding: 7px 14px; margin-left: 8px; }
+  /* 手机上竖向空间紧张，那行补充说明先收起来，只留「去原站看」按钮 */
+  .embed-hint { display: none; }
   .play-error { padding: 20px 16px 8px; font-size: 13px; }
   .play-download { margin: 0 16px 18px; padding: 10px 18px; }
-  .modal-desc { padding: 12px 14px calc(18px + env(safe-area-inset-bottom)); font-size: 13px; }
+  .modal-desc { flex: none; padding: 12px 14px calc(18px + env(safe-area-inset-bottom)); font-size: 13px; }
   /* 弹窗打开时别让背景跟着滑 */
   .modal { overscroll-behavior: contain; }
 }

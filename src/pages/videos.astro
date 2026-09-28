@@ -13,11 +13,13 @@ import { fmtSlash, hueFor } from '../lib/format.js';
    封面优先级：
      1. videos.js 里手填的 poster（最高，你说了算）
      2. 抓来的封面（B站 / YouTube 能自动抓）/ coverUrl（手动粘的图）
-     3. live 播放器画面（抖音默认走这个：卡片里直接嵌播放器，显示视频真实画面）
-     4. 生成底图（色调由标题推导）
+     3. 生成底图（色调由标题推导，稳定不随机）
    不想要任何自动封面 → cover: false
-   不想在卡片里嵌播放器 → live: false（会退回生成底图）
-   竖屏视频（抖音）→ 自动按 9:16 显示，不用手写；要强制横屏写 vertical: false
+
+   live: true  → 卡片里直接嵌播放器显示真实画面（默认关，见下面说明）
+   live 默认关的原因：抖音播放器塞进 16:9 的卡片后会变成
+   「上面一大块黑 + 抖音 logo，下面一条画面」，比生成底图难看得多。
+   竖屏视频（抖音）→ 自动按 9:16 显示；要强制横屏写 vertical: false
 
    标题 / 日期 / 时长：videos.js 里写了就用你的，空着就用抓来的值兜底。 */
 const items = videos.map((v) => {
@@ -29,8 +31,10 @@ const items = videos.map((v) => {
   const platform = v.platform || r.platform || '';
   // 竖屏：抖音基本都是竖的；显式写 vertical 则听你的
   const vertical = v.vertical === undefined ? platform === '抖音' : !!v.vertical;
-  // 卡片里嵌播放器：抖音默认开（否则抓不到封面就只能显示生成底图）
-  const live = v.live === undefined ? (platform === '抖音' && !!r.embed) : !!v.live;
+  // 卡片里嵌播放器：**默认关**。
+  // 试过默认开：抖音播放器塞进 16:9 的卡片里会变成「一大块黑 + logo + 一条画面」，
+  // 比生成底图难看多了。所以只在明确写 live: true 时才用。
+  const live = v.live === true;
 
   return {
     ...v,
