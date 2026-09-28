@@ -82,7 +82,7 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         tabindex="0"
         role="button"
       >
-        <div class={'thumb' + (!v.cover && v.embedUrl ? ' thumb--gen' : '')}>
+        <div class={'thumb' + (!v.cover && v.embedUrl ? (v.live ? ' thumb--live' : ' thumb--gen') : '')}>
           {v.cover ? (
             <img
               src={asset(v.cover)}
@@ -91,6 +91,19 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
               data-fallback={v.poster && v.poster !== v.cover ? asset(v.poster) : ''}
               onerror="const fb=this.dataset.fallback;if(fb){this.dataset.fallback='';this.src=fb;}else{console.warn('[视频封面加载失败]',this.getAttribute('src'));this.parentNode.classList.add('thumb-broken');this.remove();}"
             />
+          ) : v.embedUrl && v.live ? (
+            /* live: true —— 直接把播放器嵌进卡片。
+               这样卡片上显示的就是这条视频的真实画面（相当于「从视频里取一帧」），
+               代价是每张卡多一个 iframe，所以默认不开，只给需要的视频用。 */
+            <iframe
+              class="thumb-live"
+              src={v.embedUrl}
+              title={v.title}
+              loading="lazy"
+              scrolling="no"
+              frameborder="0"
+              allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            ></iframe>
           ) : v.embedUrl ? (
             /* 没有封面（外链视频常见）：生成一张设计过的底图，
                而不是留一块灰暗的空白 —— 色调由标题推导，稳定不随机 */

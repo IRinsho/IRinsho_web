@@ -103,7 +103,9 @@ npm install
 │
 └─ tools/
    ├─ sync-photos.mjs       图片同步引擎
-   ├─ sync-covers.mjs       视频封面 / 标题 / 日期 / 时长抓取（抖音）
+   ├─ sync-frames.mjs       本地视频截帧（ffmpeg）→ 当封面
+   ├─ sync-covers.mjs       B站 / YouTube 封面抓取（抖音做不到，见下）
+   ├─ set-cover.mjs         手动配一张封面（交互式）
    ├─ patch-videos.mjs      把抓到的信息安全写回 videos.js（保留注释）
    └─ build-blog.mjs        笔记构建引擎
 ```
@@ -262,6 +264,34 @@ B 站 / YouTube / 抖音的视频，直接粘分享链接就行，页面会自�
 > 直接填 `douyin: '那串数字'` 最省事。
 >
 > 整段分享口令（含「复制打开抖音…」那些字）也可以直接粘，会自动抠出链接。
+
+### 从视频里截一帧当封面
+
+| 视频类型 | 能不能自动截帧 |
+| --- | --- |
+| **本地视频**（`src: 'media/videos/xx.webm'`） | ✅ 能。`npm run sync:frames` 用 ffmpeg 截第 1.5 秒，写进 `poster` |
+| **抖音 / B站 / YouTube** | ❌ 截不了。拿不到视频文件（抖音详情接口实测 403 签名墙），且 iframe 跨域，canvas 读不了像素 |
+
+本地视频截帧需要系统里有 **ffmpeg**；没有就自动跳过（并打印一行安装提示），不影响其它同步。
+`npm run dev` / `npm run build` / 自动同步都会带上这一步。
+
+想让某条截别的时间点，在那条记录里加：
+
+```js
+{ title: 're0', src: 'media/videos/re0.webm', frameAt: 3 }   // 截第 3 秒
+```
+
+**外链视频的等效办法：`live: true`**
+
+截不了帧，但可以**把播放器直接嵌进卡片** —— 卡片上显示的就是那条视频的真实画面：
+
+```js
+{ title: '奇蛋物语', douyin: '...', duration: '00:26', live: true }
+```
+
+代价是每张卡多一个 iframe（有几条就用几条，视频不多时没问题），
+而且点击不会打开我们的弹窗（直接在卡片里播）。**不想用就删掉 `live: true`**，
+卡片会退回生成底图。
 
 ### 封面 + 信息自动抓取
 

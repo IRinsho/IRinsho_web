@@ -88,6 +88,20 @@ export function irinshoAutoSync() {
             console.log('  ! 图片同步失败：' + e.message);
           }
 
+          // 本地视频截帧（只处理没填 poster 的本地视频；没装 ffmpeg 会自己跳过）
+          try {
+            const mod = await import(
+              pathToFileURL(join(root, 'tools', 'sync-frames.mjs')).href + '?t=' + Date.now()
+            );
+            const r = await mod.syncFrames(SILENT);
+            if (r && r.got) console.log(`  本地视频截帧：新截 ${r.got} 张封面`);
+            if (r && r.hasFfmpeg === false) {
+              console.log('  （没装 ffmpeg，本地视频没自动截封面；外链视频见「手动配封面.cmd」）');
+            }
+          } catch (e) {
+            console.log('  ! 本地视频截帧失败：' + e.message);
+          }
+
           // 抖音封面 + 标题 / 日期 / 时长
           try {
             const mod = await import(
@@ -96,8 +110,8 @@ export function irinshoAutoSync() {
             const r = await mod.syncCovers(SILENT);
             if (r && (r.got || r.failed)) {
               console.log(`  封面：新抓 ${r.got} 条，失败 ${r.failed} 条`);
-              if (r.failed) {
-                console.log('  （抓取详情：node tools/sync-covers.mjs --force --dump）');
+              if (r.failed && !r.got) {
+                console.log('  外链封面抓不到时：双击「手动配封面.cmd」10 秒补一张');
               }
             }
           } catch (e) {

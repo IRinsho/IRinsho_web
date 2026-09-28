@@ -4,11 +4,12 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "sync": "node tools/sync-photos.mjs && node tools/sync-covers.mjs && node tools/build-blog.mjs",
+    "sync": "node tools/sync-photos.mjs && node tools/sync-frames.mjs && node tools/sync-covers.mjs && node tools/build-blog.mjs",
     "dev": "npm run sync && astro dev",
     "build": "npm run sync && astro build",
     "preview": "astro preview",
     "sync:photos": "node tools/sync-photos.mjs",
+    "sync:frames": "node tools/sync-frames.mjs",
     "sync:covers": "node tools/sync-covers.mjs",
     "sync:blog": "node tools/build-blog.mjs",
     "cover": "node tools/set-cover.mjs"
