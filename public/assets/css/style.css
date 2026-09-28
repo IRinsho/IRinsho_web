@@ -174,11 +174,22 @@ button, input { font: inherit; color: inherit; }
 
 .topbar-actions { display: flex; align-items: center; gap: 12px; flex: none; }
 .avatar-btn {
+  position: relative;
   width: 38px; height: 38px; border-radius: 50%;
-  padding: 2px; border: 1px solid rgba(224, 70, 111, .55);
+  padding: 2px; overflow: hidden;
+  border: 1px solid rgba(224, 70, 111, .55);
   transition: .22s;
 }
 .avatar-btn img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+/* 头像文件缺失时不要留一个破图标，显示一个玫红菱形占位 */
+.avatar-btn img.is-broken { display: none; }
+.avatar-btn::after {
+  content: '◆';
+  position: absolute; inset: 0;
+  display: none; place-items: center;
+  color: var(--rose); font-size: 15px;
+}
+.avatar-btn:has(img.is-broken)::after { display: grid; }
 .avatar-btn:hover { border-color: var(--rose); box-shadow: 0 0 0 3px var(--rose-dim); transform: scale(1.05); }
 .menu-btn { display: none; }
 
@@ -236,6 +247,8 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .panel-home { grid-row: span 2; min-height: 400px; }
 .panel-art {
   position: absolute; inset: 0;
+  /* 图片没加载出来时，兜底是这块渐变，而不是一片死黑 */
+  background: linear-gradient(140deg, #2a2f52, #171a30);
   background-size: cover; background-position: center;
   filter: grayscale(1) contrast(1.06);
   transform: scale(1.01);
@@ -753,6 +766,19 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .modal-head p { margin: 4px 0 0; color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em; }
 .modal-body { background: #000; }
 .modal-body video, .modal-body iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
+/* 视频打不开时的提示（代替一块纯黑屏） */
+.play-error {
+  margin: 0; padding: 28px 24px 10px;
+  color: var(--ink-2); font-size: 13.5px; letter-spacing: .04em;
+  word-break: break-all;
+}
+.play-download {
+  display: inline-block; margin: 0 24px 26px;
+  padding: 9px 18px;
+  border: 1px solid var(--rose); color: var(--rose);
+  font-size: 12.5px; letter-spacing: .1em; transition: .2s;
+}
+.play-download:hover { background: var(--rose); color: #fff; }
 .modal-desc { margin: 0; padding: 14px 20px 20px; color: var(--ink-2); font-size: 13.5px; }
 
 .toast {
@@ -765,6 +791,45 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   animation: rise .22s ease;
   max-width: 82vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* =========================================================
+ *  资源自检页（/debug-paths/）
+ * ======================================================= */
+.dbg-ok {
+  border: 1px solid rgba(90, 200, 140, .5);
+  color: #7fd6a4;
+  padding: 14px 18px;
+  letter-spacing: .06em;
+  font-size: 13.5px;
+}
+.dbg-miss {
+  border: 1px solid var(--rose);
+  padding: 14px 18px 18px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.dbg-miss p { margin: 0 0 10px; }
+.dbg-miss ul { margin: 0 0 12px; padding-left: 20px; color: var(--rose-2); }
+.dbg-miss li { margin: 4px 0; }
+.dbg-miss code, .dbg-foot code { font-family: var(--font-mono); color: var(--rose); }
+
+.dbg-table-wrap { margin: 22px 0 14px; overflow-x: auto; border: 1px solid var(--line); }
+.dbg-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.dbg-table th, .dbg-table td {
+  text-align: left; padding: 9px 12px;
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: top;
+}
+.dbg-table th {
+  color: var(--ink-2); font-weight: 600; letter-spacing: .12em; font-size: 11px;
+  text-transform: uppercase; white-space: nowrap;
+}
+.dbg-table code { font-family: var(--font-mono); font-size: 12px; word-break: break-all; }
+.dbg-table tr.bad { background: rgba(224, 70, 111, .08); }
+.dbg-state { font-weight: 700; color: #7fd6a4; width: 48px; }
+.dbg-table tr.bad .dbg-state { color: var(--rose); }
+.dbg-enc { display: block; margin-top: 4px; color: var(--ink-3); font-size: 11px; }
+.dbg-foot { color: var(--ink-3); font-size: 12px; letter-spacing: .04em; }
 
 /* =========================================================
  *  响应式

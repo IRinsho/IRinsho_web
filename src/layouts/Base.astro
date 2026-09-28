@@ -38,7 +38,11 @@ const nameBefore = ai >= 0 ? name.slice(0, ai) : name;
 const nameAfter = ai >= 0 ? name.slice(ai + accent.length) : '';
 
 const year = new Date().getFullYear();
-const footerText = String(config.footer || '').replace('{year}', year);
+const footerRaw = String(config.footer || '');
+// 页脚里写了 {year} 就替换成当前年份；没写就原样显示
+const footerText = footerRaw.includes('{year}')
+  ? footerRaw.replace(/\{year\}/g, year)
+  : footerRaw;
 ---
 <!doctype html>
 <html lang="zh-CN">
@@ -73,7 +77,7 @@ const footerText = String(config.footer || '').replace('{year}', year);
 
     <div class="topbar-actions">
       <a class="avatar-btn" href={asset('me/')} title="个人档案">
-        <img src={asset(config.avatar)} alt="头像">
+        <img src={asset(config.avatar)} alt="头像" onerror="this.classList.add('is-broken')">
       </a>
       <button class="icon-btn menu-btn" id="menuToggle" title="菜单" aria-label="菜单">☰</button>
     </div>

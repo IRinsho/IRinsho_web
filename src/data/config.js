@@ -25,7 +25,10 @@ export default {
   ],
 
   /* ---------- 头像 ---------- */
-  avatar: 'media/avatar.webp',
+  // 顶栏右上角的圆形头像 + 首页 ME 那一格的底图
+  // 原来写的是 media/avatar.webp，但 public/media/ 里没有这个文件，
+  // 所以顶栏右上角一直是个空的圆圈。这里先指向一张确实存在的图。
+  avatar: 'media/images/119178066_p0.webp',
 
   /* ---------- 个人页（ME） ---------- */
   me: {
@@ -57,5 +60,5 @@ export default {
   },
 
   /* ---------- 页脚 ---------- */
-  footer: '© {year} IRinsho'
+  footer: '© 2026 IRinsho'
 };

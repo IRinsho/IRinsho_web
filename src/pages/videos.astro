@@ -6,11 +6,12 @@ import { fmtSlash } from '../lib/format.js';
 
 const cats = ['全部'].concat(
   videos.reduce((acc, v) => {
-    if (v.category && acc.indexOf(v.category) === -1) acc.push(v.category);
+    const c = String(v.category || '').trim();
+    if (c && acc.indexOf(c) === -1) acc.push(c);
     return acc;
   }, [])
 );
-const countOf = (c) => (c === '全部' ? videos.length : videos.filter((v) => v.category === c).length);
+const countOf = (c) => (c === '全部' ? videos.length : videos.filter((v) => String(v.category || '').trim() === c).length);
 
 const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 ---
@@ -38,12 +39,12 @@ const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(
       <article
         class="video-card"
         data-index={i}
-        data-category={v.category}
+        data-category={String(v.category || '').trim()}
         data-title={v.title}
         data-meta={[v.category, fmtSlash(v.date), v.duration].filter(Boolean).join('  /  ')}
         data-desc={v.desc || ''}
         data-embed={v.embed || ''}
-        data-src={v.embed ? '' : (v.src || '')}
+        data-src={v.embed ? '' : asset(v.src || '')}
         data-poster={v.poster ? asset(v.poster) : ''}
         tabindex="0"
         role="button"
@@ -95,15 +96,55 @@ const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(
       document.getElementById('vmTitle').textContent = card.dataset.title || '';
       document.getElementById('vmMeta').textContent = card.dataset.meta || '';
       document.getElementById('vmDesc').textContent = card.dataset.desc || '';
+
+      // 用 DOM 接口搭播放器，不用拼字符串：
+      // 文件名里带引号、括号、中文都不会把标签拼坏
+      body.replaceChildren();
+
       if (card.dataset.embed) {
-        body.innerHTML =
-          '<iframe src="' + card.dataset.embed + '" allowfullscreen scrolling="no" frameborder="0"></iframe>';
+        const iframe = document.createElement('iframe');
+        iframe.src = card.dataset.embed;
+        iframe.allow = 'autoplay; fullscreen; encrypted-media';
+        iframe.allowFullscreen = true;
+        iframe.setAttribute('scrolling', 'no');
+        iframe.setAttribute('frameborder', '0');
+        body.appendChild(iframe);
+      } else if (!card.dataset.src) {
+        const tip = document.createElement('p');
+        tip.className = 'play-error';
+        tip.textContent = '这条视频没填 src：在 src/data/videos.js 里补上 ' +
+          "src: 'media/videos/文件名.mp4'（或者用 embed 嵌外链）。";
+        body.appendChild(tip);
       } else {
-        body.innerHTML =
-          '<video controls autoplay playsinline' +
-          (card.dataset.poster ? ' poster="' + card.dataset.poster + '"' : '') +
-          ' src="' + card.dataset.src + '"></video>';
+        const video = document.createElement('video');
+        video.controls = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        if (card.dataset.poster) video.poster = card.dataset.poster;
+        video.src = card.dataset.src;   // 路径已由 asset() 转义，能正常取到文件
+
+        // 万一文件真的不存在 / 格式浏览器不认，给一条能点的出路，别只留一块黑屏
+        video.addEventListener('error', () => {
+          const srcAttr = video.getAttribute('src') || '';
+          if (!srcAttr) return;
+          let shown = srcAttr.replace(/^\//, '');
+          try { shown = decodeURI(shown); } catch (e) { /* 编码不合法就显示原样 */ }
+          const tip = document.createElement('p');
+          tip.className = 'play-error';
+          tip.textContent = '这个视频打不开：检查文件是否在 public/' + shown +
+            '，或者换个浏览器支持的格式（推荐 mp4 / H.264）。';
+          const dl = document.createElement('a');
+          dl.className = 'play-download';
+          dl.href = srcAttr;
+          dl.setAttribute('download', '');
+          dl.textContent = '↓ 直接下载这个文件试试';
+          body.replaceChildren(tip, dl);
+        });
+
+        body.appendChild(video);
       }
+
       modal.hidden = false;
       document.body.style.overflow = 'hidden';
     }
