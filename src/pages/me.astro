@@ -8,6 +8,9 @@ const sidenav = me.sidenav || [];
 const friend = me.friend || {};
 const friendUrl = friend.url || '';
 const friendEmpty = !friendUrl || friendUrl === '#';
+// 站内路径要过 asset()（否则从 /me/ 出发会拼成 /me/links/）；
+// 只有完整网址才新窗口打开 —— 之前内部链接也被强制 _blank 了
+const friendExternal = /^https?:/i.test(friendUrl);
 
 const linkIcon = '<path d="M10.5 13.5a5 5 0 0 0 7 0l2.5-2.5a5 5 0 0 0-7-7l-1 1"/>' +
                  '<path d="M13.5 10.5a5 5 0 0 0-7 0L4 13a5 5 0 0 0 7 7l1-1"/>';
@@ -48,9 +51,11 @@ const linkIcon = '<path d="M10.5 13.5a5 5 0 0 0 7 0l2.5-2.5a5 5 0 0 0-7-7l-1 1"/
       <a
         class="me-friend"
         id="meFriend"
-        href={friendEmpty ? asset('me/') : friendUrl}
+        href={friendEmpty
+          ? asset('me/')
+          : (friendExternal ? friendUrl : asset(friendUrl))}
         data-empty={friendEmpty ? '1' : ''}
-        target={friendEmpty ? '' : '_blank'}
+        target={friendExternal ? '_blank' : ''}
         rel="noopener noreferrer"
       >
         <span class="mf-icon">♡</span>

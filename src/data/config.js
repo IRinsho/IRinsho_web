@@ -44,7 +44,10 @@ export default {
       { label: 'GITHUB', url: 'https://github.com/' },
       { label: 'BILIBILI', url: 'https://space.bilibili.com/' }
     ],
-    friend: { label: 'FRIEND LINKS / OPEN ROUTE', text: '进入友链', url: '#' },
+    // 友链入口。url 可以填两种：
+    //   站内页 → 直接写相对路径，例如 'links/'（会跳到本站 /links/ 友链页）
+    //   外部页 → 写完整地址，例如 'https://example.com/links'（新窗口打开）
+    friend: { label: 'FRIEND LINKS / OPEN ROUTE', text: '进入友链', url: 'links/' },
 
     /* 右侧竖排导航：真实链接，view 用来判断哪一项高亮 */
     sidenav: [
