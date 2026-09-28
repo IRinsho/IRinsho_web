@@ -585,35 +585,66 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 /* 有真实封面图时：容器跟着图片比例走（不再裁成 4/3）。
    放在上面两条规则之后，靠 :has() 只在「真有 img」时生效 —— 
    生成底图（.post-cover--gen）不受影响，仍是 4/3。 */
-.post-cover:has(img) { aspect-ratio: auto; }
+/* ---------- 漫画封面式：统一竖版 2:3 ----------
+   上一版按图片原比例显示，结果是同一行三张高度各不相同、下面的
+   标题行参差不齐（"没对齐"）。漫画封面本来就是**统一开本**，
+   所以这里改回固定比例：图片裁切填满画框，一行三张一样高 → 自然对齐。 */
+.post-cover,
+.post-cover:has(img) {
+  position: relative;
+  aspect-ratio: 2 / 3;          /* 竖版开本，接近漫画单行本 */
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #10132a;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .34);
+  transition: transform .38s cubic-bezier(.22, .61, .36, 1), box-shadow .38s ease, border-color .3s ease;
+}
+
+/* 图片一律填满画框（这就是"漫画封面"的做法：裁切，不留白） */
+.post-cover img,
 .post-cover:has(img) img {
-  height: auto;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
+  filter: none;                 /* 清掉上一版的降饱和 */
+  -webkit-mask-image: none;     /* 清掉上一版的底部渐隐 */
+  mask-image: none;
+  transition: transform .5s cubic-bezier(.22, .61, .36, 1), filter .4s ease;
 }
 
-/* ---------- 封面自对齐 + 风格化 ---------- */
-/* ① 自对齐：卡片高度跟着内容走。
-   原来是 grid 默认的 align-items: stretch —— 同一行里最矮的那张
-   会被最高的那张撑出下面一大块空白（截图里 01 号那块黑就是它）。 */
-.blog-grid { align-items: start; }
-
-/* ② 风格化：默认轻微降饱和，像老照片；鼠标悬停恢复通透 */
-.post-cover:has(img) img { filter: saturate(.9) contrast(1.03) brightness(.98); }
+/* 漫画感：默认轻微压暗压色（像印出来的），悬停"掀起来"并恢复通透 */
+.post-cover img,
+.post-cover:has(img) img { filter: saturate(.94) contrast(1.02) brightness(.97); }
+.post:hover .post-cover,
+.post:focus-visible .post-cover {
+  transform: translateY(-5px) rotate(-.35deg);       /* 微微掀起，像拿起一本 */
+  box-shadow: 0 20px 44px rgba(0, 0, 0, .52);
+  border-color: var(--rose-dim);
+}
+.post:hover .post-cover img,
 .post:hover .post-cover:has(img) img,
-.post:focus-visible .post-cover:has(img) img {
-  filter: saturate(1.08) contrast(1.05) brightness(1.02);
+.post:focus-visible .post-cover img {
+  filter: saturate(1.08) contrast(1.04) brightness(1.02);
+  transform: scale(1.06);
 }
 
-/* ③ 底部渐隐：图片和卡片底色之间不留硬边，
-   顺带让右下角的分类标签（.cover-tag）更好读 */
-.post-cover:has(img) img {
-  -webkit-mask-image: linear-gradient(180deg, #000 74%, rgba(0, 0, 0, .55) 100%);
-  mask-image: linear-gradient(180deg, #000 74%, rgba(0, 0, 0, .55) 100%);
+/* 画框内圈高光：漫画封面那种"有厚度"的边。
+   ⚠ 用 ::before 而不是 ::after —— 原本的 .post-cover::after 是网点纹
+   （halftone 圆点，本身就是漫画质感的一部分），不能被我这条覆盖掉。 */
+.post-cover::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07),
+              inset 0 -34px 46px -30px rgba(6, 8, 18, .8);
+  pointer-events: none;
+  z-index: 2;
 }
 
-/* ④ 悬停时轻微放大改成"上浮"：不裁图的前提下也能有反应 */
-.post:hover .post-cover:has(img) img { transform: scale(1.015); }
+/* 行内卡片各自贴合内容高度（统一开本后其实已经齐了，这条是保险） */
+.blog-grid { align-items: start; }
 .post:hover .post-cover img { transform: scale(1.05); }
 .post-cover::after {
   content: ''; position: absolute; inset: 0;
