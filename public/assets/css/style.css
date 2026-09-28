@@ -1813,6 +1813,37 @@ html.reveal .finale {
   .route-list li, .route-bottom, .route-lines { animation: none !important; }
 }
 
+/* =========================================================
+ *  友链页背景动效
+ *  · 背景图极慢地推近/横移（Ken Burns，46 秒一个来回）
+ *  · 紫调渐变层轻轻"呼吸"
+ *  · 两条大弧线以 140s / 180s 反向旋转（几乎察觉不到在动，但画面不死）
+ * ======================================================= */
+@keyframes routeKenBurns {
+  0%   { transform: scale(1.02) translate3d(0, 0, 0); }
+  50%  { transform: scale(1.09) translate3d(-1.2%, -1.4%, 0); }
+  100% { transform: scale(1.02) translate3d(0, 0, 0); }
+}
+.route::before { animation: routeKenBurns 46s ease-in-out infinite; }
+
+@keyframes routeGlow {
+  0%, 100% { opacity: .9; }
+  50%      { opacity: 1; }
+}
+.route::after { animation: routeGlow 13s ease-in-out infinite; }
+
+@keyframes routeArcSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.route-lines i:nth-child(1) { animation: routeArcSpin 140s linear infinite; }
+.route-lines i:nth-child(2) { animation: routeArcSpin 180s linear infinite reverse; }
+
+@media (prefers-reduced-motion: reduce) {
+  .route::before, .route::after,
+  .route-lines i:nth-child(1), .route-lines i:nth-child(2) { animation: none !important; }
+}
+
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }
 
 /* =========================================================
