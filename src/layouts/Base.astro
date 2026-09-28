@@ -1,6 +1,10 @@
 ---
 import config from '../data/config.js';
 import { asset } from '../lib/url.js';
+// 页面切换的视觉过渡（Astro 内置）——
+// 换页时不会白屏闪一下，而是像 Kisara 主题那样平滑淡入淡出，
+// 顶栏因为位置不变会自动保持，看起来像「内容在换、外壳没动」
+import { ClientRouter } from 'astro:transitions';
 
 const { title = config.name, description = '' } = Astro.props;
 
@@ -59,6 +63,17 @@ const footerText = footerRaw.includes('{year}')
   {description && <meta name="description" content={description}>}
   <link rel="icon" href={asset('favicon.svg')}>
   <link rel="stylesheet" href={asset('assets/css/style.css')}>
+  <ClientRouter />
+  <!-- 首屏之前先把「开了动效」标记写上，避免内容闪一下再消失 -->
+  <script is:inline>
+    (function () {
+      try {
+        var reduce = window.matchMedia &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!reduce) document.documentElement.classList.add('js-motion');
+      } catch (e) { /* 忽略 */ }
+    })();
+  </script>
 </head>
 <body data-view={view}>
 
@@ -161,11 +176,19 @@ const footerText = footerRaw.includes('{year}')
    *  · 只有脚本跑起来、点/圈都建好了，才隐藏系统光标
    *    （否则脚本一挂用户就没光标了，那是灾难）
    *  · 悬停在链接/按钮/卡片上时：圈会放大、变色，出现提示
+   *  · ⚠ 开了页面过渡后这个脚本会在每次换页时重新执行，
+   *    所以要先检查元素是否已经存在，避免叠加出好几个圈
    * ======================================================= */
-  const finePointer = window.matchMedia &&
-    window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (!document.querySelector('.cur-ring')) {
+    initCursor();
+  }
 
-  if (finePointer && !prefersReduced) {
+  function initCursor() {
+    const finePointer = window.matchMedia &&
+      window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+    if (!finePointer || prefersReduced) return;
+
     const dot = document.createElement('div');
     dot.className = 'cur-dot';
     const ring = document.createElement('div');
@@ -192,7 +215,6 @@ const footerText = footerRaw.includes('{year}')
         dot.classList.add('is-on');
         ring.classList.add('is-on');
       }
-      // 点在链接上时，圈里显示一个小提示（可点击）
       const hot = e.target.closest(
         'a, button, .post, .video-card, .gallery-item, .chip, input, textarea, [role="button"]'
       );
@@ -210,7 +232,6 @@ const footerText = footerRaw.includes('{year}')
       ring.classList.remove('is-on');
     });
 
-    // 按下时收一下，手感更实
     window.addEventListener('mousedown', () => ring.classList.add('is-down'), { passive: true });
     window.addEventListener('mouseup', () => ring.classList.remove('is-down'), { passive: true });
 
@@ -223,6 +244,53 @@ const footerText = footerRaw.includes('{year}')
       requestAnimationFrame(loop);
     })();
   }
+
+  /* =========================================================
+   *  ③ 导航栏动效
+   *  · 鼠标在导航上时，一条玫红指示条会跟着光标滑动
+   *    （比单纯给每个链接加下划线更活）
+   *  · 点击后立刻把指示条挪到目标位置，换页不闪
+   * ======================================================= */
+  (function navIndicator() {
+    const nav = document.getElementById('navTabs');
+    if (!nav || prefersReduced) return;
+
+    let bar = nav.querySelector('.nav-ind');
+    if (!bar) {
+      bar = document.createElement('span');
+      bar.className = 'nav-ind';
+      bar.setAttribute('aria-hidden', 'true');
+      nav.appendChild(bar);
+    }
+
+    const active = nav.querySelector('.tab.active');
+    const moveTo = (el, instant) => {
+      if (!el) return;
+      const nb = nav.getBoundingClientRect();
+      const eb = el.getBoundingClientRect();
+      bar.style.width = eb.width + 'px';
+      bar.style.transform = `translateX(${eb.left - nb.left}px)`;
+      bar.classList.toggle('is-instant', !!instant);
+      requestAnimationFrame(() => bar.classList.remove('is-instant'));
+      bar.classList.add('is-on');
+    };
+
+    // 初始位置（等字体排好，避免宽度量错）
+    const start = () => moveTo(active || nav.querySelector('.tab'), true);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(start);
+    else setTimeout(start, 120);
+
+    nav.addEventListener('mouseover', (e) => {
+      const t = e.target.closest('.tab');
+      if (t) moveTo(t);
+    });
+    nav.addEventListener('mouseleave', () => moveTo(active, true));
+    nav.addEventListener('click', (e) => {
+      const t = e.target.closest('.tab');
+      if (t) moveTo(t, true);
+    });
+    window.addEventListener('resize', () => moveTo(active, true), { passive: true });
+  })();
 </script>
 
 </body>
