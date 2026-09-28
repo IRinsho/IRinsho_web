@@ -940,7 +940,18 @@ html.js-motion::after {
  *  · 一条指示条跟着鼠标在导航项之间滑动
  *  · 悬停时编号（01~05）和图标有轻微反馈
  * ======================================================= */
-#navTabs { position: relative; }
+/* ⚠ 桌面端才需要给导航加相对定位（那是给「跟着鼠标滑动的指示条」当锚点的）。
+   千万不能写成全局的 #navTabs { position: relative } ——
+   id 选择器优先级高于手机的 .tabs 规则，会把下拉菜单的 position: absolute 顶掉，
+   结果 top/left/right 变成"相对自身位移"，菜单被推下去、第一项被顶栏压住。 */
+@media (min-width: 761px) {
+  #navTabs { position: relative; }
+}
+
+/* 移动端：导航是下拉菜单，不需要指示条（在菜单里会变成一根游离的小横条） */
+@media (max-width: 760px) {
+  .nav-ind { display: none !important; }
+}
 
 .nav-ind {
   position: absolute;
