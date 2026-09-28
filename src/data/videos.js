@@ -58,7 +58,7 @@ export default [
     //    官方播放器不认它，多半播不出来。
     //    换成 www.douyin.com/video/ 后面那串纯数字（或直接填数字）就能播。
     douyin: 'https://www.douyin.com/video/7338819585061178662',
-    poster: 'media/covers/7338819585061178662.jpg',
+    poster: 'media/covers/douyin-7338819585061178662.png',
     duration: ''
   },
   {
@@ -71,7 +71,7 @@ export default [
     //    官方播放器不认它，多半播不出来。
     //    换成 www.douyin.com/video/ 后面那串纯数字（或直接填数字）就能播。
     douyin: 'https://www.douyin.com/video/7300469476099640591',
-    poster: 'media/covers/7300469476099640591.jpg',
+    poster: 'media/covers/douyin-7300469476099640591.png',
     duration: ''
   },
   

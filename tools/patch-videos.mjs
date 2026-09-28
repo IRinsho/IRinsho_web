@@ -81,9 +81,12 @@ function quoteValue(value) {
 
 /**
  * 在一条记录里设置某个字段。
+ * @param {object} [opts]
+ * @param {boolean} [opts.overwrite] true = 允许覆盖已有的非空值
+ *        （只用于「已知坏了的值」，例如 poster 指向一个已经被删掉的文件）
  * @returns {{ block: string, changed: boolean }}
  */
-function setField(block, field, value) {
+function setField(block, field, value, opts = {}) {
   const valText = quoteValue(value);
   const re = new RegExp('(^|\\n)([ \\t]*)' + field + '\\s*:\\s*([\'"])([^\'"\\n]*)\\3([^\\n]*)');
 
@@ -94,12 +97,14 @@ function setField(block, field, value) {
     const end = block.indexOf(mid, start + field.length);
     if (end < 0) return { block, changed: false };
 
-    const current = block.slice(end + 1, block.indexOf(mid, end + 1));
-    // 已经有值了 → 不覆盖（这是「只填空字段」的保证）
-    if (current.trim() !== '') return { block, changed: false };
+    const closeQuote = block.indexOf(mid, end + 1);
+    const current = block.slice(end + 1, closeQuote);
 
-    // 空值：只替换引号里的内容，缩进和行尾注释都留着
-    const replaced = block.slice(0, start) + block.slice(start, end + 1) + value + block.slice(block.indexOf(mid, end + 1));
+    // 已经有值了 → 默认不覆盖（这是「只填空字段」的保证）。
+    // 但如果调用方明确说这个值是坏的（overwrite），就允许替换。
+    if (current.trim() !== '' && !opts.overwrite) return { block, changed: false };
+
+    const replaced = block.slice(0, start) + block.slice(start, end + 1) + value + block.slice(closeQuote);
     return { block: replaced, changed: true };
   }
 
@@ -152,7 +157,8 @@ export function patchVideos(options = {}) {
 
     for (const [field, value] of Object.entries(entry.fields || {})) {
       if (!value) continue;
-      const r = setField(block, field, value);
+      const overwrite = Array.isArray(entry.overwrite) && entry.overwrite.indexOf(field) !== -1;
+      const r = setField(block, field, value, { overwrite });
       if (r && r.changed) {
         block = r.block;
         applied.push(field);

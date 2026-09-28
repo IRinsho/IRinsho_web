@@ -279,7 +279,27 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
           btn.type = 'button';
           btn.className = 'embed-play';
           btn.innerHTML = '<span>▶</span>播放';
+
           btn.addEventListener('click', () => {
+            // 套一层「我们自己的播放器外壳」：标题条 + 画面 + 脚注。
+            // 官方播放器只出现在画面那一格，其余边框、配色、出口都是我们的。
+            const shell = document.createElement('div');
+            shell.className = 'player';
+
+            const bar = document.createElement('div');
+            bar.className = 'player-bar';
+            const dot = document.createElement('i');
+            dot.className = 'player-dot';
+            dot.textContent = '▶';
+            const name = document.createElement('b');
+            name.textContent = card.dataset.title || '';
+            const tag = document.createElement('span');
+            tag.className = 'player-tag';
+            tag.textContent = [platform, card.dataset.duration].filter(Boolean).join(' · ');
+            bar.append(dot, name, tag);
+
+            const screen = document.createElement('div');
+            screen.className = 'player-screen';
             const iframe = document.createElement('iframe');
             iframe.src = card.dataset.embed;
             iframe.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
@@ -287,9 +307,27 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
             iframe.setAttribute('scrolling', 'no');
             iframe.setAttribute('frameborder', '0');
             iframe.setAttribute('referrerpolicy', 'unsafe-url');
-            stage.replaceChildren(iframe);
+            screen.appendChild(iframe);
+
+            const foot = document.createElement('div');
+            foot.className = 'player-foot';
+            const note = document.createElement('span');
+            note.textContent = '画面由 ' + platform + ' 提供';
+            foot.appendChild(note);
+            if (link) {
+              const out = document.createElement('a');
+              out.href = link;
+              out.target = '_blank';
+              out.rel = 'noopener noreferrer';
+              out.textContent = '在新窗口打开 ↗';
+              foot.appendChild(out);
+            }
+
+            shell.append(bar, screen, foot);
+            stage.replaceChildren(shell);
             stage.classList.add('is-playing');
           });
+
           stage.appendChild(btn);
         } else {
           // 主要动作：去原站看（在抖音 App / 网页里播放，画面由对方负责，干干净净）

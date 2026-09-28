@@ -1011,19 +1011,29 @@ export async function syncCovers(options = {}) {
 
       // 抖音这种情况给明确的下一步，而不是让人反复跑
       if (String(r.reason).includes('抖音')) {
-        say('      抖音的视频页是客户端渲染，详情接口需要浏览器签名（实测 403），');
-        say('      所以服务端抓不到封面。两个办法，任选其一：');
-        say('        1) 双击「手动配封面.cmd」，粘一张封面图地址（10 秒，最省事）');
-        say('        2) 在 src/data/videos.js 这条里加 coverUrl: \'图片地址\'');
-        say('      另外：卡片不填封面也不会再是空白块了，页面会给它生成一张设计过的底图。');
+        say('      抖音的视频页是客户端渲染，详情接口需要浏览器签名（实测 403）。');
+        say('      现在的做法是用你本机的 Edge/Chrome 无头渲染 + 截图；如果这次没成，');
+        say('      可以手动补一张（在项目目录里跑 npm run cover，粘一个图片地址）。');
+        say('      完全不填封面也不难看：页面会生成一张设计过的底图。');
       }
-      // 封面没抓到，但标题/日期/时长可能抓到了，先留着
-      const preTitle = (prev && prev.title) || '';
-      const preDate = (prev && prev.date) || '';
-      const preDur = (prev && prev.duration) || '';
-      if (meta.title || meta.date || meta.duration) {
-        out[key] = { poster: '', title: meta.title || '', date: meta.date || '', duration: meta.duration || '' };
-        say(`      但抓到了信息：${[meta.title, meta.date, meta.duration].filter(Boolean).join('  /  ')}`);
+      // 封面没抓到，但标题/日期/时长可能抓到了，先留着。
+      // ⚠ 之前这里写成 poster: ''，结果一次「临时抓取失败」就会把上一次
+      //   已经抓好的封面从页面上抹掉（用户看到的就是「怎么又回去了」）。
+      //   现在改成：只要缓存里的封面文件还在，就继续用它。
+      const keepFile = (prev && prev.file && existsSync(join(root, 'public', prev.file)))
+        ? prev.file
+        : '';
+      if (meta.title || meta.date || meta.duration || keepFile) {
+        out[key] = {
+          poster: keepFile,
+          title: meta.title || '',
+          date: meta.date || '',
+          duration: meta.duration || ''
+        };
+        if (keepFile) say(`      封面沿用上一次抓到的：${keepFile}`);
+        if (meta.title || meta.date || meta.duration) {
+          say(`      但抓到了信息：${[meta.title, meta.date, meta.duration].filter(Boolean).join('  /  ')}`);
+        }
       }
       // 记下失败次数和时间，下次按退避间隔再试
       cache[key] = {
@@ -1031,9 +1041,9 @@ export async function syncCovers(options = {}) {
         at: Date.now(),
         fails: ((prev && prev.fails) || 0) + 1,
         numId: r.numId || (prev && prev.numId) || '',
-        title: meta.title || preTitle,
-        date: meta.date || preDate,
-        duration: meta.duration || preDur
+        title: meta.title || (prev && prev.title) || '',
+        date: meta.date || (prev && prev.date) || '',
+        duration: meta.duration || (prev && prev.duration) || ''
       };
       continue;
     }
@@ -1097,14 +1107,19 @@ export async function syncCovers(options = {}) {
       const oldPosterOk = v.poster && existsSync(
         join(root, 'public', String(v.poster).replace(/\\/g, '/').replace(/^(\.?\/)+/, ''))
       );
-      if (info.poster && v.cover !== false && !oldPosterOk) fields.poster = info.poster;
-
+      const overwrite = [];
+      if (info.poster && v.cover !== false && !oldPosterOk) {
+        fields.poster = info.poster;
+        // 旧值指向一个已经不存在的文件 → 它是坏值，允许覆盖
+        if (v.poster) overwrite.push('poster');
+      }
       if (!Object.keys(fields).length) return null;
       return {
         index: i,
         title: v.title || info.title || '',
         match: [key],
-        fields
+        fields,
+        overwrite
       };
     })
     .filter(Boolean);

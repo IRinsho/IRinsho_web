@@ -973,6 +973,50 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 /* 点了播放之后：播放器铺满这个台子（放在上面 .modal-body 规则之后才能盖住它） */
 .embed-stage.is-playing { aspect-ratio: auto; width: 100%; height: 100%; background: #000; }
 .embed-stage iframe { aspect-ratio: auto; width: 100%; height: 100%; border: 0; display: block; max-height: none; margin: 0; }
+
+/* ---------- 我们自己的播放器外壳 ----------
+   官方播放器只占中间「画面」那一格；标题条、脚注、边框、出口都是我们的，
+   看起来就是站内自带的播放器，而不是把抖音的页面整个搬进来。 */
+.player {
+  display: flex; flex-direction: column;
+  width: 100%; height: 100%;
+  background: #0b0e1c;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.player-bar {
+  flex: none;
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px;
+  background: linear-gradient(180deg, #1c2038, #171a30);
+  border-bottom: 1px solid var(--line-2);
+  font-size: 12.5px;
+}
+.player-dot {
+  font-style: normal; font-size: 9px;
+  color: var(--rose);
+}
+.player-bar b {
+  font-family: var(--font-serif); font-weight: 700; font-size: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.player-tag {
+  margin-left: auto; flex: none;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em;
+  color: var(--ink-3);
+}
+.player-screen { position: relative; flex: 1 1 auto; min-height: 0; background: #000; }
+.player-screen iframe { width: 100%; height: 100%; border: 0; display: block; }
+.player-foot {
+  flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 8px 14px;
+  background: var(--bg-2);
+  border-top: 1px solid var(--line-2);
+  font-size: 11.5px; letter-spacing: .06em; color: var(--ink-3);
+}
+.player-foot a { color: var(--rose); }
+.player-foot a:hover { text-decoration: underline; }
 /* 视频打不开时的提示（代替一块纯黑屏） */
 .play-error {
   margin: 0; padding: 28px 24px 10px;
