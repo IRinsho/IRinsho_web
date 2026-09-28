@@ -57,6 +57,34 @@ const chapters = config.chapters || [];
 const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? '' : '.';
 ---
 <Base title={`${config.name} · 个人档案`} description={config.homeMotto}>
+  {/*
+    首屏舞台（Gate）：主视觉铺满 + 滚动到阈值时揭晓终幕画面。
+    用两段 CSS 变量控制：--gate-p（0~1 的滚动进度）由页面脚本写入，
+    所有位移/缩放/淡入淡出都在 CSS 里算 —— 这样即使脚本挂了，
+    页面也只是一张静态主视觉，绝不会白屏。
+  */}
+  <section
+    class="gate"
+    id="homeGate"
+    style={`--hero:url(${asset('media/images/home-hero.jpg')});--finale:url(${asset('media/images/home-finale.jpg')})`}
+  >
+    <div class="gate-bg" aria-hidden="true">
+      <span class="gate-layer gate-hero"></span>
+      <span class="gate-layer gate-finale"></span>
+      <span class="gate-veil"></span>
+    </div>
+
+    <div class="gate-inner">
+      <p class="gate-kicker">CHAPTER 00 / OPENING</p>
+      <h2 class="gate-title">{config.homeTitle || config.name}</h2>
+      <p class="gate-sub">{config.homeMotto}</p>
+      <span class="gate-scroll" aria-hidden="true"><i></i></span>
+    </div>
+  </section>
+
+  {/* 顶部滚动进度轨 */}
+  <div class="gate-rail" id="gateRail" aria-hidden="true"><i></i></div>
+
   <div class="home-head">
     <div class="home-title-row">
       <h1 class="home-title">{config.homeTitle}<em>{titleSuffix}</em></h1>
@@ -97,4 +125,61 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       <a class="chapter" href={asset(c.href)}><b>{c.no}</b>{c.label}</a>
     ))}
   </nav>
+
+  <script>
+    /* =========================================================
+     *  首屏舞台：滚动进度 → CSS 变量
+     *  · --gate-p 从 0 到 1：主视觉缓慢推近并淡出、终幕画面淡入揭晓
+     *  · 顶部进度轨跟着走
+     *  · 全部用 requestAnimationFrame 节流，避免滚动时掉帧
+     *  · 系统开了「减少动态效果」→ 不绑任何东西，直接静态显示主视觉
+     * ======================================================= */
+    (function () {
+      const reduce = window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const gate = document.getElementById('homeGate');
+      const rail = document.getElementById('gateRail');
+      if (reduce) {
+        if (gate) gate.style.setProperty('--gate-p', '0');
+        if (rail) rail.style.opacity = '0';
+        return;
+      }
+      if (!gate) return;
+
+      let ticking = false;
+
+      function update() {
+        ticking = false;
+        const h = gate.offsetHeight || 1;
+        // 滚过大约一屏就基本揭晓完毕
+        const p = Math.min(1, Math.max(0, window.scrollY / (h * 0.85)));
+        gate.style.setProperty('--gate-p', p.toFixed(3));
+
+        // 进度轨：整页滚动进度（含页面总高度）
+        if (rail) {
+          const doc = document.documentElement;
+          const total = Math.max(1, doc.scrollHeight - window.innerHeight);
+          rail.style.setProperty('--rail', (window.scrollY / total).toFixed(4));
+        }
+      }
+
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(update);
+      }
+
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll, { passive: true });
+      update();
+
+      // 主视觉预载完之后再让它淡入（避免材质没到就先放大露白边）
+      const probe = new Image();
+      probe.onload = () => gate.classList.add('is-ready');
+      probe.onerror = () => gate.classList.add('is-ready');
+      probe.src = (getComputedStyle(gate).getPropertyValue('--hero') || '')
+        .replace(/^url\(["']?/, '').replace(/["']?\)$/, '').trim();
+      setTimeout(() => gate.classList.add('is-ready'), 2500);   // 兜底
+    })();
+  </script>
 </Base>

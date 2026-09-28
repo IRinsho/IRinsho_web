@@ -713,7 +713,8 @@ html.reveal .post-bar,
 html.reveal .post,
 html.reveal .gallery-item,
 html.reveal .video-card,
-html.reveal .panel {
+html.reveal .panel,
+html.reveal .gate-inner > * {
   opacity: 0;
   transform: translateY(22px) scale(.985);
   filter: blur(3px);
@@ -729,7 +730,8 @@ html.reveal .post-bar.is-in,
 html.reveal .post.is-in,
 html.reveal .gallery-item.is-in,
 html.reveal .video-card.is-in,
-html.reveal .panel.is-in {
+html.reveal .panel.is-in,
+html.reveal .gate-inner > *.is-in {
   opacity: 1;
   transform: none;
   filter: none;
@@ -967,6 +969,140 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   .nav-ind { transition: none !important; }
   .tab svg, .tab .tab-no, .tab { transition: none !important; transform: none !important; }
   html.js-motion .topbar { animation: none !important; }
+}
+
+/* =========================================================
+ *  首页首屏舞台（Gate）
+ *  --gate-p：0~1 的滚动进度，由 index.astro 的脚本写入
+ *  所有位移/缩放/淡入淡出都在这里算 —— 脚本挂了也只是静态主视觉
+ * ======================================================= */
+.gate {
+  position: relative;
+  min-height: 100svh;
+  margin: 0 0 30px;
+  border-radius: var(--radius);
+  overflow: clip;
+  background: var(--bg-2);
+  isolation: isolate;
+}
+.gate-bg { position: absolute; inset: 0; z-index: 0; }
+
+/* 两层画面：都是 cover 铺满，靠 --gate-p 交叉淡入淡出 */
+.gate-layer {
+  position: absolute;
+  inset: -3%;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  will-change: opacity, transform;
+}
+.gate-hero {
+  background-image: var(--hero);
+  opacity: 0;
+  transform: scale(1.02);
+  /* 进场用长一点的过渡（好看）；滚动时进度每帧都在变，
+     过渡时间太长会"拖"，所以取 .7s/.9s 这个折中值 */
+  transition: opacity .7s cubic-bezier(.22, .61, .36, 1), transform .9s cubic-bezier(.22, .61, .36, 1);
+}
+.gate.is-ready .gate-hero { opacity: 1; transform: scale(1); }
+
+/* 滚动时：主视觉继续推近并淡出，终幕画面从 1.05 缩回 1 淡入 */
+.gate.is-ready .gate-hero {
+  opacity: calc(1 - var(--gate-p, 0) * 0.9);
+  transform: scale(calc(1 + var(--gate-p, 0) * 0.08));
+}
+.gate-finale {
+  background-image: var(--finale);
+  opacity: calc(var(--gate-p, 0) * 1);
+  transform: scale(calc(1.06 - var(--gate-p, 0) * 0.06));
+}
+
+/* 压暗层：底部重一点，保证文字可读 */
+.gate-veil {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(9, 11, 22, .62) 0%, rgba(9, 11, 22, .12) 38%, rgba(9, 11, 22, .88) 100%),
+    radial-gradient(120% 80% at 50% 0%, transparent 40%, rgba(9, 11, 22, .5) 100%);
+}
+
+.gate-inner {
+  position: relative; z-index: 2;
+  min-height: 100svh;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  gap: 10px;
+  padding: 0 clamp(18px, 4vw, 44px) clamp(30px, 6vw, 66px);
+}
+.gate-kicker {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: .34em;
+  color: var(--rose);
+}
+.gate-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: clamp(38px, 8vw, 92px);
+  line-height: 1.02;
+  letter-spacing: .02em;
+  color: #fff;
+  text-shadow: 0 6px 40px rgba(0, 0, 0, .55);
+}
+.gate-sub {
+  margin: 0;
+  font-size: 13.5px; letter-spacing: .16em;
+  color: rgba(255, 255, 255, .68);
+}
+/* 底部的「向下滚动」小指示 */
+.gate-scroll {
+  margin-top: 14px;
+  width: 20px; height: 34px;
+  border: 1px solid rgba(255, 255, 255, .34);
+  border-radius: var(--radius-pill);
+  display: flex; justify-content: center;
+  padding-top: 6px;
+}
+.gate-scroll i {
+  width: 2px; height: 7px;
+  border-radius: 2px;
+  background: var(--rose);
+  animation: gateDot 1.9s cubic-bezier(.4, 0, .2, 1) infinite;
+}
+@keyframes gateDot {
+  0%   { opacity: 0; transform: translateY(0); }
+  28%  { opacity: 1; }
+  70%  { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 0; transform: translateY(14px); }
+}
+
+/* 顶部滚动进度轨 */
+.gate-rail {
+  position: fixed; left: 0; top: 0;
+  z-index: 9000;
+  width: 100%; height: 2px;
+  pointer-events: none;
+  background: transparent;
+}
+.gate-rail > i {
+  display: block;
+  height: 100%;
+  width: calc(var(--rail, 0) * 100%);
+  background: linear-gradient(90deg, var(--rose), var(--rose-2, #ff7ba0));
+  box-shadow: 0 0 10px rgba(224, 70, 111, .6);
+  transition: width .16s linear;
+}
+
+/* 移动端：整屏高度用 svh，别被手机地址栏顶掉一截 */
+@media (max-width: 760px) {
+  .gate, .gate-inner { min-height: 88svh; }
+  .gate-title { font-size: clamp(32px, 11vw, 54px); }
+}
+
+/* 减少动态效果：静态显示主视觉，不做缩放/揭晓 */
+@media (prefers-reduced-motion: reduce) {
+  .gate-hero { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .gate-finale { opacity: 0 !important; transform: none !important; }
+  .gate-scroll i { animation: none; }
+  .gate-rail { display: none; }
 }
 
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }

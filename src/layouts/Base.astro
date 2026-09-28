@@ -152,7 +152,7 @@ const footerText = footerRaw.includes('{year}')
       document.documentElement.classList.add('reveal');
 
       const targets = document.querySelectorAll(
-        '.markdown > *, .post-bar, .post, .gallery-item, .video-card, .panel'
+        '.markdown > *, .post-bar, .post, .gallery-item, .video-card, .panel, .gate-inner > *'
       );
 
       if ('IntersectionObserver' in window && targets.length) {
