@@ -90,21 +90,17 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
 
     <div class="gate-inner">
       <p class="gate-kicker">CHAPTER 00 / OPENING</p>
-      <h2 class="gate-title">{config.homeTitle || config.name}</h2>
+      <h1 class="gate-title">{config.homeTitle || config.name}</h1>
       <p class="gate-sub">{config.homeMotto}</p>
       <span class="gate-scroll" aria-hidden="true"><i></i></span>
     </div>
   </section>
 
+  {/* 接缝条：首屏 → 面板区（斜切色带，纯 CSS，零素材） */}
+  <div class="seam seam--gate" aria-hidden="true"></div>
+
   {/* 顶部滚动进度轨 */}
   <div class="gate-rail" id="gateRail" aria-hidden="true"><i></i></div>
-
-  <div class="home-head">
-    <div class="home-title-row">
-      <h1 class="home-title">{config.homeTitle}<em>{titleSuffix}</em></h1>
-      <p class="home-motto">{config.homeMotto}</p>
-    </div>
-  </div>
 
   <div class="panels">
     {PANELS.map((p) => (
@@ -139,6 +135,9 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       <a class="chapter" href={asset(c.href)}><b>{c.no}</b>{c.label}</a>
     ))}
   </nav>
+
+  {/* 接缝条：面板区 → 页脚（换一套角度，免得两条一模一样） */}
+  <div class="seam seam--footer" aria-hidden="true"></div>
 
   <script>
     /* =========================================================

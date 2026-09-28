@@ -978,6 +978,9 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
  * ======================================================= */
 .gate {
   position: relative;
+  /* ⚠ 必须写两行：不支持 svh 的浏览器（旧版）会把 100svh 整条丢掉，
+     首屏高度就塌成内容高度（看起来只有半屏）。100vh 兜底。 */
+  min-height: 100vh;
   min-height: 100svh;
   margin: 0 0 30px;
   border-radius: var(--radius);
@@ -1017,16 +1020,18 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   transform: scale(calc(1.06 - var(--gate-p, 0) * 0.06));
 }
 
-/* 压暗层：底部重一点，保证文字可读 */
+/* 压暗层：只压够文字可读的程度。之前压得太重（上 .62 / 下 .88），
+   深色主视觉会被压成一团糊 —— 现在上 .32 / 下 .68，画面能看清楚了 */
 .gate-veil {
   position: absolute; inset: 0;
   background:
-    linear-gradient(180deg, rgba(9, 11, 22, .62) 0%, rgba(9, 11, 22, .12) 38%, rgba(9, 11, 22, .88) 100%),
-    radial-gradient(120% 80% at 50% 0%, transparent 40%, rgba(9, 11, 22, .5) 100%);
+    linear-gradient(180deg, rgba(9, 11, 22, .32) 0%, rgba(9, 11, 22, .06) 42%, rgba(9, 11, 22, .68) 100%),
+    radial-gradient(120% 80% at 50% 0%, transparent 46%, rgba(9, 11, 22, .3) 100%);
 }
 
 .gate-inner {
   position: relative; z-index: 2;
+  min-height: 100vh;    /* 同上：给不支持 svh 的浏览器兜底 */
   min-height: 100svh;
   display: flex; flex-direction: column; justify-content: flex-end;
   gap: 10px;
@@ -1184,6 +1189,79 @@ html.js-motion .gate-title.is-in {
   .gate-title { clip-path: none !important; }
   .gate-particles, .gate-flash, .gate-sweep { display: none !important; }
   .gate-bg, .gate-inner, .gate-particles { transform: none !important; }
+}
+
+/* =========================================================
+ *  接缝条（Seam）—— 章节之间那条「漫画分格 / 撕纸」的斜切过渡
+ *  ---------------------------------------------------------
+ *  做法参考自 Kisara 主题的 home-transitions.css：
+ *    一条带竖向渐变的横条 + 两个不同角度的伪元素色带（clip-path 斜切）
+ *  · 上下各 -34px 负 margin 与相邻区块重叠 → 不出现硬边
+ *  · pointer-events:none 绝不挡点击/滚动
+ *  · isolation:isolate + z-index 固定 → 不干扰首屏 Gate 的层叠
+ *  · clip-path 只用来切形状，**不做 transition**（只动 transform/opacity）
+ * ======================================================= */
+.seam {
+  --band-a: rgba(224, 70, 111, .52);
+  --band-b: rgba(123, 182, 178, .38);
+  position: relative;
+  height: clamp(78px, 11vw, 116px);
+  margin-block: -34px;
+  pointer-events: none;
+  overflow: hidden;
+  isolation: isolate;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(224, 70, 111, .06) 44%,
+    rgba(123, 182, 178, .06) 56%,
+    transparent 100%
+  );
+}
+.seam::before,
+.seam::after {
+  content: '';
+  position: absolute;
+  inset: 26px -2px;
+}
+.seam::before {
+  background: var(--band-a);
+  clip-path: polygon(0 10%, 100% 42%, 100% 74%, 0 44%);
+}
+.seam::after {
+  background: var(--band-b);
+  clip-path: polygon(0 58%, 100% 26%, 100% 46%, 0 76%);
+}
+
+/* 第二条换角度（斜向反过来），两条放在一起才不会像复制粘贴 */
+.seam--footer::before { clip-path: polygon(0 62%, 100% 22%, 100% 50%, 0 84%); }
+.seam--footer::after  { clip-path: polygon(0 14%, 100% 48%, 100% 70%, 0 38%); }
+.seam--footer { --band-b: rgba(123, 182, 178, .46); }
+
+/* 支持的浏览器上让它随滚动轻微漂移（Chromium / 新版 Safari 才有；
+   不支持的浏览器就是静态斜切条，一样好看） */
+@supports (animation-timeline: view()) {
+  .seam::before,
+  .seam::after {
+    animation: seamDrift linear both;
+    animation-timeline: view(block);
+    animation-range: entry 0% exit 100%;
+  }
+  @keyframes seamDrift {
+    from { transform: translateY(6px); }
+    to   { transform: translateY(-6px); }
+  }
+}
+
+@media (max-width: 760px) {
+  .seam { height: clamp(64px, 16vw, 96px); margin-block: -26px; }
+  .seam::before, .seam::after { inset: 20px -2px; }
+}
+
+/* 减少动态效果：保持静态斜切条（不漂移） */
+@media (prefers-reduced-motion: reduce) {
+  .seam::before, .seam::after { animation: none !important; transform: none !important; }
 }
 
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }
