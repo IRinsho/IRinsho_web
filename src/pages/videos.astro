@@ -427,6 +427,10 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
             iframe.setAttribute('referrerpolicy', 'unsafe-url');
             body.appendChild(iframe);
             body.classList.add('has-ratio');
+            // 退回嵌入播放器时改用横向容器：官方播放器页把画面渲染成
+            // 一条横带，塞进竖屏容器会在上下留出两大块黑
+            body.style.setProperty('--ratio', '16 / 9');
+            body.style.setProperty('--rn', String(16 / 9));
             return;
           }
 
