@@ -1300,6 +1300,123 @@ html.reveal .finale {
   text-shadow: 0 2px 20px rgba(0, 0, 0, .65);
 }
 
+/* =========================================================
+ *  友链页面（/links/）
+ * ======================================================= */
+.link-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin: 26px 0 0;
+}
+
+.link-card {
+  position: relative;
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, .02);
+  overflow: hidden;
+  transition: transform .32s cubic-bezier(.22, .61, .36, 1),
+              border-color .32s ease, box-shadow .32s ease, background .32s ease;
+}
+.link-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--rose-dim);
+  background: rgba(224, 70, 111, .05);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .34);
+}
+/* 鼠标划过时左侧扫出一条玫红竖条 */
+.link-card::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--rose), transparent);
+  transform: scaleY(0);
+  transform-origin: top center;
+  transition: transform .38s cubic-bezier(.22, .61, .36, 1);
+}
+.link-card:hover::before { transform: scaleY(1); }
+.link-card.is-featured { border-color: rgba(224, 70, 111, .42); }
+
+/* 头像位：没有图就按站名生成一张配色底图（首字母 + 渐变色相） */
+.link-art {
+  flex: none;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(140deg,
+    hsl(var(--h, 340) 62% 34%), hsl(calc(var(--h, 340) + 40) 55% 18%));
+  border: 1px solid var(--line-2);
+}
+.link-art img { width: 100%; height: 100%; object-fit: cover; }
+.link-art img.is-broken { display: none; }
+.link-art b {
+  font-family: var(--font-serif);
+  font-size: 24px; color: #fff; opacity: .92;
+}
+
+.link-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.link-name {
+  font-family: var(--font-serif);
+  font-size: 17px; font-weight: 700; color: var(--ink);
+  display: flex; align-items: center; gap: 6px;
+}
+.link-star { font-style: normal; font-size: 11px; color: var(--rose); }
+.link-desc {
+  font-size: 12.5px; line-height: 1.6; color: var(--ink-2);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.link-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 3px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em;
+  color: var(--ink-3);
+}
+.link-meta em { font-style: normal; color: var(--rose-2); }
+.link-since { margin-left: auto; opacity: .8; }
+
+/* 底部「交换友链」区 */
+.link-open {
+  margin: 34px 0 0;
+  padding: 22px clamp(18px, 3.4vw, 30px);
+  border: 1px solid var(--rose-dim);
+  border-radius: var(--radius);
+  background: linear-gradient(150deg, rgba(224, 70, 111, .07), rgba(123, 182, 178, .05));
+}
+.link-open-desc { margin: 12px 0 16px; font-size: 13.5px; line-height: 1.8; color: var(--ink-2); }
+.link-mine {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.link-mine-row {
+  display: flex; gap: 14px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--line-2);
+}
+.link-mine-row:last-child { border-bottom: 0; }
+.link-mine-row > span {
+  flex: none; width: 46px;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em;
+  color: var(--ink-3);
+}
+.link-mine-row > b {
+  font-weight: 500; color: var(--ink-2);
+  word-break: break-all;
+}
+.link-open-hint { margin: 16px 0 0; font-size: 12.5px; line-height: 1.8; color: var(--ink-3); }
+.link-open-hint a { color: var(--rose); border-bottom: 1px solid var(--rose-dim); }
+
+@media (max-width: 560px) {
+  .link-grid { grid-template-columns: 1fr; gap: 12px; }
+  .link-mine-row { flex-direction: column; gap: 3px; }
+  .link-mine-row > span { width: auto; }
+}
+
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }
 
 /* =========================================================

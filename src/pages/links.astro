@@ -1,0 +1,102 @@
+---
+/* =========================================================
+ *  友链页面（/links/）
+ *  ---------------------------------------------------------
+ *  数据在 src/data/links.js —— 加友链只改那个文件。
+ *  样式沿用站内那套（eyebrow 小标题 / 衬线大标题 / 圆角卡片），
+ *  没有素材也能看：头像缺失时按站名生成一张配色底图。
+ * ======================================================= */
+import Base from '../layouts/Base.astro';
+import config from '../data/config.js';
+import links from '../data/links.js';
+import { asset } from '../lib/url.js';
+import { hueFor, pad2 } from '../lib/format.js';
+
+// featured 优先，其余保持原顺序
+const list = links.slice().sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
+const real = list.filter((l) => !l.open);
+const openSlots = list.filter((l) => l.open);
+
+// 别人要加本站时需要的信息 —— 直接显示出来方便复制
+const MINE = {
+  name: config.name || 'IRinsho',
+  url: 'https://irinsho.top/',
+  desc: config.homeMotto || '把想法写下来，把喜欢的留下来。',
+  avatar: config.avatar || ''
+};
+---
+
+<Base title={`友链 · ${config.name}`} description="交换友链，开放路线。">
+  <div class="home-head">
+    <div class="home-title-row">
+      <div class="eyebrow">
+        <span class="eyebrow-num">FRIEND LINKS</span>
+        <span class="eyebrow-line"></span>
+        <span class="eyebrow-text">OPEN ROUTE</span>
+      </div>
+      <h1 class="home-title">进入友链<em>.</em></h1>
+      <p class="home-motto">
+        一共 {pad2(real.length)} 条连接。想加进来，看最下面那张卡片。
+      </p>
+    </div>
+  </div>
+
+  <div class="link-grid">
+    {real.map((l) => (
+      <a
+        class={'link-card' + (l.featured ? ' is-featured' : '')}
+        href={l.url}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <span class="link-art" style={`--h:${hueFor(l.name)}`}>
+          {l.avatar ? (
+            <img src={asset(l.avatar)} alt="" loading="lazy" decoding="async"
+                 onerror="this.classList.add('is-broken')" />
+          ) : (
+            <b>{(l.name || '?').slice(0, 1)}</b>
+          )}
+        </span>
+
+        <span class="link-body">
+          <span class="link-name">
+            {l.name}
+            {l.featured && <i class="link-star" title="特别推荐">★</i>}
+          </span>
+          <span class="link-desc">{l.desc}</span>
+          <span class="link-meta">
+            {(l.tags || []).map((t) => <em>#{t}</em>)}
+            {l.since && <span class="link-since">{l.since}</span>}
+          </span>
+        </span>
+      </a>
+    ))}
+  </div>
+
+  {real.length === 0 && (
+    <p class="play-error">还没有友链。在 <code>src/data/links.js</code> 里加一条就会出现在这里。</p>
+  )}
+
+  {openSlots.map((l) => (
+    <section class="link-open">
+      <div class="eyebrow">
+        <span class="eyebrow-num">OPEN</span>
+        <span class="eyebrow-line"></span>
+        <span class="eyebrow-text">EXCHANGE</span>
+      </div>
+      <p class="link-open-desc">{l.desc}</p>
+
+      <div class="link-mine">
+        <div class="link-mine-row"><span>站名</span><b>{MINE.name}</b></div>
+        <div class="link-mine-row"><span>网址</span><b>{MINE.url}</b></div>
+        <div class="link-mine-row"><span>简介</span><b>{MINE.desc}</b></div>
+        {MINE.avatar && <div class="link-mine-row"><span>头像</span><b>{asset(MINE.avatar)}</b></div>}
+      </div>
+
+      <p class="link-open-hint">
+        按上面这张表把本站加进你的友链页，然后来
+        <a href={asset('me/')}>ME 页面</a>留个言，我就把你的站也加进来。
+      </p>
+    </section>
+  ))}
+</Base>
