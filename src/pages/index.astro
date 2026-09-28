@@ -71,8 +71,6 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     <div class="gate-bg" aria-hidden="true">
       <span class="gate-layer gate-hero"></span>
       <span class="gate-veil"></span>
-      {/* ⑤ 终幕揭晓时扫过的斜向高光 */}
-      <span class="gate-sweep"></span>
     </div>
 
     {/* ① 漂浮粒子：10 个上浮的光点（纯 CSS 关键帧，零素材） */}
@@ -193,9 +191,9 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
         // ④ 黑场节拍已去掉：实际看着像"闪一下"，像故障而不像节拍
         gate.style.setProperty('--flash', '0');
 
-        // ⑤ 光带扫过：p 从 0.62 走到 1 的过程中，高光从左扫到右
-        const sweep = Math.min(1, Math.max(0, (p - 0.62) / 0.36));
-        gate.style.setProperty('--sweep', sweep.toFixed(3));
+        // ⑤ 光带扫过已删掉：横向平移不够、角度又接近垂直，
+        //    静止时看着就是一道突兀的白竖条，不如不要
+        gate.style.setProperty('--sweep', '0');
 
         // 进度轨：整页滚动进度（含页面总高度）
         if (rail) {

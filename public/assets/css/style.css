@@ -1153,21 +1153,9 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   opacity: var(--flash, 0);
 }
 
-/* ⑤ 光带扫过：一条斜向高光从画面外扫进来 */
-.gate-sweep {
-  position: absolute; inset: 0; z-index: 2;
-  pointer-events: none;
-  background: linear-gradient(
-    104deg,
-    transparent 40%,
-    rgba(255, 255, 255, .06) 46%,
-    rgba(255, 255, 255, .38) 50%,
-    rgba(255, 214, 228, .18) 54%,
-    transparent 60%
-  );
-  transform: translateX(calc(-130% + var(--sweep, 0) * 260%));
-  opacity: calc(var(--sweep, 0) * (1 - var(--sweep, 0)) * 5);
-}
+/* ⑤ 光带扫过：已删除（见 index.astro 注释）。保留这条只为防旧缓存里
+   还留着那个元素时露出白条 —— 直接隐藏。 */
+.gate-sweep { display: none; }
 
 /* ② 标题注魔：渐变字 + clip-path 圆形揭晓（源站这个效果本来就是纯 CSS） */
 .gate-title {
