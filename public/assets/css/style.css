@@ -474,8 +474,9 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 
 /* live: true —— 卡片里直接嵌播放器，显示视频真实画面 */
 .thumb-live { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+.thumb--live { background: #000; }
 .thumb--live .play { display: none; }
-/* 嵌入播放器时右上角留白，让「时长」小标签仍然可读 */
+/* 嵌入播放器时右下的「时长」小标签要在播放器之上 */
 .thumb--live .dur { z-index: 3; }
 /* 封面文件坏了（被脚本摘掉 img）时，给这块缩略图补上同一套斜纹底 */
 .thumb-broken::before {
@@ -882,6 +883,16 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .modal-head p { margin: 4px 0 0; color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em; }
 .modal-body { background: #000; }
 .modal-body video, .modal-body iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
+/* 竖屏视频（抖音）：按 9:16 显示，居中，不要撑满一屏黑边 */
+.modal-body.is-vertical video,
+.modal-body.is-vertical iframe {
+  aspect-ratio: 9 / 16;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 72vh;
+  margin: 0 auto;
+}
 /* 视频打不开时的提示（代替一块纯黑屏） */
 .play-error {
   margin: 0; padding: 28px 24px 10px;
@@ -937,6 +948,8 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 
 @media (max-width: 760px) {
   :root { --nav-h: 58px; }
+  /* iOS 横屏 / 放大字体时不要打乱布局 */
+  html { -webkit-text-size-adjust: 100%; }
   .topbar-inner { padding: 0 14px; gap: 14px; }
   .menu-btn { display: grid; }
   .tabs {
@@ -948,11 +961,16 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
     display: none;
   }
   .tabs.open { display: flex; }
-  .tab { padding: 11px 10px; }
+  /* 下拉菜单里的条目做大一点，手指好点 */
+  .tab { padding: 13px 12px; font-size: 13px; }
+  .tab-no { font-size: 10px; }
   .tab::after { display: none; }
   .tab.active { color: var(--rose); }
 
-  main { padding: 22px 15px 50px; }
+  /* 底部留出 iPhone 小横条的空间 */
+  main { padding: 22px 15px calc(56px + env(safe-area-inset-bottom)); }
+  .footer { padding: 18px 15px calc(28px + env(safe-area-inset-bottom)); }
+
   .home-title-row { flex-direction: column; align-items: flex-start; }
   .panels { grid-template-columns: 1fr; }
   .panel-home { grid-column: auto; }
@@ -962,16 +980,67 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   .photo-grid { column-count: 1; }
   .video-grid { grid-template-columns: 1fr; }
   .blog-grid { grid-template-columns: 1fr; }
-  .blog-bar { gap: 16px; }
-  .blog-filters { gap: 16px; }
+  .blog-bar { gap: 14px; }
+  /* 手机上搜索框独占一行，旁边挤着分类会很难点 */
+  .blog-search { flex: 1 1 100%; }
+  .blog-filters { gap: 14px; flex-wrap: wrap; }
   .blog-count { margin-left: auto; }
   .me-grid { grid-template-columns: 1fr; gap: 30px; min-height: 0; }
   .me-decor { font-size: 42px; bottom: 46px; }
   .me-links { grid-template-columns: 1fr; gap: 16px; }
   .markdown h1 { font-size: 25px; }
+  .markdown h2 { font-size: 20px; }
+  .markdown img { margin: 16px -4px; max-width: calc(100% + 8px); }
   .lightbox { grid-template-columns: 46px minmax(0, 1fr) 46px; }
   .lb-btn { width: 38px; height: 38px; font-size: 17px; }
   .lb-close { right: 14px; top: 12px; }
+
+  /* ---------- 触屏常见尺寸优化 ---------- */
+  /* 筛选按钮手指好点 */
+  .filter { padding: 9px 16px; font-size: 12px; }
+  .chips { gap: 8px; }
+  .chip { padding: 4px 10px; font-size: 11.5px; }
+  /* 卡片正文别太挤 */
+  .vc-body { padding: 14px 15px 16px; }
+  .vc-body h3 { font-size: 16.5px; }
+  .photo-card figcaption { opacity: 1; transform: none; }
+  /* 触屏没有 hover，说明文字直接显示 */
+  .photo-card .card-corner { opacity: 1; }
+
+  /* ---------- 视频弹窗：手机上几乎全屏 ---------- */
+  .modal { padding: 0; align-items: stretch; }
+  .modal-panel {
+    width: 100%; max-height: 100vh; height: 100vh;
+    border-radius: 0; border: 0;
+    display: flex; flex-direction: column;
+  }
+  .modal-head { padding: 12px 14px; align-items: center; }
+  .modal-head h3 { font-size: 16px; }
+  .modal-head p { font-size: 10.5px; margin-top: 2px; }
+  /* 关闭按钮做大，手指好点 */
+  .modal-head .icon-btn { width: 42px; height: 42px; font-size: 15px; }
+  .modal-body { flex: 1 1 auto; display: grid; place-items: center; min-height: 0; }
+  /* 竖屏视频在手机上按可用高度撑满，不要黑边 */
+  .modal-body.is-vertical video,
+  .modal-body.is-vertical iframe { max-height: 100%; }
+  .modal-body video, .modal-body iframe { max-height: 100%; }
+  .embed-bar { padding: 12px 14px 14px; font-size: 12px; }
+  .embed-bar .play-download { padding: 7px 14px; margin-left: 8px; }
+  .play-error { padding: 20px 16px 8px; font-size: 13px; }
+  .play-download { margin: 0 16px 18px; padding: 10px 18px; }
+  .modal-desc { padding: 12px 14px calc(18px + env(safe-area-inset-bottom)); font-size: 13px; }
+  /* 弹窗打开时别让背景跟着滑 */
+  .modal { overscroll-behavior: contain; }
+}
+
+/* 很窄的手机（iPhone SE 之类）：再收一点 */
+@media (max-width: 380px) {
+  .home-title { font-size: 30px; }
+  .page-title { font-size: 26px; }
+  .p-name { font-size: 19px; }
+  .panel-home .p-name { font-size: 25px; }
+  .thumb-gen b { font-size: 19px; }
+  .blog-search { flex: 1 1 100%; }
 }
 
 @media print {

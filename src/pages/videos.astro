@@ -12,10 +12,12 @@ import { fmtSlash, hueFor } from '../lib/format.js';
 
    封面优先级：
      1. videos.js 里手填的 poster（最高，你说了算）
-     2. tools/sync-covers.mjs 抓来 / 用 coverUrl 手动下载的封面
-     3. 渐变兜底
-   不想要任何自动封面 → 写 cover: false
-   自动抓不到时 → 用 coverUrl: '图片地址' 手动兜底（见 README）
+     2. 抓来的封面（B站 / YouTube 能自动抓）/ coverUrl（手动粘的图）
+     3. live 播放器画面（抖音默认走这个：卡片里直接嵌播放器，显示视频真实画面）
+     4. 生成底图（色调由标题推导）
+   不想要任何自动封面 → cover: false
+   不想在卡片里嵌播放器 → live: false（会退回生成底图）
+   竖屏视频（抖音）→ 自动按 9:16 显示，不用手写；要强制横屏写 vertical: false
 
    标题 / 日期 / 时长：videos.js 里写了就用你的，空着就用抓来的值兜底。 */
 const items = videos.map((v) => {
@@ -23,6 +25,13 @@ const items = videos.map((v) => {
   const key = String(source).trim();
   const r = resolveEmbed(source);
   const auto = v.cover === false ? {} : (autoCovers[key] || {});
+
+  const platform = v.platform || r.platform || '';
+  // 竖屏：抖音基本都是竖的；显式写 vertical 则听你的
+  const vertical = v.vertical === undefined ? platform === '抖音' : !!v.vertical;
+  // 卡片里嵌播放器：抖音默认开（否则抓不到封面就只能显示生成底图）
+  const live = v.live === undefined ? (platform === '抖音' && !!r.embed) : !!v.live;
+
   return {
     ...v,
     title: v.title || auto.title || '未命名',
@@ -30,7 +39,9 @@ const items = videos.map((v) => {
     duration: v.duration || auto.duration || '',
     embedUrl: r.embed,
     sourceUrl: v.link || r.link || r.embed,
-    platform: v.platform || r.platform || '',
+    platform,
+    vertical,
+    live,
     cover: v.poster || auto.poster || ''
   };
 });
@@ -77,6 +88,7 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         data-embed={v.embedUrl}
         data-link={v.sourceUrl || ''}
         data-platform={v.platform || '原站'}
+        data-vertical={v.vertical ? '1' : ''}
         data-src={v.embedUrl ? '' : asset(v.src || '')}
         data-poster={v.cover ? asset(v.cover) : ''}
         tabindex="0"
@@ -162,6 +174,8 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
       // 用 DOM 接口搭播放器，不用拼字符串：
       // 文件名里带引号、括号、中文都不会把标签拼坏
       body.replaceChildren();
+      // 竖屏视频（抖音）按 9:16 显示，否则塞进 16:9 会上下大片黑边
+      body.classList.toggle('is-vertical', card.dataset.vertical === '1');
 
       if (card.dataset.embed) {
         const iframe = document.createElement('iframe');
