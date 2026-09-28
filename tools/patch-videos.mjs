@@ -81,26 +81,29 @@ function quoteValue(value) {
 
 /**
  * 在一条记录里设置某个字段。
- * @returns {boolean} 是否发生了修改
+ * @returns {{ block: string, changed: boolean }}
  */
 function setField(block, field, value) {
-  const re = new RegExp('(^|\\n)([ \\t]*)' + field + '\\s*:\\s*([\'"])([^\'"\\n]*)\\3([^\\n]*)', 'm');
-  const m = block.match(re);
   const valText = quoteValue(value);
+  const re = new RegExp('(^|\\n)([ \\t]*)' + field + '\\s*:\\s*([\'"])([^\'"\\n]*)\\3([^\\n]*)');
 
+  const m = block.match(re);
   if (m) {
-    // 已有该字段（但值为空）→ 只替换引号里的内容，保留缩进和行尾注释。
-    // 用替换函数而不是字符串，避免值里的 $& $1 之类被当成替换模式。
-    const whole = m[0];
-    const replaced = whole.replace(
-      new RegExp('(' + field + '\\s*:\\s*)([\'"])([^\'"\\n]*)\\2'),
-      (_all, pre) => pre + valText
-    );
-    if (replaced === whole) return { block, changed: false };
-    return { block: block.replace(whole, replaced), changed: true };
+    const start = m.index + m[1].length;
+    const mid = m[3];
+    const end = block.indexOf(mid, start + field.length);
+    if (end < 0) return { block, changed: false };
+
+    const current = block.slice(end + 1, block.indexOf(mid, end + 1));
+    // 已经有值了 → 不覆盖（这是「只填空字段」的保证）
+    if (current.trim() !== '') return { block, changed: false };
+
+    // 空值：只替换引号里的内容，缩进和行尾注释都留着
+    const replaced = block.slice(0, start) + block.slice(start, end + 1) + value + block.slice(block.indexOf(mid, end + 1));
+    return { block: replaced, changed: true };
   }
 
-  // 没有该字段 → 插到这一条记录的最后一行
+  // 没有该字段 → 插到这一条记录的最后一行之前
   const lines = block.split('\n');
   let insertAt = -1;
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -108,7 +111,6 @@ function setField(block, field, value) {
   }
   if (insertAt < 0) return { block, changed: false };
 
-  // 用记录里已有的缩进
   const indentMatch = block.match(/\n([ \t]+)\S/);
   const indent = indentMatch ? indentMatch[1] : '    ';
   lines.splice(insertAt, 0, `${indent}${field}: ${valText},`);

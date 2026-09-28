@@ -28,10 +28,15 @@ if not exist "node_modules" (
   echo.
 )
 
-echo   正在构建内容并启动开发服务器...
+echo   正在启动开发服务器...
 echo.
-echo     img  文件夹  -^>  图片压缩同步
-echo     blog 文件夹  -^>  笔记构建
+echo   启动后会【自动】帮你做这些事，不用手动敲命令：
+echo     img  文件夹  -^>  图片压缩同步（自动）
+echo     blog 文件夹  -^>  笔记构建（自动）
+echo     视频封面     -^>  抖音封面 / 标题 / 日期 / 时长（自动）
+echo.
+echo   之后你往 img/ 或 blog/ 里丢文件，它也会自动再同步一次。
+echo   同步完成后，浏览器里按 Ctrl+F5 刷新即可看到新内容。
 echo.
 echo   浏览器地址： http://localhost:4321
 echo   关闭这个黑窗口即可停止服务。

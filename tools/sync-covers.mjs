@@ -23,6 +23,7 @@ import {
 } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { tmpdir } from 'node:os';
 import { patchVideos } from './patch-videos.mjs';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -31,6 +32,9 @@ const COVER_DIR_REL = 'public/media/covers';
 const COVER_URL_PREFIX = 'media/covers';
 const DATA_OUT = 'src/data/covers.generated.js';
 const CACHE = '.cover-sync.json';
+
+/** 抓失败后的重试间隔（分钟）：越失败越久，避免每次启动都去打抖音 */
+const FAIL_BACKOFF_MIN = [2, 10, 30, 120, 720];
 
 /** 浏览器 UA：抖音桌面页对无 UA 的请求会直接返回空壳 */
 const UA =
@@ -302,6 +306,15 @@ async function resolveOne(entry) {
   // 标题 / 日期 / 时长：抓不到封面也要拿，能补一点是一点
   const meta = extractMeta(html);
 
+  // 诊断模式：把抖音返回的原始页面存到系统临时目录，方便排查提取规则
+  if (process.env.DSH_DUMP_COVER === '1') {
+    try {
+      const dump = join(tmpdir(), 'irinsho-douyin-' + (numId || Date.now()) + '.html');
+      writeFileSync(dump, html, 'utf8');
+      console.log('      [诊断] 原始页面已保存：' + dump + '  （' + html.length + ' 字节）');
+    } catch (e) { /* 存不下就算了 */ }
+  }
+
   const cover = extractCover(html);
   if (!cover) {
     return {
@@ -311,11 +324,12 @@ async function resolveOne(entry) {
         : '页面里没找到 og:image 之类的封面地址（抖音可能改版了）',
       finalUrl,
       numId,
-      meta
+      meta,
+      htmlLength: html.length
     };
   }
 
-  return { ok: true, cover, finalUrl, numId, meta };
+  return { ok: true, cover, finalUrl, numId, meta, htmlLength: html.length };
 }
 
 /* ---------- 下载封面 ---------- */
@@ -415,6 +429,17 @@ export async function syncCovers(options = {}) {
       continue;
     }
 
+    // 上次没抓到 → 按退避策略决定这次还试不试
+    if (!force && prev && prev.fails) {
+      const waitMs = FAIL_BACKOFF_MIN[Math.min(prev.fails, FAIL_BACKOFF_MIN.length - 1)] * 60000;
+      const since = Date.now() - (prev.at || 0);
+      if (since < waitMs) {
+        skipped++;
+        say(`  · ${label}  上次没抓到，约 ${Math.ceil((waitMs - since) / 60000)} 分钟后再试（已失败 ${prev.fails} 次）`);
+        continue;
+      }
+    }
+
     if (Date.now() - startedAt > budgetMs) {
       if (!budgetOut) {
         say(`  ! 抓封面超过 ${Math.round(budgetMs / 1000)} 秒，剩下的先跳过（下次运行会继续）。`);
@@ -441,16 +466,30 @@ export async function syncCovers(options = {}) {
     if (!r.ok) {
       failed++;
       say(`    ✗ ${r.reason}`);
-      if (r.numId) say(`      真实地址：${r.finalUrl}`);
+      if (typeof r.htmlLength === 'number') say(`      页面大小：${r.htmlLength} 字节`);
+      if (r.numId) say(`      视频 id：${r.numId}`);
+      if (r.finalUrl) say(`      真实地址：${r.finalUrl}`);
+      say('      想让我按真实页面结构改提取规则的话，用这个命令再跑一次：');
+      say('        node tools/sync-covers.mjs --force --dump');
+      say('      它会把抖音返回的原始页面存到系统临时目录并打印路径，把那个文件发我即可。');
       // 封面没抓到，但标题/日期/时长可能抓到了，先留着
+      const preTitle = (prev && prev.title) || '';
+      const preDate = (prev && prev.date) || '';
+      const preDur = (prev && prev.duration) || '';
       if (meta.title || meta.date || meta.duration) {
         out[key] = { poster: '', title: meta.title || '', date: meta.date || '', duration: meta.duration || '' };
-        cache[key] = {
-          file: '', at: Date.now(), numId: r.numId || '',
-          title: meta.title || '', date: meta.date || '', duration: meta.duration || ''
-        };
         say(`      但抓到了信息：${[meta.title, meta.date, meta.duration].filter(Boolean).join('  /  ')}`);
       }
+      // 记下失败次数和时间，下次按退避间隔再试
+      cache[key] = {
+        file: (prev && prev.file) || '',
+        at: Date.now(),
+        fails: ((prev && prev.fails) || 0) + 1,
+        numId: r.numId || (prev && prev.numId) || '',
+        title: meta.title || preTitle,
+        date: meta.date || preDate,
+        duration: meta.duration || preDur
+      };
       continue;
     }
 
@@ -460,7 +499,7 @@ export async function syncCovers(options = {}) {
       const rel = COVER_URL_PREFIX + '/' + saved.dest.split(/[\\/]/).pop();
       out[key] = { poster: rel, title: meta.title || '', date: meta.date || '', duration: meta.duration || '' };
       cache[key] = {
-        file: rel, at: Date.now(), source: r.cover, numId: r.numId || '',
+        file: rel, at: Date.now(), fails: 0, source: r.cover, numId: r.numId || '',
         title: meta.title || '', date: meta.date || '', duration: meta.duration || ''
       };
       got++;
@@ -471,6 +510,13 @@ export async function syncCovers(options = {}) {
     } catch (e) {
       failed++;
       say(`    ✗ 下载封面失败：${e.message}`);
+      cache[key] = {
+        file: (prev && prev.file) || '',
+        at: Date.now(),
+        fails: ((prev && prev.fails) || 0) + 1,
+        numId: r.numId || '',
+        title: meta.title || '', date: meta.date || '', duration: meta.duration || ''
+      };
     }
   }
 
@@ -590,6 +636,9 @@ export async function syncCovers(options = {}) {
     console.log(`需要封面 ${targets.length} 条   新抓 ${got}   跳过 ${skipped}   失败 ${failed}`);
     console.log('已更新 src/data/covers.generated.js');
     console.log('-'.repeat(58) + '\n');
+  } else if (failed) {
+    // 自动同步模式（quiet）下也别把问题吞掉，给一行提示
+    console.log(`  ! 有 ${failed} 条视频的封面没抓到，详情：node tools/sync-covers.mjs --force --dump`);
   }
   return summary;
 }
@@ -600,6 +649,7 @@ const invokedDirectly = process.argv[1] &&
 
 if (invokedDirectly) {
   const argv = process.argv.slice(2);
+  if (argv.includes('--dump')) process.env.DSH_DUMP_COVER = '1';
   const opts = { force: argv.includes('--force'), quiet: argv.includes('--quiet') };
   syncCovers(opts)
     .then(() => process.exit(0))

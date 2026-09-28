@@ -4,6 +4,7 @@
  *  部署到腾讯云之后，建议把下面 site 改成你的实际域名。
  * ======================================================= */
 import { defineConfig } from 'astro/config';
+import { irinshoAutoSync } from './integrations/auto-sync.mjs';
 
 export default defineConfig({
   // 你的网站地址（腾讯云 COS 的默认域名，或你自己的域名）
@@ -22,5 +23,9 @@ export default defineConfig({
   outDir: './dist',
 
   // 开发服务器端口
-  server: { port: 4321 }
+  server: { port: 4321 },
+
+  /* 自动同步：npm run dev 启动时自动同步图片 / 抖音封面 / 笔记，
+     之后往 img/ 或 blog/ 丢文件也会自动再同步一次 */
+  integrations: [irinshoAutoSync()]
 });
