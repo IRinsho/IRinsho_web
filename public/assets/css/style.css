@@ -1908,6 +1908,38 @@ html.reveal .finale {
   .route::before { background-position: center 42%; }
 }
 
+/* =========================================================
+ *  移动端布局（≤767px）—— 只写在这一层里，桌面端完全不受影响
+ *  第一条：首页首屏
+ * ======================================================= */
+@media (max-width: 767px) {
+  /* 首屏从 88svh 降到 78svh：
+     桌面那套是"整屏首屏"，手机上会变成"一大块首屏 + 下面一片空黑"，
+     露出一点下一屏才能提示"可以往下滑"。 */
+  .gate, .gate-inner { min-height: 78svh; }
+
+  /* 标题收一点、行距紧一点：手机上 11vw 会让 "IRinsho" 顶到两侧 */
+  .gate-title {
+    font-size: clamp(30px, 10vw, 44px);
+    line-height: 1.06;
+    letter-spacing: 0;
+  }
+  .gate-kicker { font-size: 10px; letter-spacing: .26em; }
+  .gate-sub { font-size: 13px; letter-spacing: .1em; }
+
+  /* 内边距跟随屏幕宽度；底部让出 iPhone 的小白条 */
+  .gate-inner {
+    gap: 8px;
+    padding: 0 clamp(16px, 5vw, 24px) calc(22px + env(safe-area-inset-bottom));
+  }
+
+  /* 粒子在窄屏上少几颗，避免糊在脸上（后 4 颗隐藏） */
+  .gate-particles i:nth-child(n + 7) { display: none; }
+
+  /* 滚动提示别贴着底边 */
+  .gate-scroll { margin-top: 10px; }
+}
+
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }
 
 /* =========================================================
@@ -2453,6 +2485,93 @@ html.reveal .finale {
   .modal-desc { flex: none; padding: 12px 14px calc(18px + env(safe-area-inset-bottom)); font-size: 13px; }
   /* 弹窗打开时别让背景跟着滑 */
   .modal { overscroll-behavior: contain; }
+}
+
+/* =========================================================
+ *  移动端布局（≤767px）—— 只写在这一层里，桌面端完全不受影响
+ *  第二条：视频弹窗（44px 返回条 + 画面按 --rn 居中 + 脚注贴底）
+ * ======================================================= */
+@media (max-width: 767px) {
+  /* 先把「竖向预算」算清楚，下面都用它：
+       --m-bar   顶部返回条
+       --m-foot  底部脚注区（描述 / 提示）预留
+       --m-play  真正留给画面的高度
+     画面宽 = --m-play × --rn（--rn 是 JS 写进去的宽高比数值），
+     于是竖屏视频刚好顶到脚注上方，横屏视频也不会被压扁。 */
+  .modal-panel {
+    --m-bar: 44px;
+    --m-foot: 104px;
+    --m-play: calc(100dvh - var(--m-bar) - var(--m-foot) - env(safe-area-inset-bottom));
+  }
+  /* 不嵌播放器、只显示封面 + 「去原站看」的紧凑弹窗里，
+     脚注区还多一行按钮，画面预算再收一点，免得整屏都要滚动 */
+  .modal-panel.compact { --m-foot: 168px; }
+
+  /* ---------- 顶部返回条：固定 44px ---------- */
+  /* sticky：画面往下滚时这条不跟着跑，随时都能退出去 */
+  .modal-head {
+    position: sticky; top: 0; z-index: 3;
+    flex: none;
+    height: var(--m-bar);
+    min-height: var(--m-bar);
+    padding: 0 6px 0 14px;
+    align-items: center;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--line);
+  }
+  /* 标题和副信息挤在同一行，两边都允许省略号 —— 别把 ✕ 顶出屏幕 */
+  .modal-head > div { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .modal-head h3 {
+    min-width: 0; font-size: 15px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .modal-head p {
+    flex: 0 1 auto; min-width: 0; margin: 0;
+    font-size: 10px; letter-spacing: .1em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* 没填副信息时整格收掉，否则 flex 的 gap 会白留 8px */
+  .modal-head p:empty { display: none; }
+  /* 44px 的条里放 40px 的按钮 + 4px 余量，右上角整块都点得到 */
+  .modal-head .icon-btn { flex: none; width: 40px; height: 40px; font-size: 15px; }
+
+  /* ---------- 播放区 ---------- */
+  /* 760px 那层给 .modal-body 开了自己的滚动条，那会把
+     「放不出来？去抖音看」这一条裁在画面框里（框是固定的比例，内容比它长）。
+     这里交回给整个弹窗来滚，和桌面端行为一致。 */
+  .modal-body { overflow: visible; }
+
+  .modal-body.has-ratio {
+    flex: 0 0 auto;
+    /* 上下左右全是 auto：flex 列里 auto 外边距会吃掉剩余空间，
+       于是画面正好居中在「返回条」和「脚注」之间，而脚注被顶到最底部。 */
+    margin: auto;
+    width: min(100%, calc(var(--m-play) * var(--rn, 1.7778)));
+    max-width: 100%;
+    max-height: none;
+  }
+  /* 画面铺满 body 那一格：比例已经由 --rn 算过一次，这里别再算 16:9 */
+  .modal-body.has-ratio > video,
+  .modal-body.has-ratio > iframe {
+    width: 100%; height: 100%;
+    max-height: none;
+    aspect-ratio: auto;
+    object-fit: contain;
+  }
+
+  /* ---------- 脚注贴底 ---------- */
+  /* .modal-desc 是弹窗最后一格：上面 body 的 auto 外边距已经把它顶到最底下，
+     这里只负责让它长得像一条脚注，并让出 iPhone 的小横条。 */
+  .modal-desc {
+    flex: none;
+    margin: 0;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--bg-2);
+    font-size: 13px;
+  }
+  /* 嵌播放器时的提示条在 body 里、贴着画面下沿，同样让出安全区 */
+  .embed-bar { padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); }
 }
 
 /* 很窄的手机（iPhone SE 之类）：再收一点 */
