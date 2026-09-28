@@ -56,7 +56,7 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         data-index={i}
         data-category={String(v.category || '').trim()}
         data-title={v.title}
-        data-meta={[v.category, fmtSlash(v.date), v.duration].filter(Boolean).join('  /  ')}
+        data-meta={[v.category, fmtSlash(v.date), v.duration, (v.embedUrl || v.sourceUrl) ? (v.platform || '外链') : ''].filter(Boolean).join('  /  ')}
         data-desc={v.desc || ''}
         data-embed={v.embedUrl}
         data-link={v.sourceUrl || ''}
@@ -129,12 +129,12 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         iframe.setAttribute('referrerpolicy', 'unsafe-url');
         body.appendChild(iframe);
 
-        // 外站播放器（抖音 / B站 / YouTube）可能因为登录、地区或防盗链放不出来，
+        // 外站播放器（抖音 / B站 / YouTube）可能因为登录、地区、防盗链放不出来，
         // 给一个「去原站看」的出口，别让用户卡在一块空白里
+        const platform = card.dataset.platform || '原站';
         const bar = document.createElement('p');
         bar.className = 'embed-bar';
-        const platform = card.dataset.platform || '原站';
-        bar.textContent = '放不出来？';
+        bar.appendChild(document.createTextNode('放不出来？'));
         if (card.dataset.link) {
           const go = document.createElement('a');
           go.className = 'play-download';
@@ -146,6 +146,10 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         } else {
           bar.appendChild(document.createTextNode('外站播放器加载失败时，请稍后重试。'));
         }
+        const hint = document.createElement('span');
+        hint.className = 'embed-hint';
+        hint.textContent = '外站播放器需要对方允许嵌入；提示「无权限」或一直空白时，请点上面的按钮。';
+        bar.appendChild(hint);
         body.appendChild(bar);
       } else if (!card.dataset.src) {
         const tip = document.createElement('p');
@@ -164,14 +168,22 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
 
         // 万一文件真的不存在 / 格式浏览器不认，给一条能点的出路，别只留一块黑屏
         video.addEventListener('error', () => {
-          const srcAttr = video.getAttribute('src') || '';
-          if (!srcAttr) return;
+          // 看 data-src（原始值一定在），不要看 video.getAttribute('src')：
+          // 视频元素在出错/清空时会丢掉 src，那样提示里的路径就是空的
+          const srcAttr = card.dataset.src || '';
           let shown = srcAttr.replace(/^\//, '');
           try { shown = decodeURI(shown); } catch (e) { /* 编码不合法就显示原样 */ }
+
           const tip = document.createElement('p');
           tip.className = 'play-error';
-          tip.textContent = '这个视频打不开：检查文件是否在 public/' + shown +
-            '，或者换个浏览器支持的格式（推荐 mp4 / H.264）。';
+          if (/^https?:\/\//i.test(shown)) {
+            tip.textContent = '这个视频打不开：' + shown +
+              '。这个地址不是本地文件，要嵌外站视频请用 douyin / embed 字段（见 src/data/videos.js 的说明）。';
+          } else {
+            tip.textContent = '这个视频打不开：检查文件是否在 public/' + shown +
+              '，或者换个浏览器支持的格式（推荐 mp4 / H.264）。';
+          }
+
           const dl = document.createElement('a');
           dl.className = 'play-download';
           dl.href = srcAttr;

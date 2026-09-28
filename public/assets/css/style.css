@@ -836,6 +836,7 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   color: var(--ink-3); font-size: 12.5px; letter-spacing: .08em;
 }
 .embed-bar .play-download { margin: 0 0 0 10px; padding: 5px 12px; font-size: 11.5px; }
+.embed-hint { display: block; margin-top: 8px; color: var(--ink-3); font-size: 11.5px; letter-spacing: .04em; }
 .modal-desc { margin: 0; padding: 14px 20px 20px; color: var(--ink-2); font-size: 13.5px; }
 
 .toast {

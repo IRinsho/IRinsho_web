@@ -31,10 +31,21 @@ function clean(u) {
   return String(u || '').trim();
 }
 
-/** 从任意文本里抠出第一串连续数字（抖音 video id） */
+/** 从任意文本里抠出第一串连续数字（抖音数字视频 id） */
 function digitsIn(s) {
   const m = String(s || '').match(/(\d{15,25})/);
   return m ? m[1] : '';
+}
+
+/**
+ * 把「分享文本」里的链接抠出来。
+ * 抖音的分享内容常常长这样：
+ *   7.86 复制打开抖音，看看【某某的作品】... https://v.douyin.com/xxxx/ 复制此链接...
+ * 直接整段贴进来也能用。
+ */
+function pickUrl(text) {
+  const m = String(text || '').match(/https?:\/\/[^\s"'<>）)】]+/i);
+  return m ? m[0] : '';
 }
 
 /**
@@ -42,15 +53,18 @@ function digitsIn(s) {
  * @param {string} raw 用户填的内容（链接或纯 ID）
  */
 export function resolveEmbed(raw) {
-  const input = clean(raw);
+  let input = clean(raw);
   if (!input) return { embed: '', link: '', platform: '' };
 
-  // 已经是播放器地址或任意站点的完整链接 → 直接当 iframe 用
-  if (/^https?:\/\//i.test(input)) {
-    // 抖音：把各种形态的链接都归一化成 open.douyin.com 播放器
-    const dy = douyinFrom(input);
-    if (dy) return dy;
+  // 允许整段分享文本直接粘进来（抖音分享口令那种），先抠出里面的链接
+  if (!/^https?:\/\//i.test(input)) {
+    const found = pickUrl(input);
+    if (found) input = found;
   }
+
+  // 完整链接 → 按平台归一化成播放器地址
+  const dy = douyinFrom(input);
+  if (dy) return dy;
 
   /* ---------- 纯 ID（一串数字）→ 抖音 ---------- */
   if (/^\d{10,25}$/.test(input)) {
@@ -104,32 +118,54 @@ export function resolveEmbed(raw) {
 
 /** 抖音链接 / ID → 播放器地址 */
 function douyinFrom(input) {
+  // 整段分享文本里先抠链接
+  const url = pickUrl(input) || input;
+
   let host = '';
   try {
-    host = new URL(input).hostname;
+    host = new URL(url).hostname;
   } catch (e) {
     host = '';
   }
 
-  // 短链（v.douyin.com / v.iesdouyin.com）：解析不出 id，给跳转链接
+  // 短链（v.douyin.com / v.iesdouyin.com）：里面没有视频 id，只能给跳转链接
   if (/^(v|v\d)\.(ies)?douyin\.com$/i.test(host)) {
-    return { embed: '', link: input, platform: '抖音' };
+    return { embed: '', link: url, platform: '抖音' };
   }
 
   if (!DOUYIN_HOSTS.test(host)) return null;
 
-  // /video/123...  /share/video/123...  ?vid=123...  ?modal_id=123...
-  const byPath = input.match(/\/video\/(\d{10,25})/);
-  const byQuery = input.match(/[?&](?:vid|modal_id|aweme_id|item_ids?)=(\d{10,25})/);
-  const id = (byPath && byPath[1]) || (byQuery && byQuery[1]) || digitsIn(input);
+  // 优先取数字 id（官方播放器认的数字视频 id）：
+  //   /video/7301234567890123456   /share/video/123...   ?vid=123...   ?modal_id=123...
+  const numeric =
+    (url.match(/\/video\/(\d{10,25})/) || [])[1] ||
+    (url.match(/[?&](?:vid|modal_id|aweme_id|item_ids?)=(\d{10,25})/) || [])[1] ||
+    digitsIn(url);
 
-  if (!id) return { embed: '', link: input, platform: '抖音' };
+  if (numeric) {
+    return {
+      embed: 'https://open.douyin.com/player/video?vid=' + numeric + '&autoplay=0',
+      link: url,
+      platform: '抖音'
+    };
+  }
 
-  return {
-    embed: 'https://open.douyin.com/player/video?vid=' + id + '&autoplay=0',
-    link: input,
-    platform: '抖音'
-  };
+  // 老格式 / 分享口令里的短码，例如 https://www.douyin.com/video/jFlBIKzLFO8
+  // 这种不是数字视频 id，官方播放器多半不认；仍然拼一次播放器地址试试，
+  // 拼不出来时页面会给「去抖音看」的按钮兜底。
+  const code =
+    (url.match(/\/video\/([0-9A-Za-z_-]{4,})/) || [])[1] ||
+    (url.match(/[?&](?:vid|modal_id|aweme_id)=([0-9A-Za-z_-]{4,})/) || [])[1];
+
+  if (code) {
+    return {
+      embed: 'https://open.douyin.com/player/video?vid=' + code,
+      link: url,
+      platform: '抖音'
+    };
+  }
+
+  return { embed: '', link: url, platform: '抖音' };
 }
 
 /** YouTube 链接 → 视频 id */
