@@ -390,21 +390,10 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         video.src = card.dataset.src;   // 路径已由 asset() 转义，能正常取到文件
 
         // 外站视频流（抖音等）：直接播它 CDN 上的流 —— 用我们的原生播放器，
-        // 完全没有对方的界面。地址带签名会过期，播不了就退回嵌入播放器。
+        // 完全没有对方的界面。但对方 CDN 常常有防盗链，播不了时
+        // 由下面的 error 处理统一退回嵌入播放器。
         if (card.dataset.stream) {
-          video.crossOrigin = null;
           video.setAttribute('referrerpolicy', 'no-referrer');
-          video.addEventListener('error', () => {
-            if (card.dataset.embed) {
-              video.remove();
-              const iframe = document.createElement('iframe');
-              iframe.src = card.dataset.embed;
-              iframe.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
-              iframe.allowFullscreen = true;
-              iframe.setAttribute('referrerpolicy', 'unsafe-url');
-              body.appendChild(iframe);
-            }
-          }, { once: true });
         }
 
         // 本地视频：读到元数据后就知道真实尺寸了，按它调整弹窗比例（最准的一路）
@@ -422,7 +411,26 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         });
 
         video.addEventListener('error', () => {
-          // 看 data-src（原始值一定在），不要看 video.getAttribute('src')：
+          // ★ 有 stream（外站视频流）却播不了 —— 最常见的原因是**对方 CDN 防盗链**：
+          //   它校验 Referer/来源，而浏览器不允许网页伪造 Referer，
+          //   静态站点绕不过去（要代理服务器才行）。
+          //   这种情况**自动退回嵌入官方播放器**，而不是甩一串错误地址给用户。
+          if (card.dataset.stream && card.dataset.embed) {
+            console.warn('[视频流播不了，退回嵌入播放器] 通常是对方 CDN 防盗链');
+            video.remove();
+            const iframe = document.createElement('iframe');
+            iframe.src = card.dataset.embed;
+            iframe.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+            iframe.allowFullscreen = true;
+            iframe.setAttribute('scrolling', 'no');
+            iframe.setAttribute('frameborder', '0');
+            iframe.setAttribute('referrerpolicy', 'unsafe-url');
+            body.appendChild(iframe);
+            body.classList.add('has-ratio');
+            return;
+          }
+
+          // 看 data-src（原始值一定在），不要看 video.getAttribute('src'）：
           // 视频元素在出错/清空时会丢掉 src，那样提示里的路径就是空的
           const srcAttr = card.dataset.src || '';
           let shown = srcAttr.replace(/^\//, '');

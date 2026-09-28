@@ -749,11 +749,21 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   transition: border-color .3s ease, background .3s ease;
 }
 
-/* 列表页的卡片：悬停上浮 */
-.post-card, .note-card, .blog-card {
+/* 列表页的卡片：逐个浮现 + 悬停上浮 */
+.post { animation: mdIn .5s cubic-bezier(.22, .61, .36, 1) both; }
+.post:nth-child(1)  { animation-delay: .03s; }
+.post:nth-child(2)  { animation-delay: .08s; }
+.post:nth-child(3)  { animation-delay: .13s; }
+.post:nth-child(4)  { animation-delay: .18s; }
+.post:nth-child(5)  { animation-delay: .23s; }
+.post:nth-child(6)  { animation-delay: .28s; }
+.post:nth-child(7)  { animation-delay: .33s; }
+.post:nth-child(8)  { animation-delay: .38s; }
+.post:nth-child(n+9) { animation-delay: .43s; }
+.post-card, .note-card, .blog-card, .post {
   transition: transform .3s cubic-bezier(.22, .61, .36, 1), box-shadow .3s ease, border-color .3s ease;
 }
-.post-card:hover, .note-card:hover, .blog-card:hover {
+.post-card:hover, .note-card:hover, .blog-card:hover, .post:hover {
   transform: translateY(-3px);
   border-color: var(--rose-dim);
   box-shadow: 0 14px 34px rgba(0, 0, 0, .34);
@@ -761,9 +771,9 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 
 /* 系统开了「减少动态效果」就全部关掉 */
 @media (prefers-reduced-motion: reduce) {
-  .markdown > *, .post-bar { animation: none !important; }
-  .markdown img, .markdown a, .post-card, .note-card, .blog-card { transition: none !important; }
-  .markdown img:hover, .post-card:hover, .note-card:hover, .blog-card:hover { transform: none; }
+  .markdown > *, .post-bar, .post { animation: none !important; }
+  .markdown img, .markdown a, .post-card, .note-card, .blog-card, .post { transition: none !important; }
+  .markdown img:hover, .post-card:hover, .note-card:hover, .blog-card:hover, .post:hover { transform: none; }
 }
 
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }
