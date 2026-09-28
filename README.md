@@ -4,6 +4,9 @@
 
 - 图片丢进 `img/`，自动压缩同步（转 WebP、丢 EXIF）
 - 笔记用 **Obsidian** 写在 `blog/`，构建时变成 Blog 页面
+- 每个板块一套「首屏舞台」开场画面（全屏主视觉 + 粒子 + 鼠标视差 + 滚动推近）
+- 一套贯穿全站的动效：页面切换过渡、滚动浮现、自定义鼠标、导航滑动指示条
+- 单独的友链页 `/links/`（数据在 `src/data/links.js`）
 - `npm run build` 生成 `dist/` 文件夹，上传到腾讯云就能上线
 
 ---
@@ -15,11 +18,14 @@
 - [三、图片](#三图片)
 - [四、笔记](#四笔记)
 - [五、视频](#五视频)
-- [六、支持的语法](#六支持的语法)
-- [七、自动化与同步](#七自动化与同步)
-- [八、部署到腾讯云](#八部署到腾讯云)
-- [九、常见问题](#九常见问题)
-- [十、换配色](#十换配色)
+- [六、首屏舞台与页面元素](#六首屏舞台与页面元素)
+- [七、动效与交互](#七动效与交互)
+- [八、支持的语法](#八支持的语法)
+- [九、自动化与同步](#九自动化与同步)
+- [十、部署到腾讯云](#十部署到腾讯云)
+- [十一、换图速查](#十一换图速查)
+- [十二、常见问题](#十二常见问题)
+- [十三、换配色](#十三换配色)
 
 ---
 
@@ -37,7 +43,8 @@ node -v
 
 能看到版本号才算装好。
 
-> **为什么是 22**：抓抖音封面要走浏览器的调试协议，用的是 Node 22 才自带的功能。
+> **为什么是 22**：抖音抓取要用浏览器调试协议，脚本里靠 Node 内置的 `WebSocket`
+> 连上去（`tools/douyin-frames.mjs`），这个内置模块 **Node 22 才有**。
 > 版本低一点网站照样能跑，只是抖音封面抓不了（其它的都不影响）。
 
 ### 2. 装依赖
@@ -73,6 +80,8 @@ npm run dev
 | 加抖音 / B站 / YouTube 视频 | 在 `src/data/videos.js` 里加一条 `douyin` / `embed` 链接 → 自动抓封面和信息 |
 | 加本地视频 | 文件放进 `public/media/videos/`，在 `videos.js` 里写 `src` → 自动截封面 |
 | 改站点信息、个人页 | 改 `src/data/config.js`，保存即热更新 |
+| 加 / 改友链 | 改 `src/data/links.js`，保存即热更新 |
+| 改首页首屏、终幕、接缝条 | 改 `src/pages/index.astro`（主视觉图见 [十一、换图速查](#十一换图速查)） |
 | 改样式 | 改 `public/assets/css/style.css`，保存即热更新 |
 
 > **为什么 `img/` 和 `blog/` 要「同步」一下**：这两个文件夹是原料，
@@ -95,6 +104,12 @@ npm run dev
 | `npm run preview` | 本地预览构建结果 | 可选 |
 
 后四个 `sync:xxx` 平时不用手动跑，`npm run sync` 里已经按顺序带上了。
+
+> **关于退出码**：`sync-frames` / `sync-covers` / `build-blog` 出错时**故意退出码 0**，
+> 只打印一行提示就放行 —— 它们挂在 `npm run dev` / `npm run build` 的 `&&` 链里，
+> 退出非 0 会让后面的 `astro` 不执行，网站就打不开了。
+> 只有 `sync-photos` 在**个别图片处理失败**时会退出码 1（图片来源坏了才会遇到），
+> 这时构建会停在图片同步这一步，修好那张图再跑一次即可。
 
 ---
 
@@ -331,13 +346,20 @@ node tools/set-cover.mjs "封面图片地址" "视频标题里的一段字"
 
 | 优先级 | 来源 | 说明 |
 | --- | --- | --- |
-| 1 | 你手写的 `ratio` | `'3:4'` / `'16:9'` / `'9:16'` 都行，最准 |
-| 2 | 同步抓到的真实尺寸 | B站接口的 `dimension`、抖音截图时的 `videoWidth/videoHeight` |
+| 1 | 你手写的 `ratio` | `'3:4'` / `'16:9'` / `'9:16'` 都行，也能写 `'1504:720'` 这种真实像素比，最准 |
+| 2 | 同步抓到的真实尺寸 | B站接口的 `dimension`、抖音「只截 `<video>` 那块」时读到的 `videoWidth/videoHeight` |
 | 3 | **本地视频** | 播放器读完元数据后自动算 —— 真·自动，精确 |
-| 4 | 网页默认 | 读不到时按**横屏 16:9**（实测抖音里横屏视频也很多，猜竖屏更容易错） |
+| 4 | 网页默认 | 读不到时按**横屏 16:9** |
 
 也就是说：本地视频什么都不用填；B站同步一次就自动写好；
-**抖音默认按横屏显示，如果那条是竖屏，加一行 `ratio: '9:16'` 即可**。
+抖音同步抓到的是**画面真实像素比**（例如 `576:576`、`1504:720`），多数情况也不用管。
+
+还有两个字段配合它：
+
+| 字段 | 作用 |
+| --- | --- |
+| `vertical: true` | 强制按竖屏（9:16）显示。**只认 `true`** —— 代码不再「按平台猜抖音是竖屏」，因为实测抖音里横屏视频也很多，猜错就会变成「竖长条里塞一条横画面」 |
+| `ratio: '9:16'` | 比 `vertical` 更精确的写法：哪一条是竖屏就单独给哪条 |
 
 比例一旦确定，弹窗会收窄成对应的形状（CSS 里的 `.modal-panel.narrow` / `.compact`），
 不会出现 1040px 宽的弹窗里只放一小块画面。
@@ -374,20 +396,176 @@ node tools/set-cover.mjs "封面图片地址" "视频标题里的一段字"
 - **iPhone 安全区**：底部留出小横条空间（`env(safe-area-inset-bottom)`）
 - **小屏微调**：≤380px（iPhone SE 之类）标题、面板铭牌、生成底图字号都收小
 
-页面的入场动效（首页、笔记页的渐入 / 进度条）都遵循系统的
-`prefers-reduced-motion: reduce`：你在系统里关掉动画，页面上就不会动。
+- **导航折叠成 ☰ 菜单**：窄屏下顶栏导航收进下拉菜单（`Base.astro` 里的 `menuToggle`）
+- **自定义鼠标不启用**：触屏没有指针，点 / 圈直接隐藏，光标保持系统样式
+
+全站动效（页面切换、滚动浮现、自定义鼠标、导航指示条、首屏舞台、友链页背景）
+都遵循系统的 `prefers-reduced-motion: reduce`，逐条开关见
+[七、动效与交互](#七动效与交互)。
+
+### 友链是怎么工作的（如实说明）
+
+`/links/` 是一条**独立路线**（参考 Kisara 主题的 "keep the route open"），
+不是站内其它页面的复用壳，所以它有自己的首屏和背景：
+
+| 位置 | 改什么 |
+| --- | --- |
+| `src/data/links.js` | 友链数据（字段见下表），加一条 = 复制一块 `{ ... }` 改字段 |
+| `src/pages/links.astro` 顶部 `const BG` | 全屏场景背景图，值是**相对 `public/` 的路径**（现在用的是 `media/images/home-finale.jpg`） |
+| `src/pages/links.astro` 顶部 `const SLOTS` | 面板里显示几个「槽位」，默认 `4` |
+
+页面构成为：左侧大字标题 + 两段说明，右侧一块**玻璃面板**（`backdrop-filter` 模糊），
+面板里是 `♡` 中心 + 两圈斜环慢转的**轨道图形**，下面是**槽位列表**——
+真实友链不足 `SLOTS` 条时，剩下的位置显示「等待被写下的名字 / 可以放博客、作品集或小站」。
+
+#### `links.js` 的字段
+
+| 字段 | 作用 | 必填 |
+| --- | --- | --- |
+| `name` | 站名 | 是 |
+| `url` | 网址，**要带 `https://`** | 是（招募位可留空） |
+| `desc` | 一句话介绍 | 否 |
+| `avatar` | 头像 / 站点图标。可留空（留空会按站名生成一张配色底图），也可以填 `media/images/xxx.png`（本地图）或完整的 `https://` 图片地址 | 否 |
+| `tags` | 标签数组，例如 `['个人博客', '动漫']` | 否 |
+| `since` | 认识的时间，例如 `'2024-03'` | 否 |
+| `featured` | 写 `true` → 排在前面并带星标 | 否 |
+| `open` | 写 `true` → 这条**不是真友链**，而是「交换友链」的招募位（不显示成普通一行） | 否 |
+
+排序规则：`featured` 优先，其余按数组顺序。
+
+> 一句实话：`/links/` 现在的槽位列表只用到 **`name` / `desc` / `url`**，
+> 加上 `open` 决定哪条是招募位。`avatar` / `tags` / `since` / `featured` 这几个字段
+> `links.js` 里预留了（样式也在 `style.css` 的 `.link-card` 那一段留着），
+> 但**当前页面不显示它们** —— 想用起来得自己往 `links.astro` 的列表里加。
+> 想删掉这几行也不会报错。
+
+### ME 页的友链入口填什么
+
+ME 页（`/me/`）上那个「进入友链」的方块，网址由 `src/data/config.js` 里的
+`me.friend.url` 决定：
+
+| 你想让它指向 | `me.friend.url` 怎么写 | 效果 |
+| --- | --- | --- |
+| 本站友链页 | `'links/'` —— **相对路径，不要写开头的 `/`** | 走站内跳转（会被 `asset()` 加上 `base` 前缀，从 `/me/` 出发也能正确拼到 `/links/`） |
+| 别处的页面 | `'https://example.com/links'` —— **完整网址** | 新窗口打开（`target="_blank"`） |
+| 还没想好 | `''` 或 `'#'` | 视为**没填**：点击不会跳转，而是弹出提示「把 src/data/config.js 里 friend.url 换成你的友链地址」 |
+
+`me.friend.label` / `me.friend.text` 是这块上面的小字和大字，一起在同一个对象里改。
 
 ---
 
-## 六、支持的语法
+## 六、首屏舞台与页面元素
+
+### 首屏舞台（Gate）
+
+`src/components/Gate.astro` 是各内页共用的开场画面，和首页那套是**同一份 CSS**
+（`.gate / .gate-*` 都在 `style.css` 里）。**不用在页面里写标签**：
+给 `<Base>` 传属性，它就会在内容前面自动渲染一块。
+
+| `<Base>` 属性 | 对应 Gate 的 | 作用 | 不传的话 |
+| --- | --- | --- | --- |
+| `hero` | `title` | 大标题。**传了它才会渲染整块首屏舞台** | 不渲染，页面直接从内容开始（首页 / 友链页 / ME 页就是这种） |
+| `heroKicker` | `eyebrow` | 标题上方那行小字（eyebrow） | `CHAPTER` |
+| `heroSub` | `sub` | 副标题 | 不显示 |
+| `heroImage` | `image` | 背景图，写**相对 `public/` 的路径** | `media/images/home-hero.jpg`（也就是首页那张主视觉） |
+
+可复制的例子（`src/pages/photos.astro`，想给别的页面加就照抄这一行）：
+
+```astro
+<Base title="相册 · IRinsho" hero="相册" heroKicker="GALLERY / 02" heroSub="随手拍下来的光，攒成一面墙。">
+```
+
+**目前谁开了首屏舞台**（和代码一致）：
+
+| 页面 | 首屏舞台 | 怎么来的 |
+| --- | --- | --- |
+| 首页 `/` | ✅ | 页面**自带的**一套 `.gate`（`src/pages/index.astro`），不走 `<Base>` 属性 |
+| 相册 `/photos/` | ✅ | `<Base hero="相册" heroKicker="GALLERY / 02" heroSub="…">` |
+| 视频 `/videos/` | ✅ | `<Base hero="视频" heroKicker="VIDEO / 03" heroSub="…">` |
+| 笔记 `/notes/` | ✅ | `<Base hero="笔记" heroKicker="BLOG / 04" heroSub="…">` |
+| 友链 `/links/` | ❌ | 自己有一整套 `.route` 首屏（不是 Gate） |
+| ME `/me/` | ❌ | 纸质浅色个人页，不加首屏 |
+
+> 首页那套 Gate 还多两个只属于它的东西：接缝条与终幕段（见下）。
+
+### 首屏里都有什么
+
+| 成分 | 说明 |
+| --- | --- |
+| 全屏背景 + 压暗层 | 两层 DOM：`.gate-hero`（主视觉）和 `.gate-veil`（压暗 + 渐变），底层是 `--hero` 那张图 |
+| 漂浮粒子 | 10 个（内页 8 个）上浮的发光小点，**纯 CSS 关键帧**，零素材；每个的起点、漂移量、时长、延迟都由内联变量控制 |
+| 鼠标视差 | 指针位置换算成 `--mx` / `--my`（-0.5 ~ 0.5）写到首屏上，背景乘 ±12px、文字反向 ±6px、粒子 ±26px → 有纵深 |
+| 滚动推近 | 滚动进度换算成 `--gate-p`（0 ~ 1，滚过约一屏就到位）：主视觉缓慢推近（`scale` 到 +8%）并淡出，位移/缩放/淡出全在 CSS 里算 |
+| 顶部滚动进度轨 | `.gate-rail`，2px 的玫红渐变条，跟的是**整页**滚动进度（`--rail`） |
+| 标题圆形注魔 | 标题是渐变字（`background-clip: text`），浮现时用 `clip-path: circle()` 从左侧画开一圈 |
+| 文字浮现 | 小字 / 标题 / 副标题按 order 依次淡入（`rise` 系列关键帧） |
+
+> **设计原则：脚本挂了也不会白屏。**
+> 默认状态就是「一张静态主视觉 + 完整文字」，只有脚本正常跑起来才去加 `.reveal` /
+> `.is-ready` / `--gate-p` 这些标记。所以浏览器禁 JS、CDN 挂了、脚本报错，
+> 你看到的是一张静图，而不是一片空白。改这套动效时请保持这个前提。
+
+### 首页额外的三段东西
+
+| 元素 | 类名 | 说明 |
+| --- | --- | --- |
+| 接缝条（首屏 → 面板区） | `.seam--gate` | 斜切色带，**纯 CSS**（`clip-path` + 伪元素），零素材 |
+| 接缝条（面板区 → 页脚） | `.seam--footer` | 同上但换了一套角度，免得两条一模一样 |
+| 终幕画面 | `.finale` | 单独一整段，图是 `media/images/home-finale.jpg`（`loading="lazy"`），带压暗层和 `FINALE / 终幕` 角标 |
+
+> 终幕原来是「滚到首屏中段才揭晓」，结果那张图常常一直看不到，太别扭；
+> 现在它是面板区之后、页脚之前的一段正式内容，**一定会被看到**。
+
+---
+
+## 七、动效与交互
+
+全站动效一共这几套，都遵循系统的「减少动态效果」设置。想关掉哪一套，
+看表格最后两列；代码位置也写在里面，方便你自己改。
+
+| 动效 | 触发条件 | 实现方式 | 怎么开 / 关 | 位置 |
+| --- | --- | --- | --- | --- |
+| **页面切换过渡** | 点导航换页 | `ClientRouter`（Astro 内置的 View Transitions）+ `::view-transition-old/new(root)` 淡入淡出 | 自动全站生效。顶栏 / 页脚用 `view-transition-name` 固定，换页时**外壳不动、只有内容在换** | `src/layouts/Base.astro` 的 `<ClientRouter />`、`style.css` 的 `view-transition` 段 |
+| **滚动浮现** | 元素滚进视野 | `IntersectionObserver`：脚本成功运行时才给 `<html>` 加 `.reveal`，元素滚到哪块哪块浮现（带 0~55ms 的错位延迟） | 自动。**脚本挂了 / 禁 JS → 全部内容默认可见**，不会白屏 | `Base.astro` 的 `startReveal()` |
+| **自定义鼠标** | 移动指针 | 一个贴住指针的点 + 一个带阻尼跟随的圈（lerp 0.18），悬停在链接 / 卡片上时圈放大并显示 `OPEN` | **仅桌面**（`hover: hover and pointer: fine`）。只有元素建好后才加 `.has-cursor` 隐藏系统光标；脚本失败会**自动恢复系统光标** | `Base.astro` 的 `initCursor()` |
+| **导航滑动指示条** | 鼠标划过顶栏 / 点导航 | 一条玫红指示条跟着光标滑动，点击时立刻归位 | 自动；脚本没跑就只是普通的悬停变色 | `Base.astro` 的 `startNavIndicator()` |
+| **卡片 / 图片悬停** | 鼠标悬停 | 笔记卡片：封面 `scale` 放大 + 标题变玫红 + 标题下划线展开；相册 / 视频卡片：上浮 3px + 边框变玫红 + 播放键放大 | 纯 CSS，不用开关 | `style.css` 的 `.post` / `.photo-card` / `.video-card` 段 |
+| **友链页进场编排** | 打开 `/links/` | 纯 CSS 动画，顺序：标题 → 正文 → 玻璃面板 → 轨道图形 → 列表逐行 → 底部 | 纯 CSS，**不依赖脚本**，一定会播完并停在可见状态 | `style.css` 的 `routeIn` / `routePanelIn` / `routeRowIn` / `routeOrbIn` |
+| **友链页背景动效** | 打开 `/links/` | 背景图 Ken Burns 缓慢推近横移（46s 一个来回）+ 渐变层「呼吸」（13s）+ 两条大弧线 140s / 180s 反向旋转 | 纯 CSS 循环 | `style.css` 的 `routeKenBurns` / `routeGlow` / `routeArcSpin` |
+
+换页之后脚本会重新初始化：`astro:page-load` 上挂着 `bootMotion()`，
+把滚动浮现、鼠标圈、导航指示条**各重启一遍**（三个函数内部都有幂等保护）。
+这一步是必须的 —— 否则换页后旧 DOM 被换掉、鼠标圈没了而 `.has-cursor` 还留着，
+就会出现「一个光标都看不见」的状态。
+
+### 系统开了「减少动态效果」会怎样
+
+在系统设置里打开「减少动态效果」（Windows：辅助功能 → 视觉效果 → 动画效果），
+`<html>` 就不会拿到 `js-motion` / `reveal`，`prefers-reduced-motion: reduce`
+的媒体查询也会生效。具体关掉的是：
+
+| 关掉的 | 结果 |
+| --- | --- |
+| 页面切换过渡动画 | 换页直接切，不淡入淡出 |
+| 滚动浮现 | 所有内容一开始就全部可见（不隐藏、不位移、不模糊） |
+| 自定义鼠标 | 完全不启用，用系统光标 |
+| 导航滑动指示条 | 不出现 |
+| 首屏舞台的推近 / 淡出 / 视差 / 粒子 / 圆形注魔 / 进度轨 | 全部停掉：静态显示主视觉，标题直接完整显示，进度轨隐藏（`.gate-rail { display: none }`） |
+| 接缝条漂移、终幕悬停缩放 | 停掉 |
+| 友链页背景 Ken Burns / 呼吸 / 弧线旋转 / 鼠标视差 | 停掉 |
+| 卡片悬停 | 保留（只留边框变色，位移和放大去掉） |
+
+---
+
+## 八、支持的语法
 
 笔记正文用 Markdown 写，由项目自带的渲染器处理（无第三方依赖）。
 
 ### 基础语法
 
 标题、粗体 / 斜体 / 删除线、`==高亮==`、行内代码、代码块、有序 / 无序列表（可嵌套）、
-任务清单、引用、表格（支持 `:--` 对齐）、链接、图片、分隔线、
-Obsidian 注释 `%%像这样%%`（构建时直接删掉，不会出现在页面上）。
+任务清单（`- [x]` / `- [ ]`）、引用、表格（支持 `:--` 对齐）、链接、裸网址自动成链、
+图片、分隔线。
 
 ### Obsidian 增强语法
 
@@ -400,7 +578,8 @@ Obsidian 注释 `%%像这样%%`（构建时直接删掉，不会出现在页面�
 | ` ```dataview ` 查询块 | 自动列出笔记 | **构建时求值**成静态 HTML（见下方支持的子集） |
 
 > 数学和 Mermaid 都是**按需加载**的：正文里没有公式 / 图表时，
-> 根本不会去请求那两个 CDN。它们只影响显示，加载失败也不影响正文阅读。
+> 根本不会去请求那两个 CDN（判断依据是正文里有没有 `$…$` / ` ```mermaid `）。
+> 它们只影响显示，加载失败也不影响正文阅读。
 
 ### 双向链接怎么用
 
@@ -431,21 +610,33 @@ TASK FROM #todo
 
 | 部分 | 支持什么 |
 | --- | --- |
-| 类型 | `LIST` / `TABLE 字段1, 字段2` / `TASK` |
-| 筛选 | `FROM #标签`、`FROM "文件夹名或分类名"`（多个条件按「任一命中」处理） |
-| 排序 | `SORT date DESC\|ASC`（字段可用 `date` / `title` / `file` / `category`） |
+| 类型 | `LIST` / `TABLE 字段1, 字段2` / `TASK`（默认 `LIST`） |
+| 筛选 | `FROM #标签`、`FROM "文件夹名或分类名"`；写成 `and` / `or` 也**一律按「任一命中」**处理 |
+| 排序 | `SORT date DESC\|ASC`（不写方向默认升序 ASC；`file` 会自动当成笔记 id） |
 | 限量 | `LIMIT 10` |
-| TABLE 可用字段 | `title`、`date`、`category`、`tags`、`file` |
+| TABLE 可用字段 | `title`、`date`、`category`、`tags`、`file`，以及 frontmatter 里你自己写的其它字段（按名字取） |
 
-> Dataview 的**表达式**（`WHERE contains(...)`、`choice()`、`join()`、`dateformat()` 等）
-> 暂不支持 —— 完整实现等于在构建时跑一个查询引擎。
+这是**构建时求值**的：查询在 `npm run sync:blog` 那一步就算成了静态 HTML 写进页面，
+所以页面上不需要任何 Dataview 插件，也不会有客户端查询。
+
+> Dataview 的**表达式**不支持：`WHERE contains(...)`、`choice()`、`join()`、`dateformat()`、
+> `GROUP BY`、`FLATTEN`、内联 `= this.xxx` 之类都没有 ——
+> 完整实现等于在构建时跑一个查询引擎。
 > 需要复杂查询时用普通 Markdown 手写，或者拆成多个简单查询。
 
 **仍然不支持**：DataviewJS、Canvas、Excalidraw、Obsidian 的 CSS snippet。
 
+> 另外核对一遍：渲染器**不认** Obsidian 的注释语法 `%%像这样%%`，
+> 也没有脚注、没有 callout（`> [!note]`）。写了这些会原样显示成普通文字，
+> 不会报错，但也不会变成你想要的样子。
+
+> 顺带说清两个「不报错」的行为：
+> · `[[双链]]` 找不到对应笔记 → 显示成**灰色带虚线**的文字（悬停提示「站内找不到」），构建不会失败；
+> · ` ```dataview ` 查不到任何笔记 → 显示一行「（没有匹配的笔记）」，同样不会失败。
+
 ---
 
-## 七、自动化与同步
+## 九、自动化与同步
 
 ### `npm run dev` 的自动同步（`integrations/auto-sync.mjs`）
 
@@ -498,7 +689,13 @@ $env:IRINSHO_FETCH='1'; npm run build
 （cmd 里写 `set IRINSHO_FETCH=1 && npm run build`；git bash / WSL 里写
 `IRINSHO_FETCH=1 npm run build`。）
 
-本地视频截帧也有一层同样的判断：部署环境且没有 ffmpeg 时跳过。
+本地视频截帧也有一层同样的判断（`tools/sync-frames.mjs`）：同样认
+`CI` / `EDGEONE` / `VERCEL` / `NETLIFY` / `GITHUB_ACTIONS` 和「非 Windows」，
+但**多一个条件**——只有**同时找不到 ffmpeg** 时才跳过。
+所以你自己的 Windows 机器上照常截帧，云端容器里没 ffmpeg 就自动用仓库里已截好的封面。
+
+**这套「跳过」不会影响构建成功**：跳过就是跳过，退出码 0，构建继续往下走
+（各 sync 脚本的退出码规则见[命令速查](#命令速查)）。
 
 所以云端 `npm run build` 的实际行为是：**图片同步照跑**（不联网）、
 **笔记构建照跑**（不联网）、本地视频截帧和封面抓取直接跳过。
@@ -516,7 +713,7 @@ $env:IRINSHO_FETCH='1'; npm run build
 
 ---
 
-## 八、部署到腾讯云
+## 十、部署到腾讯云
 
 ### 第 1 步：改一下 `astro.config.mjs`
 
@@ -538,6 +735,28 @@ npm run build
 ```
 
 生成 `dist/` 文件夹，里面的内容就是整个网站。
+
+#### `npm run build` 到底跑了什么
+
+它的定义就是两件事（见 `package.json`）：**`npm run sync && astro build`**。
+也就是先把内容加工一遍，再生成静态页面：
+
+| 顺序 | 命令 | 做什么 | 部署环境（CI / 非 Windows） |
+| --- | --- | --- | --- |
+| 1 | `sync-photos` | `img/` → 压缩成 WebP | 照跑（不联网） |
+| 2 | `sync-frames` | 本地视频截封面 + 读时长 / 比例 | **自动跳过**（没有 ffmpeg 时），用仓库里已截好的 |
+| 3 | `sync-covers` | B站 / YouTube / 抖音 的封面与信息 | **自动跳过**，用 `covers.generated.js` 里已抓好的 |
+| 4 | `build-blog` | `blog/` → 笔记数据与页面 | 照跑（不联网） |
+| 5 | `astro build` | 渲染出 `dist/` | 照跑 |
+
+抓取和截帧这两步在部署机上没意义（没浏览器、没图形环境、封面早就提交进仓库了），
+所以 `isDeployEnv()` 会直接跳过，**不会报错、也不会拖慢构建**。
+真的想在部署机上抓（本机装了 Edge / Chrome 才行），就设 `IRINSHO_FETCH=1` 强制，
+见上一章「部署 / CI 环境会自动跳过抓取」。
+
+顺手记住退出码这件事：`sync-frames` / `sync-covers` / `build-blog` **出错也退出码 0**，
+只打印提示就放行，所以它们抓不到东西**不会拦住构建**；
+只有 `sync-photos` 在个别图片处理失败时才退出码 1（这时 `astro build` 不会执行，修图重跑即可）。
 
 ### 第 3 步：上传，三选一
 
@@ -616,7 +835,48 @@ coscmd upload -r dist/ /
 
 ---
 
-## 九、常见问题
+## 十一、换图速查
+
+站里几张「大图」分散在四个地方，想换哪张就照下表改：
+
+| 想换哪张图 | 改哪里 | 现在用的文件 |
+| --- | --- | --- |
+| 首页首屏主视觉 | `src/pages/index.astro` 里 `.gate` 的 `style` 变量 `--hero` | `media/images/home-hero.jpg` |
+| 首页终幕画面 | `src/pages/index.astro` 的 `.finale` 段（`<img class="finale-art">`，`--finale` 也指向同一张） | `media/images/home-finale.jpg` |
+| 各内页首屏背景 | 那个页面 `<Base>` 上的 `heroImage`（不传就用首页那张 `home-hero.jpg`） | 相册 / 视频 / 笔记**都没传**，所以用的都是 `home-hero.jpg` |
+| 友链页全屏背景 | `src/pages/links.astro` 顶部的 `const BG` | `media/images/home-finale.jpg` |
+
+写法就一种（**写字符串路径**，不要 `import`）：值是相对 `public/` 的路径，
+图片自己放进 `public/media/images/`：
+
+```astro
+<Base hero="相册" heroImage="media/images/gallery-hero.jpg">
+```
+
+首页那两处是 `index.astro` 里 `.gate` 的 `style` 变量，同理：
+
+```astro
+<section class="gate" style={`--hero:url(${asset('media/images/home-hero.jpg')})`}>
+```
+
+### 最省事的做法：直接覆盖同名文件
+
+如果你**只是想把画面换成自己的照片**，不想动任何代码，那最省事的做法是：
+
+1. 把新图命名为完全一样的名字（`home-hero.jpg` / `home-finale.jpg`）
+2. 覆盖 `public/media/images/` 里那两个同名文件
+3. 刷新页面（跑着 `npm run dev` 的话 Ctrl+F5）
+
+因为路径没变，代码一个字都不用改。
+**注意**：覆盖 `home-finale.jpg` 会同时换掉**首页终幕**和**友链页背景**（两处都在用它），
+只想换其中一个就按上表改成别的文件名。
+
+> 这几张图建议 **jpg / webp**、横图（**1920×1080 或更大**）：都是铺满整屏当背景用的。
+> 文件名里别用空格，全部用小写英文最稳。
+
+---
+
+## 十二、常见问题
 
 **Q：`npm install` 报错 / 卡住不动？**
 A：先确认能上网。公司网络有代理的话：
@@ -659,9 +919,18 @@ A：正常。id 由文件名生成，中文会保留，浏览器会自动转成�
 A：都删掉了。这套是 Astro 项目：用 `npm run dev` 启动、`npm run build` 构建，
 不再需要自己写的服务器、单页文件，也不需要双击 `启动网站.cmd`。
 
+**Q：`npm run build` 报错 `The symbol "title" has already been declared`？**
+A：是 `src/layouts/Base.astro` 里写了**两处** `Astro.props` 解构（只能有一处）。
+文件里已经留了注释提醒，改完先 `npm run dev` 看页面正常，再 `npm run build`。
+
+**Q：改完页面一点动画都没有 / 光标变成普通箭头？**
+A：多半是系统开了「减少动态效果」，或者浏览器控制台里有脚本报错。
+排查顺序：F12 → Console 看有没有红色的报错 → 系统设置里关掉「减少动态效果」→ 刷新。
+具体哪套动效会被关，见 [七、动效与交互](#七动效与交互)。
+
 ---
 
-## 十、换配色
+## 十三、换配色
 
 `public/assets/css/style.css` 最上面的 `:root` 里：
 
@@ -696,18 +965,22 @@ A：都删掉了。这套是 Astro 项目：用 `npm run dev` 启动、`npm run 
 │
 ├─ src/
 │  ├─ pages/               页面（一个文件 = 一个网址）
-│  │  ├─ index.astro         /
-│  │  ├─ photos.astro        /photos/
-│  │  ├─ videos.astro        /videos/
-│  │  ├─ me.astro            /me/
+│  │  ├─ index.astro         /           首屏舞台 + 面板 + 友链入口 + 终幕
+│  │  ├─ photos.astro        /photos/     传了 hero 属性 → 有首屏舞台
+│  │  ├─ videos.astro        /videos/     传了 hero 属性 → 有首屏舞台
+│  │  ├─ links.astro         /links/      友链页（首屏背景在文件顶部 const BG）
+│  │  ├─ me.astro            /me/         纸质浅色个人页（友链入口读 config.me.friend.url）
 │  │  └─ notes/
-│  │     ├─ index.astro      /notes/        Blog 列表
-│  │     └─ [id].astro       /notes/xxx/    单篇笔记
-│  ├─ layouts/Base.astro   公共外壳（顶栏、页脚）
+│  │     ├─ index.astro      /notes/      Blog 列表
+│  │     └─ [id].astro       /notes/xxx/  单篇笔记（数学 / Mermaid 在这里按需加载）
+│  ├─ components/
+│  │  └─ Gate.astro        首屏舞台组件（内页通过 Base 的 hero 属性启用）
+│  ├─ layouts/Base.astro   公共外壳（顶栏、页脚、页面过渡、滚动浮现、自定义鼠标、导航指示条）
 │  ├─ lib/                 工具函数（图片合并、Markdown 渲染、日期、外链解析）
 │  └─ data/                ★ 内容数据
-│     ├─ config.js               ★ 站点名 / 首页 / 个人页 / 页脚（手改）
+│     ├─ config.js               ★ 站点名 / 首页 / 个人页（含友链入口）/ 页脚（手改）
 │     ├─ videos.js               ★ 视频列表（手改）
+│     ├─ links.js                ★ 友链数据（手改）
 │     ├─ photo-meta.js           ★ 图片标题 / 描述 / 标签（手改）
 │     ├─ photos.generated.js     ← 自动生成，别手改
 │     ├─ covers.generated.js     ← 自动生成（视频封面），别手改
@@ -717,7 +990,7 @@ A：都删掉了。这套是 Astro 项目：用 `npm run dev` 启动、`npm run 
     ├─ sync-photos.mjs       图片同步引擎（压缩 / 清理 / 生成数据）
     ├─ sync-frames.mjs       本地视频截帧（ffmpeg）+ 读时长 / 比例
     ├─ sync-covers.mjs       封面 + 信息抓取（B站 / YouTube / 抖音）
-    ├─ douyin-frames.mjs     抖音取画面：无头浏览器 + 调试协议精确截图
+    ├─ douyin-frames.mjs     抖音取画面：无头浏览器 + 调试协议精确截图（Node 22 的 WebSocket）
     ├─ set-cover.mjs         手动配一张封面（`npm run cover`）
     ├─ patch-videos.mjs      把抓到的信息安全写回 videos.js（保留注释）
     └─ build-blog.mjs        笔记构建引擎
@@ -734,3 +1007,16 @@ avatar: 'media/images/119178066_p0.webp',   // 也就是 public/media/images/119
 
 想换成自己的头像，把图片放进 `public/media/`（建议正方形、200×200 以上、webp 或 jpg），
 再把这一行改成对应的文件名。**路径写错的话右上角会显示一个玫红菱形占位。**
+
+---
+
+## 附：开发注意（改代码前先看这几条）
+
+你自己（或者以后接手的人）改源码时，有几条是已经踩过的坑：
+
+| 注意 | 后果 | 怎么办 |
+| --- | --- | --- |
+| `src/layouts/Base.astro` 里 `const { … } = Astro.props` 的解构**只能有一处** | 重复声明 `title` 会让构建直接失败：`The symbol "title" has already been declared` | 要加新属性（例如 `hero` 系列）就加进**原来那一处**，别在后面再写一遍解构 |
+| 改完任何 `src/` 里的东西 | 只看 `dev` 不一定够，`build` 才是真正的检验（Astro 在构建期报的错和 dev 不完全一样） | 先 `npm run dev` 看页面正常，再 **`npm run build`** 跑一遍 |
+| 动效相关的代码 | 脚本一抛错，后面的动效就全不执行（以前鼠标圈和滚动浮现写在同一个作用域里，前面出错后面就哑了） | 每套动效独立包在 `try/catch` 或独立函数里；保持「**脚本挂了只是没有动效，页面照常可读**」这个前提 |
+| 抓封面 / 截帧的脚本 | 它们挂在 `npm run dev` / `build` 的 `&&` 链里 | 出错要 `process.exit(0)` 放行，只打印提示；见 [九、自动化与同步](#九自动化与同步) |

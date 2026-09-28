@@ -304,7 +304,17 @@ if (invokedDirectly) {
   }
   console.log('\n扫描 img/ 文件夹…');
   syncPhotos(opts)
-    .then(r => process.exit(r.failed ? 1 : 0))
+    // ⚠ 不管有几张图处理失败，都退出码 0：
+    //   本脚本挂在 npm run dev / build 的 && 链上，退出码 1 会让
+    //   后面的 astro build 直接不执行（部署构建失败就是这么来的）。
+    //   失败的那几张会保留原图 / 跳过，网站照常能构建。
+    .then(r => {
+      if (r && r.failed) {
+        console.warn(`\n! 有 ${r.failed} 张图片没处理成功（已跳过，不影响构建）：`);
+        console.warn('  想单独看细节：node tools/sync-photos.mjs\n');
+      }
+      process.exit(0);
+    })
     // 故意也用退出码 0：本脚本挂在 npm run dev / build 的 && 链里，
     // 退出非 0 会让后面的 astro 不执行（网站打不开）。失败只提示，不阻断。
     .catch(e => {
