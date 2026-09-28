@@ -13,9 +13,9 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
-                "mode": "source",
-                "source": false,
+                "file": "_怎么用.md",
+                "mode": "preview",
+                "source": true,
                 "backlinks": true,
                 "backlinkOpts": {
                   "collapseAll": false,
@@ -28,7 +28,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法"
+              "title": "_怎么用"
             }
           }
         ]
@@ -93,7 +93,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 318.16668701171875
+    "width": 280.16668701171875
   },
   "right": {
     "id": "238c49d96ecde3c3",
@@ -169,9 +169,9 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
+                "file": "_怎么用.md",
                 "followCursor": false,
-                "showSearch": false,
+                "showSearch": true,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
@@ -183,11 +183,10 @@
       }
     ],
     "direction": "horizontal",
-    "width": 411.833251953125
+    "width": 360.833251953125
   },
   "left-ribbon": {
     "hiddenItems": {
-      "obsidian-git:Open Git source control": false,
       "switcher:打开快速切换": false,
       "graph:查看关系图谱": false,
       "canvas:新建白板": false,
@@ -195,23 +194,28 @@
       "templates:插入模板": false,
       "command-palette:打开命令面板": false,
       "bases:新建数据库": false,
-      "obsidian-wordpress:发布到 WordPress": false
+      "obsidian-wordpress:发布到 WordPress": false,
+      "obsidian-git:Open Git source control": false
     }
   },
   "active": "26bb572852d2999d",
   "lastOpenFiles": [
+    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
+    "_模板.md",
+    "_怎么用.md",
+    "c语言学习",
+    "未命名.md",
+    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922165116.png",
+    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164728.png",
+    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164528.png",
+    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164209.png",
+    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164034.png",
+    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法",
     "如何输出字符串位数.md",
-    "如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
     "未命名.base",
     "c语言练习总结.md",
     "实现倒序输出（for循环）.md",
-    "如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164034.png",
-    "如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164728.png",
-    "如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922165116.png",
-    "如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164528.png",
-    "如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164209.png",
     "代码截图/Pasted image 20260922171131.png",
-    "如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法",
     "代码截图/Pasted image 20260922161730.png",
     "代码截图/Pasted image 20260922170957.png",
     "代码截图/Pasted image 20260922171616.png",
