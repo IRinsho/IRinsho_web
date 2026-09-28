@@ -76,7 +76,10 @@ npm install
 │  │     ├─ index.astro      /notes/        Blog 列表
 │  │     └─ [id].astro       /notes/xxx/    单篇笔记
 │  ├─ layouts/Base.astro   公共外壳（顶栏、页脚）
-│  ├─ lib/                 工具函数（图片合并、Markdown 渲染、日期）
+│  ├─ lib/                 工具函数（图片合并、Markdown 渲染、日期、外链解析）
+│  │  ├─ url.js            资源路径 → 网址（自动转义 + 补 base）
+│  │  ├─ embeds.js         抖音 / B站 / YouTube 链接 → 播放器地址
+│  │  └─ ...               其它小工具
 │  └─ data/                ★ 内容数据
 │     ├─ config.js          ★ 站点名 / 首页 / 个人页 / 页脚（手改）
 │     ├─ videos.js          ★ 视频列表（手改）
@@ -204,11 +207,35 @@ draft: false
 }
 ```
 
-B 站 / YouTube 的视频用 `embed` 代替 `src`：
+B 站 / YouTube / 抖音的视频，直接粘分享链接就行，页面会自动换成播放器地址：
 
 ```js
-{ title: '学习录屏', embed: 'https://player.bilibili.com/player.html?bvid=BV1xx411c7mD' }
+// 抖音：网页链接、分享链接、或者只有那串数字，都可以
+{ title: '随手拍的一段', douyin: 'https://www.douyin.com/video/7301234567890123456' }
+{ title: '只有数字 id', douyin: '7301234567890123456' }
+
+// B 站
+{ title: '学习录屏', embed: 'https://www.bilibili.com/video/BV1xx411c7mD' }
+{ title: 'B 站播放器地址也行', embed: 'https://player.bilibili.com/player.html?bvid=BV1xx411c7mD' }
+
+// YouTube
+{ title: 'YouTube 视频', embed: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }
 ```
+
+字段说明：
+
+| 字段 | 作用 |
+| --- | --- |
+| `src` | 本地视频，相对 `public/` 的路径 |
+| `douyin` | 抖音链接或数字 id（自动转 `open.douyin.com/player/video?vid=...`） |
+| `embed` | 其它外站链接（B 站 / YouTube），粘分享链接即可 |
+| `link` | 原站链接；填了它，播放器放不出来时会显示「去原站看」的按钮 |
+| `poster` | 封面图，相对 `public/`，建议 16:9 |
+
+> **抖音短链**（`https://v.douyin.com/xxxxxxx/`）能识别出是抖音，但短链里没有视频 id，
+> 播放器地址拼不出来 —— 页面会给一个「去抖音看 ↗」的按钮。
+> 想要能直接内嵌播放，请在抖音里点「分享 → 复制链接」拿到
+> `www.douyin.com/video/数字` 这种完整链接，或者直接填那串数字。
 
 > **路径一定写正斜杠 `/`**，不要写成 Windows 的反斜杠（`media\videos\a.mp4`）。
 > 后者浏览器会当成一个古怪的文件名，结果就是「没有找到支持的视频格式和 MIME 类型」。
@@ -221,9 +248,9 @@ B 站 / YouTube 的视频用 `embed` 代替 `src`：
 1. 打开页面按 F12 → Network，点一下那条视频请求：
    - 404 → 路径或文件名写错了（注意大小写、后缀）
    - 200 但还是放不出来 → 编码格式浏览器不认（尽量用 mp4 / H.264 + AAC）
-2. 浏览器控制台如果提示 `Failed to load because no supported source was found`，
-   说明文件没取到或格式不支持
-3. 播放弹窗现在会直接显示「文件应该放在哪」和一个下载按钮，方便对照
+2. 外站播放器（抖音 / B 站 / YouTube）放不出来，通常是对方限制（需要登录、
+   地区限制、防盗链）。播放弹窗里都给了「去原站看」的按钮
+3. 本地文件的播放弹窗会直接显示「文件应该放在哪」和一个下载按钮，方便对照
 
 ---
 

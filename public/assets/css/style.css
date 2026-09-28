@@ -151,6 +151,13 @@ button, input { font: inherit; color: inherit; }
   font-family: var(--font-serif);
 }
 .brand-text b em { font-style: italic; color: var(--rose); }
+/* 品牌名下面的小字：当前板块 / 序号 */
+.brand-sub {
+  font-style: normal;
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--ink-3); margin-top: 1px;
+}
 
 .tabs { display: flex; gap: 30px; margin: 0 auto; }
 .tab {
@@ -161,6 +168,13 @@ button, input { font: inherit; color: inherit; }
   color: var(--ink-2);
   transition: color .2s;
 }
+/* 导航前面的小序号，学 Kisara 那种目录感 */
+.tab-no {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: .06em; color: var(--ink-3);
+  transition: color .2s;
+}
+.tab:hover .tab-no, .tab.active .tab-no { color: var(--rose); }
 .tab svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .tab::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: -3px;
@@ -409,7 +423,12 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .video-card .thumb { position: relative; aspect-ratio: 16 / 9; background: #10132a; overflow: hidden; }
 .video-card .thumb img { width: 100%; height: 100%; object-fit: cover; opacity: .82; transition: .45s; }
 .video-card:hover .thumb img { opacity: 1; transform: scale(1.04); }
-.thumb-fallback { width: 100%; height: 100%; background: linear-gradient(140deg, #2a2f52, #171a30); }
+.thumb-fallback { width: 100%; height: 100%; background: linear-gradient(140deg, #2a2f52, #171a30); position: relative; }
+/* 没有封面时给一点斜纹，别是一块死板的纯色 */
+.thumb-fallback::after {
+  content: ''; position: absolute; inset: 0;
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 9px);
+}
 .play {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: 52px; height: 52px; border-radius: 50%;
@@ -426,6 +445,17 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   background: rgba(8, 10, 22, .82); color: #fff;
   font-family: var(--font-mono); font-size: 10.5px;
   padding: 2px 7px;
+}
+/* 来源标签：本地 / 抖音 / B站 / YouTube（左上角，和右下角时长对称） */
+.src-tag {
+  position: absolute; left: 9px; top: 9px;
+  z-index: 2;
+  background: rgba(8, 10, 22, .72);
+  border-left: 2px solid var(--rose);
+  color: #fff;
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: .14em; text-transform: uppercase;
+  padding: 3px 8px;
 }
 .vc-body { padding: 16px 18px 18px; }
 .vc-body h3 { margin: 0 0 7px; font-family: var(--font-serif); font-size: 17px; line-height: 1.5; }
@@ -800,6 +830,12 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   font-size: 12.5px; letter-spacing: .1em; transition: .2s;
 }
 .play-download:hover { background: var(--rose); color: #fff; }
+/* 外站播放器（抖音 / B站 / YouTube）下方的一行提示 */
+.embed-bar {
+  margin: 0; padding: 12px 20px 16px;
+  color: var(--ink-3); font-size: 12.5px; letter-spacing: .08em;
+}
+.embed-bar .play-download { margin: 0 0 0 10px; padding: 5px 12px; font-size: 11.5px; }
 .modal-desc { margin: 0; padding: 14px 20px 20px; color: var(--ink-2); font-size: 13.5px; }
 
 .toast {

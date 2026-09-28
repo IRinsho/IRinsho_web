@@ -2,18 +2,33 @@
 import Base from '../layouts/Base.astro';
 import videos from '../data/videos.js';
 import { asset } from '../lib/url.js';
+import { resolveEmbed } from '../lib/embeds.js';
 import { fmtSlash } from '../lib/format.js';
 
+/* 每条视频先算好「播放器地址」和「原站链接」：
+   douyin / embed 里可以直接粘抖音、B站、YouTube 的分享链接，
+   这里统一翻译成 iframe 能用的地址。 */
+const items = videos.map((v) => {
+  const source = v.embed || v.douyin || '';
+  const r = resolveEmbed(source);
+  return {
+    ...v,
+    embedUrl: r.embed,
+    sourceUrl: v.link || r.link || r.embed,
+    platform: v.platform || r.platform || ''
+  };
+});
+
 const cats = ['全部'].concat(
-  videos.reduce((acc, v) => {
+  items.reduce((acc, v) => {
     const c = String(v.category || '').trim();
     if (c && acc.indexOf(c) === -1) acc.push(c);
     return acc;
   }, [])
 );
-const countOf = (c) => (c === '全部' ? videos.length : videos.filter((v) => String(v.category || '').trim() === c).length);
+const countOf = (c) => (c === '全部' ? items.length : items.filter((v) => String(v.category || '').trim() === c).length);
 
-const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 ---
 <Base title="视频 · IRinsho">
   <div class="page-head">
@@ -24,7 +39,7 @@ const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(
     </div>
     <div class="page-title-row">
       <h1 class="page-title">视频</h1>
-      <p class="page-sub">{videos.length} 个视频</p>
+      <p class="page-sub">{items.length} 个视频</p>
     </div>
   </div>
 
@@ -43,8 +58,10 @@ const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(
         data-title={v.title}
         data-meta={[v.category, fmtSlash(v.date), v.duration].filter(Boolean).join('  /  ')}
         data-desc={v.desc || ''}
-        data-embed={v.embed || ''}
-        data-src={v.embed ? '' : asset(v.src || '')}
+        data-embed={v.embedUrl}
+        data-link={v.sourceUrl || ''}
+        data-platform={v.platform || '原站'}
+        data-src={v.embedUrl ? '' : asset(v.src || '')}
         data-poster={v.poster ? asset(v.poster) : ''}
         tabindex="0"
         role="button"
@@ -53,6 +70,7 @@ const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(
           {v.poster ? <img src={asset(v.poster)} alt={v.title} loading="lazy" /> : <div class="thumb-fallback"></div>}
           <span class="play">▶</span>
           {v.duration && <span class="dur">{v.duration}</span>}
+          {v.platform && <span class="src-tag">{v.platform}</span>}
         </div>
         <div class="vc-body">
           <h3>{v.title}</h3>
@@ -68,7 +86,7 @@ const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(
     ))}
   </div>
 
-  {videos.length === 0 && (
+  {items.length === 0 && (
     <p class="empty">还没有视频。把 mp4 放进 <code>public/media/videos/</code>，然后在 <code>src/data/videos.js</code> 里登记一条。</p>
   )}
 
@@ -104,11 +122,31 @@ const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(
       if (card.dataset.embed) {
         const iframe = document.createElement('iframe');
         iframe.src = card.dataset.embed;
-        iframe.allow = 'autoplay; fullscreen; encrypted-media';
+        iframe.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
         iframe.allowFullscreen = true;
         iframe.setAttribute('scrolling', 'no');
         iframe.setAttribute('frameborder', '0');
+        iframe.setAttribute('referrerpolicy', 'unsafe-url');
         body.appendChild(iframe);
+
+        // 外站播放器（抖音 / B站 / YouTube）可能因为登录、地区或防盗链放不出来，
+        // 给一个「去原站看」的出口，别让用户卡在一块空白里
+        const bar = document.createElement('p');
+        bar.className = 'embed-bar';
+        const platform = card.dataset.platform || '原站';
+        bar.textContent = '放不出来？';
+        if (card.dataset.link) {
+          const go = document.createElement('a');
+          go.className = 'play-download';
+          go.href = card.dataset.link;
+          go.target = '_blank';
+          go.rel = 'noopener noreferrer';
+          go.textContent = '去' + platform + '看 ↗';
+          bar.appendChild(go);
+        } else {
+          bar.appendChild(document.createTextNode('外站播放器加载失败时，请稍后重试。'));
+        }
+        body.appendChild(bar);
       } else if (!card.dataset.src) {
         const tip = document.createElement('p');
         tip.className = 'play-error';
@@ -171,6 +209,8 @@ const sorted = videos.slice().sort((a, b) => String(b.date || '').localeCompare(
     });
 
     modal.addEventListener('click', (e) => {
+      // 弹窗里的「去原站看」是链接，点它不要顺手把弹窗关掉
+      if (e.target.closest('a')) return;
       if (e.target.closest('[data-modal]')) close();
     });
 

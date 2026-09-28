@@ -23,12 +23,17 @@ const ICONS = {
 };
 
 const NAV = [
-  { key: 'home', href: '/', label: 'HOME' },
-  { key: 'photos', href: '/photos/', label: 'GALLERY' },
-  { key: 'videos', href: '/videos/', label: 'VIDEO' },
-  { key: 'notes', href: '/notes/', label: 'BLOG' },
-  { key: 'me', href: '/me/', label: 'ME' }
+  { key: 'home', href: '/', label: 'HOME', no: '01' },
+  { key: 'photos', href: '/photos/', label: 'GALLERY', no: '02' },
+  { key: 'videos', href: '/videos/', label: 'VIDEO', no: '03' },
+  { key: 'notes', href: '/notes/', label: 'BLOG', no: '04' },
+  { key: 'me', href: '/me/', label: 'ME', no: '05' }
 ];
+
+// 顶栏左侧品牌：编号 = 当前板块在导航里的序号（Kisara 那种「KISARA / 03」的味道）
+const currentIndex = Math.max(0, NAV.findIndex((n) => n.key === view));
+const brandNo = String(currentIndex + 1).padStart(2, '0');
+const viewLabel = (NAV[currentIndex] && NAV[currentIndex].label) || 'HOME';
 
 // 品牌名分色
 const name = config.name || '';
@@ -63,12 +68,14 @@ const footerText = footerRaw.includes('{year}')
       <span class="brand-mark">◆</span>
       <span class="brand-text">
         <b>{nameBefore}{accent && <em>{accent}</em>}{nameAfter}</b>
+        <i class="brand-sub">{viewLabel} / {brandNo}</i>
       </span>
     </a>
 
     <nav class="tabs" id="navTabs" aria-label="主导航">
       {NAV.map((item) => (
         <a class={'tab' + (item.key === view ? ' active' : '')} href={asset(item.href)}>
+          <span class="tab-no">{item.no}</span>
           <svg viewBox="0 0 24 24" set:html={ICONS[item.key]} />
           {item.label}
         </a>

@@ -38,7 +38,7 @@ const countOf = (a) => (a === ALL ? photos.length : photos.filter((p) => p.album
         role="button"
         aria-label={'查看 ' + p.title}
       >
-        <span class="card-no">{pad2(i + 1)}</span>
+        <span class="card-no">{pad2(i + 1)} PORTRAIT LOG</span>
         {/*
           注意：这里不能给 <img> 加 loading="lazy"。
           相册是多列瀑布流（CSS columns），Chrome 里 lazy 图在这个布局下

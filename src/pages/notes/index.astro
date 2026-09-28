@@ -43,7 +43,7 @@ const countOf = (c) => (c === ALL ? notes.length : notes.filter((n) => n.categor
         )}
 
         <div class="post-meta">
-          <span>{pad2(i + 1)}</span>
+          <span>{pad2(i + 1)} SIGNAL</span>
           <span class="pm-cat">{n.category || '未分类'}</span>
           <time>{fmtSlash(n.date)}</time>
         </div>

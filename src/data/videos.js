@@ -1,22 +1,30 @@
 /* =========================================================
  *  视频数据
  *  ---------------------------------------------------------
- *  两种播放方式，任选其一：
- *   1) 本地视频：把 mp4 放进 public/media/videos/，写 src: 'media/videos/xxx.mp4'
- *   2) 外链嵌入：写 embed: 'https://player.bilibili.com/player.html?bvid=...'
- *      （B 站 / YouTube 的 iframe 地址都可以）
+ *  三种填法，任选其一（有 douyin / embed 时优先用它们）：
  *
- *  字段：
+ *   1) 本地视频
+ *        src:    'media/videos/xxx.mp4'
+ *        把文件放进 public/media/videos/
+ *
+ *   2) 抖音（推荐直接粘链接，会自动转成播放器地址）
+ *        douyin: 'https://www.douyin.com/video/7301234567890123456'
+ *        也可以只写那串数字：douyin: '7301234567890123456'
+ *        短链（v.douyin.com/xxxx）会自动识别成抖音，但播放器需要完整
+ *        分享链接里的数字 id；短链的情况页面会给一个「去抖音看」的按钮。
+ *
+ *   3) 其它外链嵌入（B 站 / YouTube 的分享链接都可以直接粘）
+ *        embed:  'https://www.bilibili.com/video/BV1xx411c7mD'
+ *        也支持直接写播放器地址：
+ *        embed:  'https://player.bilibili.com/player.html?bvid=BV1xx411c7mD'
+ *
+ *  其它字段：
  *    title / desc / category / tags / date
- *    src      本地视频路径（相对 public/）
- *    embed    外部播放器地址（有 embed 时优先用 embed）
  *    poster   封面图路径（相对 public/），建议 16:9
+ *    link     原站链接；填了它，播放器放不出来时会显示「去原站看」
  *    duration 时长文字，例如 '12:30'（只是显示用）
  *
  *  ⚠ 路径一定用正斜杠 /，不要用 Windows 的反斜杠 \
- *    写成 'media\videos\a.webm' 浏览器会当成一个奇怪的文件名，
- *    结果就是「没有找到支持的视频格式和 MIME 类型」。
- *    （现在的 asset() 已经能自动纠正反斜杠，但正斜杠是标准写法）
  * ======================================================= */
 export default [
   {
@@ -30,20 +38,26 @@ export default [
     duration: '00:26'
   },
 
-  /* 想看效果可以再照着加一条，例如：
+  /* 抖音示例（把 douyin 换成你自己的分享链接即可）：
   {
-    title: '学习录屏',
-    desc: '一句话描述',
-    category: '学习',
-    tags: ['C语言'],
-    date: '2025-06-20',
-    src: 'media/videos/我的视频.mp4',
+    title: '随手拍的一段',
+    desc: '手机拍的',
+    category: '日常',
+    tags: ['日常'],
+    date: '2026-01-20',
+    douyin: 'https://www.douyin.com/video/7301234567890123456',
     poster: 'media/covers/cover-01.svg',
-    duration: '12:30'
+    duration: '00:15'
   },
+
+  其它平台示例：
   {
     title: 'B 站视频',
-    embed: 'https://player.bilibili.com/player.html?bvid=BV1xx411c7mD'
+    embed: 'https://www.bilibili.com/video/BV1xx411c7mD'
+  },
+  {
+    title: 'YouTube 视频',
+    embed: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
   }
   */
 ];
