@@ -572,6 +572,8 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .post { display: block; }
 .post-cover {
   position: relative;
+  /* ⚠ 没有封面图时用 4/3 占位（生成底图本来就是这个比例）；
+     有封面图时由下面的 img 撑开 → 按图片自身比例显示，不裁不拉 */
   aspect-ratio: 4 / 3;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -579,6 +581,16 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   background: #10132a;
 }
 .post-cover img { width: 100%; height: 100%; object-fit: cover; transition: transform .55s ease, filter .4s; }
+
+/* 有真实封面图时：容器跟着图片比例走（不再裁成 4/3）。
+   放在上面两条规则之后，靠 :has() 只在「真有 img」时生效 —— 
+   生成底图（.post-cover--gen）不受影响，仍是 4/3。 */
+.post-cover:has(img) { aspect-ratio: auto; }
+.post-cover:has(img) img {
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
 .post:hover .post-cover img { transform: scale(1.05); }
 .post-cover::after {
   content: ''; position: absolute; inset: 0;
