@@ -379,7 +379,21 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 }
 .photo-card:hover { border-color: var(--rose); transform: translateY(-3px); }
 .photo-card:focus-visible { outline: 2px solid var(--rose); outline-offset: 3px; }
-.photo-card img { width: 100%; height: auto; transition: transform .5s ease, filter .4s; }
+/* 相册图：一律按图片自身的原始比例显示 —— 只固定宽度（撑满所在栏），
+   高度交给图片自己的比例。这里**不写** aspect-ratio / 固定 height / object-fit: cover，
+   所以横图竖图都不会被裁掉或拉变形。
+   <img> 上的 width/height 属性（脚本从成品图读出来的）负责在图片下载完之前就占好位。 */
+.photo-grid .photo-card img,
+.photo-card img {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  aspect-ratio: auto;
+  /* 兜底：万一将来外层强加了固定高度，也只在上下留白（contain），绝不裁画面 */
+  object-fit: contain;
+  display: block;
+  transition: transform .5s ease, filter .4s;
+}
 .photo-card:hover img { transform: scale(1.03); }
 .photo-card figcaption {
   position: absolute; inset: auto 0 0 0;

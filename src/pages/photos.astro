@@ -5,6 +5,14 @@ import { asset } from '../lib/url.js';
 import { pad2, fmtCN } from '../lib/format.js';
 
 const countOf = (a) => (a === ALL ? photos.length : photos.filter((p) => p.album === a).length);
+
+/*
+ * 给 <img> 补上成品图的 width / height：
+ *   · 浏览器拿这两个值算出宽高比，图片没下载完也先把位置占住 → 不跳动
+ *   · CSS 那边只设 width:100% / height:auto，高度由图片自身比例决定 → 不裁剪、不拉伸
+ * 没有宽高（缺 sharp 生成的老数据）时返回空对象，属性直接不渲染，页面照常显示。
+ */
+const dimAttrs = (p) => (p.w > 0 && p.h > 0 ? { width: p.w, height: p.h } : {});
 ---
 <Base title="相册 · IRinsho" hero="相册" heroKicker="GALLERY / 02" heroSub="随手拍下来的光，攒成一面墙。" heroImage="media/images/photos.jpg">
   <div class="page-head">
@@ -32,6 +40,8 @@ const countOf = (a) => (a === ALL ? photos.length : photos.filter((p) => p.album
         data-index={i}
         data-album={p.album}
         data-src={asset(p.src)}
+        data-w={p.w || ''}
+        data-h={p.h || ''}
         data-title={p.title}
         data-desc={[p.desc, p.album, fmtCN(p.date)].filter(Boolean).join(' · ')}
         tabindex="0"
@@ -44,10 +54,15 @@ const countOf = (a) => (a === ALL ? photos.length : photos.filter((p) => p.album
           相册是多列瀑布流（CSS columns），Chrome 里 lazy 图在这个布局下
           经常一直不进视口、永远停在「没加载」状态 —— 表现就是一整片空白卡片。
           前 9 张直接加载，后面的交给浏览器自己决定。
+
+          width / height 用成品图的真实像素（见上方 dimAttrs）：
+          只为了让浏览器提前占位、并知道图片的比例；
+          实际显示尺寸由 CSS 决定（width:100%; height:auto），所以不会被裁或被拉扁。
         */}
         <img
           src={asset(p.src)}
           alt={p.title}
+          {...dimAttrs(p)}
           loading={i < 9 ? 'eager' : 'lazy'}
           decoding="async"
           onerror="this.closest('.photo-card').classList.add('is-broken')"
@@ -103,6 +118,10 @@ const countOf = (a) => (a === ALL ? photos.length : photos.filter((p) => p.album
       if (i < 0 || i >= list.length) return;
       current = i;
       const el = list[i];
+      // 灯箱也用成品图宽高占位，切换照片时不会先塌成一条再撑开（比例仍由 CSS 的 contain 保持）
+      const w = Number(el.dataset.w), h = Number(el.dataset.h);
+      if (w > 0 && h > 0) { imgEl.width = w; imgEl.height = h; }
+      else { imgEl.removeAttribute('width'); imgEl.removeAttribute('height'); }
       imgEl.src = el.dataset.src;
       imgEl.alt = el.dataset.title || '';
       titleEl.textContent = el.dataset.title || '';

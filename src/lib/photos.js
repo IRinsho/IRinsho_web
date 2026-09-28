@@ -11,6 +11,12 @@ function stripExt(p) {
   return dot > 0 ? name.slice(0, dot) : name;
 }
 
+/** 正数才认，其余（undefined / null / '' / NaN）一律当 0 = 不知道尺寸 */
+function posInt(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+}
+
 function byDateDesc(a, b) {
   return String(b.date || '').localeCompare(String(a.date || ''));
 }
@@ -24,7 +30,11 @@ export const photos = raw.map((item) => {
     desc: m.desc || item.desc || '',
     album: m.album || item.album || '未分类',
     tags: m.tags || item.tags || [],
-    date: m.date || item.date || ''
+    date: m.date || item.date || '',
+    // 成品图宽高（sync-photos.mjs 生成）。缺 sharp / 老数据时是 0，
+    // 页面据此退回「不写 width/height 属性」的写法，CSS 的 height:auto 照样按原比例显示
+    w: posInt(item.w),
+    h: posInt(item.h)
   };
 }).sort(byDateDesc);
 

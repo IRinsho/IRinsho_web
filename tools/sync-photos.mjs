@@ -162,7 +162,7 @@ export async function syncPhotos(options = {}) {
 
   /* --- 第二步：处理新增 / 改动过的图片 --- */
   const next = {};
-  let added = 0, updated = 0, skipped = 0, failed = 0;
+  let added = 0, updated = 0, skipped = 0, failed = 0, dimsFilled = 0;
   let bytesBefore = 0, bytesAfter = 0;
 
   for (const s of sources) {
@@ -173,7 +173,21 @@ export async function syncPhotos(options = {}) {
 
     if (unchanged) {
       skipped++;
-      next[s.rel] = prev;
+      /* 老记录里可能没有宽高（早期生成的记录 / 没有 sharp 时复制过去的原图）。
+         这里只用 metadata() 读一次输出图的尺寸补上，不重新编码、不写盘；
+         读不到就算了，页面用 height:auto 兜底，不影响显示。 */
+      let rec = prev;
+      if (sharp && !(prev.width > 0 && prev.height > 0)) {
+        try {
+          const m = await sharp(outAbs).metadata();
+          if (m.width > 0 && m.height > 0) {
+            rec = { ...prev, width: m.width, height: m.height };
+            if (!rec.outSize) rec.outSize = statSync(outAbs).size;
+            dimsFilled++;
+          }
+        } catch (e) { /* 尺寸只是锦上添花，读不出来不报错 */ }
+      }
+      next[s.rel] = rec;
       continue;
     }
 
@@ -186,11 +200,18 @@ export async function syncPhotos(options = {}) {
           .toFile(outAbs);
         const after = statSync(outAbs).size;
         bytesBefore += s.size; bytesAfter += after;
-        next[s.rel] = {
+        // info.width / info.height 是 sharp 写完的成品尺寸：
+        // 已经按 EXIF 转正、也已经缩到最长边 maxEdge 以内 —— 正好是浏览器要显示的比例
+        const w = Number(info.width) || 0;
+        const h = Number(info.height) || 0;
+        const rec = {
           out: s.out, mode, mtimeMs: s.mtimeMs, size: s.size,
-          width: info.width, height: info.height, outSize: after,
+          outSize: after,
           shrink: savedLabel(s.size, after), from: formatKb(s.size), to: formatKb(after)
         };
+        // 万一 sharp 没给出尺寸（极少数格式），就不写这两个字段，页面照样能显示
+        if (w > 0 && h > 0) { rec.width = w; rec.height = h; }
+        next[s.rel] = rec;
         if (prev) updated++; else added++;
         log(`  ✓ ${s.rel}  →  ${s.out}`);
         log(`      ${formatKb(s.size)}  →  ${formatKb(after)}  (${savedLabel(s.size, after)})  ${prev ? '已更新' : '新增'}`);
@@ -228,20 +249,29 @@ export async function syncPhotos(options = {}) {
   /* --- 第五步：生成 src/data/photos.generated.js --- */
   const rows = sources
     .filter(s => next[s.rel])
-    .map(s => ({ src: next[s.rel].out, rel: s.rel, album: albumOf(s.rel), date: dateOf(s.mtimeMs) }))
+    .map(s => {
+      const rec = next[s.rel];
+      const row = { src: rec.out, rel: s.rel, album: albumOf(s.rel), date: dateOf(s.mtimeMs) };
+      // 把成品图的宽高带给页面：<img width height> 能提前占位，
+      // 并且天然按原图比例显示（CSS 只设 width:100%; height:auto）
+      const w = Number(rec.width), h = Number(rec.height);
+      if (w > 0 && h > 0) { row.w = w; row.h = h; }
+      return row;
+    })
     .sort((a, b) => a.album.localeCompare(b.album, 'zh') || a.rel.localeCompare(b.rel, 'zh'));
 
   mkdirSync(dirname(dataPath), { recursive: true });
   writeFileSync(dataPath, buildPhotosJs(rows, mode), 'utf8');
 
   /* --- 汇总 --- */
-  const summary = { total: sources.length, added, updated, skipped, removed, failed, mode, bytesBefore, bytesAfter };
+  const summary = { total: sources.length, added, updated, skipped, removed, failed, dimsFilled, mode, bytesBefore, bytesAfter };
   if (!quiet) {
     const parts = [];
     if (added) parts.push(`新增 ${added}`);
     if (updated) parts.push(`更新 ${updated}`);
     if (skipped) parts.push(`跳过 ${skipped}`);
     if (removed) parts.push(`清理 ${removed}`);
+    if (dimsFilled) parts.push(`补尺寸 ${dimsFilled}`);
     if (failed) parts.push(`失败 ${failed}`);
     console.log('\n' + '-'.repeat(58));
     console.log(`img/ 共 ${sources.length} 张   ${parts.join('  ') || '无变化'}`);
@@ -273,15 +303,22 @@ function buildPhotosJs(rows, mode) {
   L.push(mode === 'webp'
     ? ' *  压缩模式：已转 WebP，最长边 2000px'
     : ' *  压缩模式：未压缩（缺少 sharp），原图直接复制');
+  L.push(' *  每条记录带 w / h（成品图宽高）：页面按图片自身比例显示，不裁剪');
   L.push(` *  共 ${rows.length} 张`);
   L.push(' * ======================================================= */');
   L.push('export default [');
   for (const r of rows) {
+    const hasDims = r.w > 0 && r.h > 0;
     L.push('  {');
     L.push(`    src:   ${q(r.src)},`);
     L.push(`    file:  ${q(r.rel)},`);
     L.push(`    album: ${q(r.album)},`);
-    L.push(`    date:  ${q(r.date)}`);
+    // date 后面还有 w/h 时要补逗号；没有 w/h（缺 sharp）时 date 就是最后一行
+    L.push(`    date:  ${q(r.date)}${hasDims ? ',' : ''}`);
+    if (hasDims) {
+      L.push(`    w:     ${r.w},`);
+      L.push(`    h:     ${r.h}`);
+    }
     L.push('  },');
   }
   L.push('];');
