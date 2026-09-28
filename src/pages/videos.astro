@@ -29,11 +29,17 @@ const items = videos.map((v) => {
   const auto = v.cover === false ? {} : (autoCovers[key] || {});
 
   const platform = v.platform || r.platform || '';
-  // 竖屏：抖音基本都是竖的；显式写 vertical 则听你的
+  // 视频画面比例，优先级：
+  //   1. videos.js 里手写的 ratio（'3:4' / '16:9' / '9:16' 都行）—— 最准
+  //   2. B站接口 / 抓取时拿到的真实尺寸
+  //   3. 本地视频：播放器加载后由浏览器读 videoWidth/videoHeight 自动算（精确）
+  //   4. 抖音这类跨域 iframe：读不到，退回按平台猜（抖音 = 竖屏）
+  const rawRatio = String(v.ratio || auto.ratio || '').trim();
+  const ratioCss = /^\d+(\.\d+)?\s*[:/]\s*\d+(\.\d+)?$/.test(rawRatio)
+    ? rawRatio.replace(':', ' / ')
+    : '';
   const vertical = v.vertical === undefined ? platform === '抖音' : !!v.vertical;
-  // 卡片里嵌播放器：**默认关**。
-  // 试过默认开：抖音播放器塞进 16:9 的卡片里会变成「一大块黑 + logo + 一条画面」，
-  // 比生成底图难看多了。所以只在明确写 live: true 时才用。
+  // 卡片里嵌播放器：默认关（抖音播放器塞进卡片会变成「黑块 + logo + 一条画面」）
   const live = v.live === true;
 
   return {
@@ -46,6 +52,7 @@ const items = videos.map((v) => {
     platform,
     vertical,
     live,
+    ratioCss,
     cover: v.poster || auto.poster || ''
   };
 });
@@ -93,6 +100,7 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         data-link={v.sourceUrl || ''}
         data-platform={v.platform || '原站'}
         data-vertical={v.vertical ? '1' : ''}
+        data-ratio={v.ratioCss || ''}
         data-src={v.embedUrl ? '' : asset(v.src || '')}
         data-poster={v.cover ? asset(v.cover) : ''}
         data-hue={hueFor(v.title)}
@@ -181,9 +189,28 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
       // 文件名里带引号、括号、中文都不会把标签拼坏
       body.replaceChildren();
 
-      // 竖屏视频（抖音）：弹窗整体收成手机形状，否则 1040px 宽的弹窗里
-      // 只有中间一小块竖视频，两边全黑，很难看
-      const vertical = card.dataset.vertical === '1';
+      // 画面比例：优先用手写的 / 抓来的真实比例；
+      // 都没有时（比如抖音这种跨域 iframe）先按平台猜，本地视频会在加载后自动纠正
+      const ratio = card.dataset.ratio || '';
+      body.style.removeProperty('--ratio');
+      body.style.removeProperty('--rn');
+
+      // css: "1080 / 1920" 这种；num: 宽/高 的数值（CSS 里要用它算贴合尺寸）
+      const useRatio = (css, num) => {
+        if (!(num > 0)) return;
+        body.style.setProperty('--ratio', css);
+        body.style.setProperty('--rn', String(num));
+        body.classList.add('has-ratio');
+        // 只有竖屏才需要把弹窗收窄；横屏保持宽弹窗，让画面能占满
+        panel.classList.toggle('narrow', num < 1);
+      };
+
+      if (ratio) {
+        const p = ratio.split('/').map((x) => parseFloat(x));
+        if (p.length === 2) useRatio(ratio, p[0] / p[1]);
+      }
+
+      const vertical = card.dataset.vertical === '1' && !ratio;
       body.classList.toggle('is-vertical', vertical);
       panel.classList.toggle('is-vertical', vertical);
 
@@ -270,7 +297,20 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         if (card.dataset.poster) video.poster = card.dataset.poster;
         video.src = card.dataset.src;   // 路径已由 asset() 转义，能正常取到文件
 
-        // 万一文件真的不存在 / 格式浏览器不认，给一条能点的出路，别只留一块黑屏
+        // 本地视频：读到元数据后就知道真实尺寸了，按它调整弹窗比例（最准的一路）
+        video.addEventListener('loadedmetadata', () => {
+          if (!video.videoWidth || !video.videoHeight) return;
+          const num = video.videoWidth / video.videoHeight;
+          const css = video.videoWidth + ' / ' + video.videoHeight;
+          if (body.style.getPropertyValue('--ratio') === css) return;
+          body.style.setProperty('--ratio', css);
+          body.style.setProperty('--rn', String(num));
+          body.classList.add('has-ratio');
+          panel.classList.toggle('narrow', num < 1);
+          body.classList.remove('is-vertical');
+          panel.classList.remove('is-vertical');
+        });
+
         video.addEventListener('error', () => {
           // 看 data-src（原始值一定在），不要看 video.getAttribute('src')：
           // 视频元素在出错/清空时会丢掉 src，那样提示里的路径就是空的

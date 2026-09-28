@@ -883,8 +883,30 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .modal-head p { margin: 4px 0 0; color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em; }
 .modal-body { background: #000; }
 .modal-body video, .modal-body iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
-/* 竖屏视频（抖音）：把弹窗整体收成手机形状，
-   否则 1040px 宽的弹窗里只有中间一小块竖视频，两边全黑 */
+/* ---------- 画面比例自适应 ----------
+   弹窗里那块播放区不再写死 16:9 / 9:16，而是跟着视频真实比例走：
+     · videos.js 里写了 ratio: '3:4'      → 用它
+     · B站接口 / 抓取时拿到的尺寸          → 用它
+     · 本地视频                            → 浏览器读完元数据自动算，最准
+     · 抖音这种跨域 iframe（读不到尺寸）    → 退回下面 .is-vertical 的平台猜测
+   --ratio 由 JS 设成 "宽 / 高" 这样的值。 */
+.modal-body.has-ratio {
+  /* --ratio 是 CSS 用的比例（"1080 / 1920"），--rn 是数值（0.5625）。
+     宽度取「容器宽」和「按高度预算算出的宽」里小的那个，
+     这样画面既不会被裁掉，也不会溢出弹窗，还不会留黑边。 */
+  aspect-ratio: var(--ratio, 16 / 9);
+  width: min(100%, calc(68vh * var(--rn, 1.7778)));
+  max-width: 100%;
+  height: auto;
+  max-height: none;
+  margin: 0 auto;
+}
+/* 比例已知时把弹窗收窄，避免 1040px 里只放一小块画面 */
+.modal-panel.narrow { width: min(560px, 100%); }
+.modal-body.has-ratio .embed-stage,
+.modal-body.has-ratio .embed-stage.is-playing { width: 100%; height: 100%; aspect-ratio: auto; }
+
+/* 比例完全未知（抖音）：按平台猜一个竖屏，弹窗收成手机形状 */
 .modal-panel.is-vertical { width: min(470px, 100%); }
 .modal-body.is-vertical {
   width: auto;
@@ -1088,15 +1110,24 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
     overflow: auto;
   }
   .modal-body video, .modal-body iframe { width: 100%; max-height: 100%; }
-  /* 竖屏视频：手机上弹窗本来就是满屏，让播放区吃满剩余高度即可 */
+  /* 比例已知 / 竖屏：手机上弹窗本来就满屏，按屏幕高度预算算贴合宽度 */
+  .modal-panel.narrow,
   .modal-panel.is-vertical { width: 100%; }
+  .modal-body.has-ratio {
+    width: min(100%, calc(70dvh * var(--rn, 1.7778)));
+    max-height: none;
+    flex: 0 1 auto;
+    margin: 0 auto;
+  }
   .modal-body.is-vertical {
     width: 100%;
     height: auto;
     max-height: none;
-    aspect-ratio: auto;
-    flex: 1 1 auto;
+    aspect-ratio: 9 / 16;
+    flex: 0 1 auto;
+    margin: 0 auto;
   }
+  .modal-body.has-ratio .embed-stage,
   .modal-body.is-vertical .embed-stage { width: 100%; height: 100%; aspect-ratio: auto; }
   .embed-bar { flex: none; padding: 12px 14px 14px; font-size: 12px; }
   .embed-bar .play-download { padding: 7px 14px; margin-left: 8px; }

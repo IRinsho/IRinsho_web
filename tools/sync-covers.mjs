@@ -467,6 +467,10 @@ async function resolveBilibili(embedUrl) {
     if (!d) return { ok: false, reason: 'B 站接口没有返回数据（可能视频被删或需要登录）' };
 
     const cover = String(d.pic || '').replace(/^http:/, 'https:');
+    // 接口会给出真实画面尺寸 —— 竖屏视频（例如 1080x1920）也能正确识别，
+    // 不用再去猜比例
+    const dim = d.dimension || {};
+    const ratio = dim.width && dim.height ? `${dim.width}:${dim.height}` : '';
     return {
       ok: true,
       cover,
@@ -475,7 +479,8 @@ async function resolveBilibili(embedUrl) {
       meta: {
         title: String(d.title || '').trim(),
         date: d.pubdate ? fmtDate(d.pubdate) : '',
-        duration: d.duration ? fmtDuration(d.duration) : ''
+        duration: d.duration ? fmtDuration(d.duration) : '',
+        ratio
       }
     };
   } catch (e) {
@@ -803,6 +808,7 @@ export async function syncCovers(options = {}) {
       if (info.title && !v.title) fields.title = info.title;
       if (info.date && !v.date) fields.date = info.date;
       if (info.duration && !v.duration) fields.duration = info.duration;
+      if (info.ratio && !v.ratio) fields.ratio = info.ratio;
       if (info.poster && v.cover !== false) fields.poster = info.poster;
 
       if (!Object.keys(fields).length) return null;
@@ -839,6 +845,7 @@ export async function syncCovers(options = {}) {
     info.title = cur.title || info.title || '';
     info.date = cur.date || info.date || '';
     info.duration = cur.duration || info.duration || '';
+    info.ratio = cur.ratio || info.ratio || '';
   }
 
   /* ---------- 写缓存 ---------- */
@@ -865,10 +872,11 @@ export async function syncCovers(options = {}) {
   for (const [k, val] of Object.entries(out)) {
     L.push(`  ${q(k)}: {`);
     L.push(`    poster:   ${q(val.poster)},`);
-    if (val.title || val.date || val.duration) {
+    if (val.title || val.date || val.duration || val.ratio) {
       L.push(`    title:    ${q(val.title)},`);
       L.push(`    date:     ${q(val.date)},`);
-      L.push(`    duration: ${q(val.duration)}`);
+      L.push(`    duration: ${q(val.duration)},`);
+      L.push(`    ratio:    ${q(val.ratio)}`);
     }
     L.push('  },');
   }
