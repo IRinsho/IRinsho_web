@@ -1,13 +1,15 @@
 ---
 import Base from '../layouts/Base.astro';
 import videos from '../data/videos.js';
+import autoCovers from '../data/covers.generated.js';
 import { asset } from '../lib/url.js';
 import { resolveEmbed } from '../lib/embeds.js';
 import { fmtSlash } from '../lib/format.js';
 
-/* 每条视频先算好「播放器地址」和「原站链接」：
+/* 每条视频先算好「播放器地址」「原站链接」和「封面」：
    douyin / embed 里可以直接粘抖音、B站、YouTube 的分享链接，
-   这里统一翻译成 iframe 能用的地址。 */
+   这里统一翻译成 iframe 能用的地址。
+   封面优先级：手填的 poster > tools/sync-covers.mjs 抓来的自动封面 > 渐变兜底 */
 const items = videos.map((v) => {
   const source = v.embed || v.douyin || '';
   const r = resolveEmbed(source);
@@ -15,7 +17,8 @@ const items = videos.map((v) => {
     ...v,
     embedUrl: r.embed,
     sourceUrl: v.link || r.link || r.embed,
-    platform: v.platform || r.platform || ''
+    platform: v.platform || r.platform || '',
+    cover: v.poster || autoCovers[String(source).trim()] || ''
   };
 });
 
@@ -62,12 +65,12 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         data-link={v.sourceUrl || ''}
         data-platform={v.platform || '原站'}
         data-src={v.embedUrl ? '' : asset(v.src || '')}
-        data-poster={v.poster ? asset(v.poster) : ''}
+        data-poster={v.cover ? asset(v.cover) : ''}
         tabindex="0"
         role="button"
       >
         <div class="thumb">
-          {v.poster ? <img src={asset(v.poster)} alt={v.title} loading="lazy" /> : <div class="thumb-fallback"></div>}
+          {v.cover ? <img src={asset(v.cover)} alt={v.title} loading="lazy" /> : <div class="thumb-fallback"></div>}
           <span class="play">▶</span>
           {v.duration && <span class="dur">{v.duration}</span>}
           {v.platform && <span class="src-tag">{v.platform}</span>}

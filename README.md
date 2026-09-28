@@ -84,11 +84,13 @@ npm install
 │     ├─ config.js          ★ 站点名 / 首页 / 个人页 / 页脚（手改）
 │     ├─ videos.js          ★ 视频列表（手改）
 │     ├─ photo-meta.js      ★ 图片标题/描述/标签（手改）
-│     ├─ photos.generated.js  ← 自动生成，别手改
-│     └─ notes.generated.js   ← 自动生成，别手改
+│     ├─ photos.generated.js    ← 自动生成，别手改
+│     ├─ covers.generated.js    ← 自动生成（抖音封面），别手改
+│     └─ notes.generated.js     ← 自动生成，别手改
 │
 └─ tools/
    ├─ sync-photos.mjs       图片同步引擎
+   ├─ sync-covers.mjs       视频封面抓取（抖音）
    └─ build-blog.mjs        笔记构建引擎
 ```
 
@@ -246,6 +248,37 @@ B 站 / YouTube / 抖音的视频，直接粘分享链接就行，页面会自�
 > 直接填 `douyin: '那串数字'` 最省事。
 >
 > 整段分享口令（含「复制打开抖音…」那些字）也可以直接粘，会自动抠出链接。
+
+### 封面自动抓取
+
+**抖音视频不用自己找封面**。`videos.js` 里填了 `douyin` 但没填 `poster` 的记录，
+运行同步时会自动去那一页把封面图抓下来：
+
+```bash
+npm run sync:covers      # 只抓封面
+npm run sync             # 图片 + 封面 + 笔记 一起跑（npm run dev / build 会自动执行）
+```
+
+它会做这几件事：
+
+1. 跟跳转（短链 → 真实地址），顺手把真实地址里的**数字视频 id** 找出来告诉你
+2. 从页面里按优先级找封面：`og:image` → 页面 JSON 里的 `origin_cover`/`cover` → HTML 里的图片地址
+3. 把封面**下载到 `public/media/covers/`**，文件名用视频 id，然后写进 `src/data/covers.generated.js`
+
+> 为什么要下载而不是直接引用抖音的图片地址？
+> 抖音的图片地址是**带签名的，过一段时间就失效**，页面会变成空图；而且直接引外链，
+> 每次打开页面都要连抖音，还可能被防盗链挡住。存成本地文件之后，封面永久有效、离线也能看。
+
+优先级规则：**`videos.js` 里手填的 `poster` > 自动抓的封面 > 渐变兜底**。
+也就是说，**只要某条视频填了 `poster`，就不会去抓它的封面** —— 想用自动封面就把那条的
+`poster` 删掉（或者临时注释掉）再跑一次同步。
+
+抓不到也不会报错中断（视频被删、抖音改版、断网都会跳过并打印原因），
+只是那一条退回渐变封面。想重新抓一遍：删掉 `.cover-sync.json`，或者
+
+```bash
+node tools/sync-covers.mjs --force
+```
 
 > **路径一定写正斜杠 `/`**，不要写成 Windows 的反斜杠（`media\videos\a.mp4`）。
 > 后者浏览器会当成一个古怪的文件名，结果就是「没有找到支持的视频格式和 MIME 类型」。

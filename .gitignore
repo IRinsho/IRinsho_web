@@ -1,0 +1,12 @@
+# 依赖和构建产物
+node_modules/
+dist/
+.astro/
+
+# 同步工具的本地记录（每台机器各存一份，不用同步）
+.photo-sync.json
+.cover-sync.json
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
