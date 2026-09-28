@@ -5,6 +5,18 @@ import { asset } from '../lib/url.js';
 // 换页时不会白屏闪一下，而是像 Kisara 主题那样平滑淡入淡出，
 // 顶栏因为位置不变会自动保持，看起来像「内容在换、外壳没动」
 import { ClientRouter } from 'astro:transitions';
+// 内页共用的首屏舞台（各页通过 hero / heroKicker / heroSub 传内容）
+import Gate from '../components/Gate.astro';
+
+const {
+  title = config.name,
+  description = '',
+  // 传了 hero 就渲染首屏舞台；不传（首页 / 友链页）保持原样
+  hero = '',
+  heroKicker = 'CHAPTER',
+  heroSub = '',
+  heroImage = ''
+} = Astro.props;
 
 const { title = config.name, description = '' } = Astro.props;
 
@@ -109,6 +121,14 @@ const footerText = footerRaw.includes('{year}')
 </header>
 
 <main id="main">
+  {hero && (
+    <Gate
+      eyebrow={heroKicker}
+      title={hero}
+      sub={heroSub}
+      image={heroImage || 'media/images/home-hero.jpg'}
+    />
+  )}
   <slot />
 </main>
 

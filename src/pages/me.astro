@@ -15,7 +15,7 @@ const friendExternal = /^https?:/i.test(friendUrl);
 const linkIcon = '<path d="M10.5 13.5a5 5 0 0 0 7 0l2.5-2.5a5 5 0 0 0-7-7l-1 1"/>' +
                  '<path d="M13.5 10.5a5 5 0 0 0-7 0L4 13a5 5 0 0 0 7 7l1-1"/>';
 ---
-<Base title={`${config.name} · 个人档案`}>
+<Base title={`${config.name} · 个人档案`} hero="关于我" heroKicker="PERSONAL SIGNAL / ME" heroSub="先把喜欢的东西留下来。">
   <div class="me-grid">
     <figure class="me-photo">
       {me.photo && <img src={asset(me.photo)} alt="个人图片" />}
