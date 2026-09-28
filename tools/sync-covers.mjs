@@ -33,8 +33,8 @@ const COVER_URL_PREFIX = 'media/covers';
 const DATA_OUT = 'src/data/covers.generated.js';
 const CACHE = '.cover-sync.json';
 
-/** 抓失败后的重试间隔（分钟）：越失败越久，避免每次启动都去打抖音 */
-const FAIL_BACKOFF_MIN = [1, 10, 30, 120, 720];
+/** 抓失败后的重试间隔（秒）：越失败越久，避免每次启动都去打抖音 */
+const FAIL_BACKOFF_SEC = [20, 300, 1800, 7200, 43200];
 
 /** 浏览器 UA：抖音桌面页对无 UA 的请求会直接返回空壳 */
 const UA =
@@ -478,17 +478,17 @@ export async function syncCovers(options = {}) {
   }
 
   const videos = await loadVideos(root);
-  // 需要抓封面的是「填了 douyin / embed」的视频。
+  // 需要处理的是「填了 douyin / embed」的视频。
   // 填了 poster 也照抓 —— 因为抖音链接的封面比手填的封面准得多，
   // 页面在抓到之后会优先用抓来的（想保留手填的封面就写 cover: false）。
   // 本地视频（只有 src）永远不抓。
   const targets = videos
     .map((v, i) => ({ v, i }))
-    .filter(({ v }) => (v.douyin || v.embed) && v.cover !== false);
+    .filter(({ v }) => (v.douyin || v.embed) && v.cover !== false && !v.coverUrl);
 
   say('\n抓取视频封面…');
   if (!targets.length) {
-    say('  没有需要抓封面的视频（没有 douyin / embed，或者写了 cover: false）。');
+    say('  没有需要自动抓封面的视频（没有 douyin / embed，或已写了 cover: false / coverUrl）。');
   }
 
   const out = {};
@@ -499,6 +499,44 @@ export async function syncCovers(options = {}) {
   const budgetMs = options.budgetMs || 45000;
   const startedAt = Date.now();
   let budgetOut = false;
+
+  /* ---------- 手动兜底：填了 coverUrl 就直接下载它 ---------- */
+  // 自动抓取万一被抖音挡住，你可以：
+  //   浏览器打开视频页 → F12 → Network → 找一张图片 → 右键 Copy image address
+  //   粘到 videos.js 的 coverUrl: '那个地址'
+  // 这里不需要解析页面，直接下载，成功率 100%
+  for (const { v, i } of targets) {
+    const manual = String(v.coverUrl || '').trim();
+    if (!manual) continue;
+    const key = String(v.douyin || v.embed).trim();
+    const label = v.title || ('第 ' + (i + 1) + ' 条');
+
+    // 已经有手填 poster 了 → 尊重它（同时也能防止它被后面的自动抓取清掉）
+    if (v.poster) {
+      out[key] = { poster: v.poster, title: v.title || '', date: v.date || '', duration: v.duration || '' };
+      continue;
+    }
+
+    const prev = cache[key];
+    if (!force && prev && prev.file && prev.manual === manual && existsSync(join(root, 'public', prev.file))) {
+      out[key] = { poster: prev.file, title: v.title || '', date: prev.date || '', duration: prev.duration || '' };
+      continue;
+    }
+
+    say(`  → ${label}  使用手动封面 coverUrl…`);
+    const name = safeName(prev && prev.numId ? prev.numId : (v.title || 'cover-' + (i + 1)));
+    try {
+      const saved = await download(manual, join(coverDir, name + '.jpg'));
+      const rel = COVER_URL_PREFIX + '/' + saved.dest.split(/[\\/]/).pop();
+      out[key] = { poster: rel, title: v.title || '', date: v.date || '', duration: v.duration || '' };
+      cache[key] = { file: rel, at: Date.now(), fails: 0, manual, source: 'coverUrl', numId: (prev && prev.numId) || '' };
+      got++;
+      say(`    ✓ 封面 ${rel}  (${(saved.bytes / 1024).toFixed(0)} KB)`);
+    } catch (e) {
+      failed++;
+      say(`    ✗ 下载 coverUrl 失败：${e.message}`);
+    }
+  }
 
   for (const { v, i } of targets) {
     const label = v.title || ('第 ' + (i + 1) + ' 条');
@@ -520,11 +558,13 @@ export async function syncCovers(options = {}) {
 
     // 上次没抓到 → 按退避策略决定这次还试不试
     if (!force && prev && prev.fails) {
-      const waitMs = FAIL_BACKOFF_MIN[Math.min(prev.fails, FAIL_BACKOFF_MIN.length - 1)] * 60000;
+      const waitMs = FAIL_BACKOFF_SEC[Math.min(prev.fails, FAIL_BACKOFF_SEC.length - 1)] * 1000;
       const since = Date.now() - (prev.at || 0);
       if (since < waitMs) {
         skipped++;
-        say(`  · ${label}  上次没抓到，约 ${Math.ceil((waitMs - since) / 60000)} 分钟后再试（已失败 ${prev.fails} 次）`);
+        const left = Math.ceil((waitMs - since) / 1000);
+        const leftText = left >= 60 ? Math.ceil(left / 60) + ' 分钟' : left + ' 秒';
+        say(`  · ${label}  上次没抓到，约 ${leftText}后再试（已失败 ${prev.fails} 次；想立刻重试加 --force）`);
         continue;
       }
     }

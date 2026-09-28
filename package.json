@@ -10,7 +10,8 @@
     "preview": "astro preview",
     "sync:photos": "node tools/sync-photos.mjs",
     "sync:covers": "node tools/sync-covers.mjs",
-    "sync:blog": "node tools/build-blog.mjs"
+    "sync:blog": "node tools/build-blog.mjs",
+    "cover": "node tools/set-cover.mjs"
   },
   "devDependencies": {
     "astro": "^5.0.0",

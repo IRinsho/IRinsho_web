@@ -11,10 +11,11 @@ import { fmtSlash } from '../lib/format.js';
    这里统一翻译成 iframe 能用的地址。
 
    封面优先级：
-     1. tools/sync-covers.mjs 抓来的抖音封面（有 douyin / embed 链接时优先）
-     2. videos.js 里手填的 poster
+     1. videos.js 里手填的 poster（最高，你说了算）
+     2. tools/sync-covers.mjs 抓来 / 用 coverUrl 手动下载的封面
      3. 渐变兜底
-   想保留手填的封面、不要自动封面 → 在那条记录里写 cover: false
+   不想要任何自动封面 → 写 cover: false
+   自动抓不到时 → 用 coverUrl: '图片地址' 手动兜底（见 README）
 
    标题 / 日期 / 时长：videos.js 里写了就用你的，空着就用抓来的值兜底。 */
 const items = videos.map((v) => {
@@ -30,7 +31,7 @@ const items = videos.map((v) => {
     embedUrl: r.embed,
     sourceUrl: v.link || r.link || r.embed,
     platform: v.platform || r.platform || '',
-    cover: auto.poster || v.poster || ''
+    cover: v.poster || auto.poster || ''
   };
 });
 

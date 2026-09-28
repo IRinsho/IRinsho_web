@@ -315,17 +315,52 @@ npm run sync             # 图片 + 封面 + 笔记 一起跑（npm run dev / bu
 node tools/sync-covers.mjs --force
 ```
 
-### 抓不到怎么办（诊断）
+### 抓不到怎么办（三条退路）
 
-如果日志里出现 `✗ 页面是 JS 空壳` 或 `✗ 页面里没找到 og:image`，
-说明抖音这次的返回不符合预期。跑一次诊断模式：
+抖音有时会返回「空壳页」（服务端拿不到封面），这时按顺序试：
+
+**退路 1：手动粘一张封面图地址（最快，10 秒，成功率 100%）**
+
+短视频里没有封面时，跑一下：
+
+```bash
+npm run cover
+```
+
+它会问你是哪条视频、封面图地址是什么，然后自动下载 + 写进 `videos.js`。
+图片来源：浏览器打开视频页 → **F12 → Network → 找一张 `douyinpic.com` 的图 →
+右键 Copy image address** → 粘进去即可。也可以直接给本机图片路径。
+
+**退路 2：直接在 `videos.js` 里填 `coverUrl`**
+
+```js
+{
+  title: '奇蛋物语',
+  douyin: '...',
+  coverUrl: 'https://p3-sign.douyinpic.com/....jpeg',   // 粘进来，同步时自动下载
+  date: '2025-06-01',
+  duration: '00:26'
+}
+```
+
+**退路 3：自己指定本地封面**
+
+把图片放进 `public/media/covers/`，然后 `poster: 'media/covers/xxx.jpg'`。
+
+> 封面优先级：**手填 `poster` > 自动抓取 / `coverUrl` > 渐变兜底**。
+> 想让某条完全不动，写 `cover: false`。
+> 自动抓取失败的视频按 20 秒 → 5 分钟 → 30 分钟 → 2 小时 → 12 小时退避重试，
+> 想立刻重试加 `--force`。
+
+### 还是抓不到？
+
+跑一次诊断模式，它会把抖音返回的**原始页面**存到系统临时目录：
 
 ```bash
 node tools/sync-covers.mjs --force --dump
 ```
 
-它会把**抖音返回的原始页面**存到系统临时目录并打印路径，同时打印
-页面大小、视频 id、真实地址。把那个 `.html` 文件发出来，就能按真实结构改提取规则。
+把打印出来的 `.html` 文件发出来，就能按真实结构改提取规则。
 
 > 清空字段等自动填是可以的：`tools/patch-videos.mjs` 会识别
 > `date: '',` / `poster: '',` 这种**空值**并填进去，而有值的字段一律不覆盖。
