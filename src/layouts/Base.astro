@@ -138,10 +138,17 @@ const footerText = footerRaw.includes('{year}')
 </footer>
 
 <script>
-  // 窄屏的下拉菜单
-  const menuBtn = document.getElementById('menuToggle');
-  const tabs = document.querySelector('.tabs');
-  if (menuBtn && tabs) {
+  /* 窄屏的下拉菜单 —— 必须是「可重复调用且幂等」的：
+     开了页面过渡后脚本会在 DOMContentLoaded 和 astro:page-load 各跑一次，
+     如果这里直接 addEventListener，就会挂上两个 click，
+     一次点击被 toggle 两下（开→关）——表现就是"只有第一次点得动"。
+     所以用 dataset.menuBound 挡住重复绑定。 */
+  function initMenu() {
+    const menuBtn = document.getElementById('menuToggle');
+    const tabs = document.querySelector('.tabs');
+    if (!menuBtn || !tabs || menuBtn.dataset.menuBound === '1') return;
+    menuBtn.dataset.menuBound = '1';
+
     menuBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       tabs.classList.toggle('open');
@@ -346,6 +353,7 @@ const footerText = footerRaw.includes('{year}')
    *  三个初始化函数内部都有幂等保护，重复调用安全。
    * ======================================================= */
   function bootMotion() {
+    initMenu();                 // 下拉菜单（幂等，重复调用安全）
     startReveal();
     if (!document.querySelector('.cur-ring')) initCursor();
     startNavIndicator();
