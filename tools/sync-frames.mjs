@@ -272,5 +272,10 @@ if (invokedDirectly) {
   const argv = process.argv.slice(2);
   syncFrames({ force: argv.includes('--force'), quiet: argv.includes('--quiet') })
     .then(() => process.exit(0))
-    .catch((e) => { console.error('截帧失败：' + e.message); process.exit(1); });
+    // 故意也用退出码 0：本脚本挂在 npm run dev / build 的 && 链里，
+    // 退出非 0 会让后面的 astro 不执行（网站打不开）。失败只提示，不阻断。
+    .catch((e) => {
+      console.error('\n! 本地视频截帧出错（不影响网站启动，已跳过）：' + e.message);
+      process.exit(0);
+    });
 }

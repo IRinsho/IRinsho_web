@@ -96,14 +96,17 @@ export function irinshoAutoSync() {
             const r = await mod.syncFrames(SILENT);
             if (r && r.got) console.log(`  本地视频截帧：新截 ${r.got} 张封面`);
             if (r && r.hasFfmpeg === false) {
-              console.log('  （没装 ffmpeg，本地视频没自动截封面；外链视频见「手动配封面.cmd」）');
+              console.log('  （没装 ffmpeg，本地视频没自动截封面；外链视频可跑 npm run cover）');
             }
           } catch (e) {
             console.log('  ! 本地视频截帧失败：' + e.message);
           }
 
-          // 抖音封面 + 标题 / 日期 / 时长
+          // 外链封面 + 标题 / 日期 / 时长
+          // （B站 / YouTube 走公开接口；抖音走无头浏览器精确截图）
+          // 这一步慢（抖音一条 10~20 秒），所以特意放在后台，不挡启动。
           try {
+            console.log('  抓取视频封面 / 信息（B站 / YouTube / 抖音，可能要几十秒）…');
             const mod = await import(
               pathToFileURL(join(root, 'tools', 'sync-covers.mjs')).href + '?t=' + Date.now()
             );
@@ -111,7 +114,7 @@ export function irinshoAutoSync() {
             if (r && (r.got || r.failed)) {
               console.log(`  封面：新抓 ${r.got} 条，失败 ${r.failed} 条`);
               if (r.failed && !r.got) {
-                console.log('  外链封面抓不到时：双击「手动配封面.cmd」10 秒补一张');
+                console.log('  外链封面抓不到时：在项目目录跑 npm run cover 补一张');
               }
             }
           } catch (e) {

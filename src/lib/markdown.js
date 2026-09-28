@@ -2,9 +2,18 @@
  *  极简 Markdown 渲染器（无依赖）
  *  在 Astro 构建时（Node 里）运行，把笔记正文渲染成 HTML
  *
- *  支持：标题 / 粗体 / 斜体 / 删除线 / 高亮 / 行内代码 / 代码块
- *        有序无序列表（可嵌套）/ 任务清单 / 引用 / 分隔线
- *        链接 / 图片 / 表格（支持 :-- 对齐）
+ *  支持：
+ *    基础：标题 / 粗体 / 斜体 / 删除线 / 高亮 / 行内代码 / 代码块
+ *          有序无序列表（可嵌套）/ 任务清单 / 引用 / 分隔线
+ *          链接 / 图片 / 表格（支持 :-- 对齐）
+ *    新增：
+ *      · 数学公式   $行内$ 和 $$块级$$  → 交给页面上的 KaTeX 渲染
+ *      · Mermaid    ```mermaid 代码块   → 交给页面上的 Mermaid 渲染
+ *      · 双链跳转   [[笔记名]] / [[笔记名|显示文字]]  → 站内笔记链接
+ *      · Dataview   ```dataview 查询块  → 构建时算出结果（支持常用子集）
+ *
+ *  用法：
+ *    renderMarkdown(md, { notes })   // notes 是全部笔记（用于双链 + Dataview）
  * ========================================================= */
 
 export function escapeHtml(str) {
@@ -41,14 +50,130 @@ function smartJoin(lines) {
   return out;
 }
 
+/* ---------------- 双链索引 ---------------- */
+/**
+ * 把笔记列表编成「名字 → 笔记」的索引，供 [[双链]] 使用。
+ * 可用的名字：标题、id（文件名）、以及去掉扩展名的文件名。
+ * 大小写不敏感，空格/下划线/连字符可以互换。
+ */
+function normalKey(s) {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[-_]+/g, ' ');
+}
+
+export function buildLinkIndex(notes) {
+  const index = {};
+  for (const n of notes || []) {
+    const keys = [n.title, n.id, n.file, String(n.id || '').replace(/-/g, ' ')];
+    for (const k of keys) {
+      const key = normalKey(k);
+      if (key && !index[key]) index[key] = n;
+    }
+  }
+  return index;
+}
+
+/* ---------------- Dataview（构建时求值） ----------------
+ *  只实现常用子集，够日常用；复杂表达式请改用普通 Markdown。
+ *    LIST  FROM #标签  SORT date DESC  LIMIT 10
+ *    TABLE title, date, category  FROM "c语言学习"  SORT date DESC
+ *    TASK  FROM #todo
+ */
+function dataview(src, ctx) {
+  const notes = (ctx && ctx.notes) || [];
+  const lines = String(src || '').replace(/\r/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return '<div class="md-dataview md-dataview-empty">（空的 dataview 查询）</div>';
+
+  const head = lines[0];
+  const isTable = /^TABLE\b/i.test(head);
+  const isTask = /^TASK\b/i.test(head);
+  const fields = isTable
+    ? head.replace(/^TABLE\s*/i, '').split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+  const rest = lines.slice(1).join('  ');
+
+  // FROM #标签 / FROM "文件夹"（支持 and / or 混写，这里按「任一命中」处理）
+  const tags = [...rest.matchAll(/#([^\s#",]+)/g)].map((m) => m[1]);
+  const folders = [...rest.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  const sortMatch = rest.match(/SORT\s+([\w\u4e00-\u9fa5-]+)\s*(ASC|DESC)?/i);
+  const limit = Number((rest.match(/LIMIT\s+(\d+)/i) || [])[1] || 0);
+
+  let list = notes.filter((n) => {
+    const tagOk = !tags.length || tags.some((t) => (n.tags || []).includes(t));
+    const folderOk = !folders.length ||
+      folders.some((f) => String(n.category || '').includes(f) || String(n.file || '').includes(f));
+    return tagOk && folderOk;
+  });
+
+  if (sortMatch && sortMatch[1]) {
+    const key = /^file$/i.test(sortMatch[1]) ? 'id' : sortMatch[1];
+    const dir = /DESC/i.test(sortMatch[2] || '') ? -1 : 1;
+    list = list.slice().sort((a, b) =>
+      String(a[key] || '').localeCompare(String(b[key] || '')) * dir);
+  }
+  if (limit > 0) list = list.slice(0, limit);
+
+  const href = (n) => (ctx && ctx.base ? ctx.base : '/notes/') + n.id + '/';
+
+  if (!list.length) return '<div class="md-dataview md-dataview-empty">（没有匹配的笔记）</div>';
+
+  if (isTable) {
+    let html = '<div class="md-dataview"><div class="md-table-wrap"><table><thead><tr><th>笔记</th>';
+    for (const f of fields) html += '<th>' + escapeHtml(f) + '</th>';
+    html += '</tr></thead><tbody>';
+    for (const n of list) {
+      html += '<tr><td><a href="' + href(n) + '">' + escapeHtml(n.title || n.id) + '</a></td>';
+      for (const f of fields) {
+        let v = '';
+        if (/^date$/i.test(f)) v = n.date || '';
+        else if (/^category$/i.test(f)) v = n.category || '';
+        else if (/^tags?$/i.test(f)) v = (n.tags || []).map((t) => '#' + t).join(' ');
+        else if (/^title$/i.test(f)) v = n.title || '';
+        else if (/^file$/i.test(f)) v = n.file || '';
+        else v = n[f] == null ? '' : String(n[f]);
+        html += '<td>' + (v ? inline(String(v), ctx) : '') + '</td>';
+      }
+      html += '</tr>';
+    }
+    return html + '</tbody></table></div></div>';
+  }
+
+  if (isTask) {
+    let html = '<div class="md-dataview"><ul class="md-dataview-task">';
+    for (const n of list) {
+      html += '<li><span class="md-task">☐</span> <a href="' + href(n) + '">' +
+        escapeHtml(n.title || n.id) + '</a></li>';
+    }
+    return html + '</ul></div>';
+  }
+
+  let html = '<div class="md-dataview"><ul>';
+  for (const n of list) {
+    html += '<li><a href="' + href(n) + '">' + escapeHtml(n.title || n.id) + '</a>' +
+      (n.date ? ' <span class="md-dv-date">' + escapeHtml(n.date) + '</span>' : '') + '</li>';
+  }
+  return html + '</ul></div>';
+}
+
 /* ---------------- 行内语法 ---------------- */
-function inline(text) {
+function inline(text, ctx) {
   let s = escapeHtml(text);
 
+  // 行内代码（先抽出来，避免里面的符号被当成语法）
   const codes = [];
   s = s.replace(/`([^`]+)`/g, (_, code) => {
     codes.push(code);
     return '\u0000CODE' + (codes.length - 1) + '\u0000';
+  });
+
+  // 行内数学 $...$（同样先抽出来；用原始文本，最后交给 KaTeX）
+  const maths = [];
+  s = s.replace(/\$([^$\n]+?)\$/g, (_, tex) => {
+    maths.push(tex);
+    return '\u0000MATH' + (maths.length - 1) + '\u0000';
   });
 
   // 图片 ![alt](src "title")
@@ -77,7 +202,28 @@ function inline(text) {
   s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
   s = s.replace(/==([^=]+)==/g, '<mark>$1</mark>');
 
+  // 双链 [[笔记名]] / [[笔记名|显示文字]] / ![[附件]]
+  s = s.replace(/(!?)\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, bang, target, alias) => {
+    const name = String(target).trim();
+    const label = (alias || name).trim();
+    // 附件（图片/文件）：直接当图片或链接处理
+    if (/\.(png|jpe?g|gif|webp|svg|avif)$/i.test(name)) {
+      return '<img src="' + name + '" alt="' + label + '" loading="lazy">';
+    }
+    const index = (ctx && ctx.linkIndex) || null;
+    const note = index ? index[normalKey(name)] : null;
+    if (note) {
+      const base = (ctx && ctx.base) || '/notes/';
+      return '<a class="md-wikilink" href="' + base + note.id + '/">' + escapeHtml(label) + '</a>';
+    }
+    // 找不到：保留 [[名字]] 的样子，并标出来，方便你在 Obsidian 里补
+    return '<span class="md-wikilink md-wikilink-missing" title="站内找不到这篇笔记：' +
+      escapeHtml(name) + '">' + escapeHtml(label) + '</span>';
+  });
+
   s = s.replace(/\u0000CODE(\d+)\u0000/g, (_, i) => '<code>' + codes[+i] + '</code>');
+  // 数学：保留 $...$ 形式，交给页面上的 KaTeX 自动渲染
+  s = s.replace(/\u0000MATH(\d+)\u0000/g, (_, i) => '<span class="md-math">$' + maths[+i] + '$</span>');
 
   return s;
 }
@@ -101,17 +247,17 @@ function alignOf(cell) {
   return '';
 }
 
-function renderTable(head, align, rows) {
+function renderTable(head, align, rows, ctx) {
   let html = '<div class="md-table-wrap"><table><thead><tr>';
   head.forEach((c, i) => {
-    html += '<th' + (align[i] ? ' style="text-align:' + align[i] + '"' : '') + '>' + inline(c) + '</th>';
+    html += '<th' + (align[i] ? ' style="text-align:' + align[i] + '"' : '') + '>' + inline(c, ctx) + '</th>';
   });
   html += '</tr></thead><tbody>';
   rows.forEach(row => {
     html += '<tr>';
     head.forEach((_, i) => {
       const cell = row[i] == null ? '' : row[i];
-      html += '<td' + (align[i] ? ' style="text-align:' + align[i] + '"' : '') + '>' + inline(cell) + '</td>';
+      html += '<td' + (align[i] ? ' style="text-align:' + align[i] + '"' : '') + '>' + inline(cell, ctx) + '</td>';
     });
     html += '</tr>';
   });
@@ -121,7 +267,7 @@ function renderTable(head, align, rows) {
 /* ---------------- 列表 ---------------- */
 const LIST_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 
-function buildList(items, i, baseIndent) {
+function buildList(items, i, baseIndent, ctx) {
   const ordered = items[i].ordered;
   let html = ordered ? '<ol>' : '<ul>';
   while (i < items.length && items[i].indent >= baseIndent) {
@@ -130,7 +276,7 @@ function buildList(items, i, baseIndent) {
     i++;
     let sub = '';
     if (i < items.length && items[i].indent > baseIndent) {
-      const res = buildList(items, i, items[i].indent);
+      const res = buildList(items, i, items[i].indent, ctx);
       sub = res[0];
       i = res[1];
     }
@@ -140,10 +286,10 @@ function buildList(items, i, baseIndent) {
     if (task) {
       const checked = task[1].toLowerCase() === 'x';
       text = '<span class="md-task' + (checked ? ' done' : '') + '">' +
-        (checked ? '☑' : '☐') + '</span> ' + inline(task[2]);
+        (checked ? '☑' : '☐') + '</span> ' + inline(task[2], ctx);
       cls = ' class="md-li-task"';
     } else {
-      text = inline(text);
+      text = inline(text, ctx);
     }
     html += '<li' + cls + '>' + text + sub + '</li>';
   }
@@ -151,8 +297,14 @@ function buildList(items, i, baseIndent) {
 }
 
 /* ---------------- 主渲染 ---------------- */
-export function renderMarkdown(md) {
+export function renderMarkdown(md, options) {
   if (!md) return '';
+  const opts = options || {};
+  const ctx = {
+    notes: opts.notes || [],
+    linkIndex: opts.linkIndex || null,
+    base: opts.base || '/notes/'
+  };
   const lines = String(md).replace(/\r\n?/g, '\n').replace(/\t/g, '    ').split('\n');
   const out = [];
   let i = 0;
@@ -162,7 +314,25 @@ export function renderMarkdown(md) {
 
     if (/^\s*$/.test(line)) { i++; continue; }
 
-    // 代码块
+    // 块级数学 $$ ... $$（也可写成单行 $$...$$）
+    if (/^\s*\$\$/.test(line)) {
+      const buf = [];
+      const firstRest = line.replace(/^\s*\$\$/, '');
+      if (/\$\$\s*$/.test(firstRest) && firstRest.trim()) {
+        // 单行 $$...$$
+        buf.push(firstRest.replace(/\$\$\s*$/, ''));
+        i++;
+      } else {
+        if (firstRest.trim()) buf.push(firstRest);
+        i++;
+        while (i < lines.length && !/\$\$\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
+        if (i < lines.length) { buf.push(lines[i].replace(/\$\$\s*$/, '')); i++; }
+      }
+      out.push('<div class="md-math-block">$$' + escapeHtml(buf.join('\n')) + '$$</div>');
+      continue;
+    }
+
+    // 代码块 / Mermaid / Dataview
     const fence = line.match(/^\s*```+\s*([\w+-]*)\s*$/);
     if (fence) {
       const lang = fence[1];
@@ -170,8 +340,21 @@ export function renderMarkdown(md) {
       i++;
       while (i < lines.length && !/^\s*```+\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
       i++;
+      const code = buf.join('\n');
+
+      if (/^mermaid$/i.test(lang)) {
+        // Mermaid：输出成 <div class="mermaid">，由页面上的 mermaid.run() 画图
+        out.push('<div class="mermaid">' + escapeHtml(code) + '</div>');
+        continue;
+      }
+      if (/^dataview$/i.test(lang)) {
+        // Dataview：构建时就把结果算成静态 HTML
+        out.push(dataview(code, ctx));
+        continue;
+      }
+
       out.push('<pre class="md-code"' + (lang ? ' data-lang="' + lang + '"' : '') +
-        '><code>' + escapeHtml(buf.join('\n')) + '</code></pre>');
+        '><code>' + escapeHtml(code) + '</code></pre>');
       continue;
     }
 
@@ -180,7 +363,7 @@ export function renderMarkdown(md) {
     if (h) {
       const lv = h[1].length;
       const id = h[2].replace(/[^\w\u4e00-\u9fa5]+/g, '-').toLowerCase();
-      out.push('<h' + lv + ' id="' + id + '">' + inline(h[2]) + '</h' + lv + '>');
+      out.push('<h' + lv + ' id="' + id + '">' + inline(h[2], ctx) + '</h' + lv + '>');
       i++;
       continue;
     }
@@ -195,7 +378,7 @@ export function renderMarkdown(md) {
         buf.push(lines[i].replace(/^\s*>\s?/, ''));
         i++;
       }
-      out.push('<blockquote>' + renderMarkdown(buf.join('\n')) + '</blockquote>');
+      out.push('<blockquote>' + renderMarkdown(buf.join('\n'), opts) + '</blockquote>');
       continue;
     }
 
@@ -210,7 +393,7 @@ export function renderMarkdown(md) {
         rows.push(splitRow(lines[i]));
         i++;
       }
-      out.push(renderTable(head, align, rows));
+      out.push(renderTable(head, align, rows, ctx));
       continue;
     }
 
@@ -230,7 +413,7 @@ export function renderMarkdown(md) {
           i++;
         }
       }
-      out.push(buildList(items, 0, items[0].indent)[0]);
+      out.push(buildList(items, 0, items[0].indent, ctx)[0]);
       continue;
     }
 
@@ -238,11 +421,12 @@ export function renderMarkdown(md) {
     const para = [];
     while (i < lines.length && !/^\s*$/.test(lines[i]) &&
            !LIST_ITEM.test(lines[i]) && !/^\s*>/.test(lines[i]) &&
-           !/^#{1,6}\s/.test(lines[i]) && !/^\s*```/.test(lines[i])) {
+           !/^#{1,6}\s/.test(lines[i]) && !/^\s*```/.test(lines[i]) &&
+           !/^\s*\$\$/.test(lines[i])) {
       para.push(lines[i].trim());
       i++;
     }
-    if (para.length) out.push('<p>' + inline(smartJoin(para)) + '</p>');
+    if (para.length) out.push('<p>' + inline(smartJoin(para), ctx) + '</p>');
     else i++;
   }
 

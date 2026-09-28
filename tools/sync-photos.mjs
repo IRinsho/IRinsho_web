@@ -305,5 +305,10 @@ if (invokedDirectly) {
   console.log('\n扫描 img/ 文件夹…');
   syncPhotos(opts)
     .then(r => process.exit(r.failed ? 1 : 0))
-    .catch(e => { console.error('同步失败：' + e.message); process.exit(1); });
+    // 故意也用退出码 0：本脚本挂在 npm run dev / build 的 && 链里，
+    // 退出非 0 会让后面的 astro 不执行（网站打不开）。失败只提示，不阻断。
+    .catch(e => {
+      console.error('\n! 图片同步出错（不影响网站启动，已跳过）：' + e.message);
+      process.exit(0);
+    });
 }

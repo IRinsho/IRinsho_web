@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { notes } from '../../lib/notes.js';
-import { renderMarkdown, escapeHtml } from '../../lib/markdown.js';
+import { renderMarkdown, escapeHtml, buildLinkIndex } from '../../lib/markdown.js';
 import { asset } from '../../lib/url.js';
 import { fmtSlash } from '../../lib/format.js';
 
@@ -10,6 +10,10 @@ export function getStaticPaths() {
 }
 
 const { note } = Astro.props;
+
+// 双链 [[笔记名]] 需要「名字 → 笔记」的索引；Dataview 需要全部笔记
+const linkIndex = buildLinkIndex(notes);
+const notesBase = asset('notes/');
 
 // 正文里形如 media/notes/xxx.png 的相对路径，要补上 base 前缀，
 // 否则在 /notes/xxx/ 这一层会 404
@@ -33,10 +37,24 @@ const tagsHtml = (note.tags && note.tags.length)
     '</div>'
   : '';
 
-const bodyHtml = header + withBase(renderMarkdown(note.content || '')) + tagsHtml;
+const bodyHtml = header + withBase(renderMarkdown(note.content || '', {
+  notes, linkIndex, base: notesBase
+})) + tagsHtml;
 const crumb = [note.category, fmtSlash(note.date), note.title].filter(Boolean).join('  /  ');
+
+// 正文里有没有需要客户端渲染的东西（数学公式 / Mermaid 图表）——
+// 没有就不加载那两个 CDN 脚本，省流量
+const hasMath = /\$[^$\n]+\$|\$\$[\s\S]+?\$\$/.test(note.content || '');
+const hasMermaid = /```+\s*mermaid/i.test(note.content || '');
 ---
 <Base title={`${note.title} · IRinsho`} description={note.summary}>
+  {hasMath && (
+    <>
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+      <script is:inline defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+      <script is:inline defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+    </>
+  )}
   <div class="post-bar">
     <a class="post-back" href={asset('notes/')}><span>←</span>返回列表</a>
     <span class="post-crumb">{crumb}</span>
@@ -46,6 +64,11 @@ const crumb = [note.category, fmtSlash(note.date), note.title].filter(Boolean).j
   <article class="markdown" set:html={bodyHtml} />
 
   <div class="toast" id="toast" hidden></div>
+
+  <!-- 把「正文里有没有公式 / 图表」告诉下面的脚本（避免无脑加载 CDN） -->
+  <script is:inline define:vars={{ hasMath, hasMermaid }}>
+    window.__MD_FLAGS__ = { math: hasMath, mermaid: hasMermaid };
+  </script>
 
   <script>
     const btn = document.getElementById('copyLinkBtn');
@@ -69,6 +92,56 @@ const crumb = [note.category, fmtSlash(note.date), note.title].filter(Boolean).j
           show(url);
         }
       });
+    }
+
+    /* ---------- 数学公式（KaTeX）+ Mermaid 图表 ----------
+       两个库都从 CDN 按需加载，且只有正文里真的用到时才下载。
+       加载失败不影响正文阅读，只在控制台留一条提示。 */
+    const FLAGS = window.__MD_FLAGS__ || {};
+    const HAS_MATH = !!FLAGS.math;
+    const HAS_MERMAID = !!FLAGS.mermaid;
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('加载失败：' + src));
+        document.head.appendChild(s);
+      });
+    }
+
+    function renderMath() {
+      if (typeof window.renderMathInElement !== 'function') return;
+      try {
+        window.renderMathInElement(document.querySelector('.markdown'), {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+          ],
+          throwOnError: false,
+          ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+        });
+      } catch (e) {
+        console.warn('[数学公式渲染失败]', e);
+      }
+    }
+
+    if (HAS_MATH) {
+      const waitKatex = () => {
+        if (typeof window.renderMathInElement === 'function') renderMath();
+        else setTimeout(waitKatex, 200);
+      };
+      waitKatex();
+    }
+
+    if (HAS_MERMAID) {
+      loadScript('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js')
+        .then(() => {
+          window.mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+          return window.mermaid.run({ querySelector: '.mermaid' });
+        })
+        .catch((e) => console.warn('[Mermaid 渲染失败]', e.message));
     }
   </script>
 </Base>

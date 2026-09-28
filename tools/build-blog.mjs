@@ -272,7 +272,9 @@ if (invokedDirectly) {
   try {
     buildBlog({});
   } catch (e) {
-    console.error('构建失败：' + e.message);
-    process.exit(1);
+    // 退出码 0：本脚本挂在 npm run dev / build 的 && 链里，
+    // 退出非 0 会让后面的 astro 不执行（网站打不开）。失败只提示，不阻断。
+    console.error('\n! 笔记构建出错（不影响网站启动，已跳过）：' + e.message);
+    process.exit(0);
   }
 }

@@ -300,6 +300,9 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
 
             const screen = document.createElement('div');
             screen.className = 'player-screen';
+            // 抖音播放器页自带一个「抖音 logo 头条」，跨域改不掉，
+            // 只能靠 CSS 把它裁出可视区（见 .player-screen.is-douyin）
+            if (/抖音|douyin/i.test(platform)) screen.classList.add('is-douyin');
             const iframe = document.createElement('iframe');
             iframe.src = card.dataset.embed;
             iframe.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';

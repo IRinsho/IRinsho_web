@@ -1206,5 +1206,15 @@ if (invokedDirectly) {
   const opts = { force: argv.includes('--force'), quiet: argv.includes('--quiet') };
   syncCovers(opts)
     .then(() => process.exit(0))
-    .catch((e) => { console.error('抓封面失败：' + e.message); process.exit(1); });
+    .catch((e) => {
+      // ⚠ 这里**故意也用退出码 0**：
+      //    这个脚本现在挂在 `npm run dev` / `npm run build` 的 && 链里，
+      //    一旦它报错退出非 0，后面的 astro dev / astro build 就不会执行，
+      //    结果就是「网页打不开」。抓封面失败不该拖垮整站，
+      //    所以只把错误醒目地打出来，然后放行。
+      console.error('\n! 抓封面这一步出错了（不影响网站启动，已跳过）：' + (e && e.message ? e.message : e));
+      if (e && e.stack) console.error(String(e.stack).split('\n').slice(1, 4).map((l) => '  ' + l.trim()).join('\n'));
+      console.error('  想单独排查：node tools/sync-covers.mjs --force --dump\n');
+      process.exit(0);
+    });
 }
