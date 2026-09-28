@@ -23,7 +23,7 @@ export default [
     category: '动漫 ',
     tags: ['动漫'],
     date: '2025-06-01',
-    src: 'media\videos\re0.mp4',
+    src: 'media\videos\re0.webm',
     poster: 'media\covers\re0.svg',
     duration: '00:26'
   },
