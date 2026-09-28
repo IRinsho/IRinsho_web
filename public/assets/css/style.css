@@ -883,16 +883,72 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .modal-head p { margin: 4px 0 0; color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em; }
 .modal-body { background: #000; }
 .modal-body video, .modal-body iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
-/* 竖屏视频（抖音）：按 9:16 显示，居中，不要撑满一屏黑边 */
-.modal-body.is-vertical video,
-.modal-body.is-vertical iframe {
-  aspect-ratio: 9 / 16;
+/* 竖屏视频（抖音）：把弹窗整体收成手机形状，
+   否则 1040px 宽的弹窗里只有中间一小块竖视频，两边全黑 */
+.modal-panel.is-vertical { width: min(470px, 100%); }
+.modal-body.is-vertical {
   width: auto;
-  max-width: 100%;
-  height: auto;
-  max-height: 72vh;
+  height: 68vh;
+  max-height: 68vh;
+  aspect-ratio: 9 / 16;
   margin: 0 auto;
 }
+
+/* ---------- 外站视频：先显示封面 + 播放按钮，点了才加载播放器 ----------
+   为什么要这样：抖音播放器一加载就先来「一大块黑 + 抖音 logo」，
+   B 站 / YouTube 也要缓冲，一打开弹窗就怼脸上很难看。
+   点一下再加载，第一眼看到的就是我们自己设计的画面。 */
+.embed-stage {
+  position: relative;
+  display: grid; place-items: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0b0e1c;
+  overflow: hidden;
+}
+/* 竖屏时台子跟着弹窗走，不要在台子内部再算一次比例 */
+.modal-body.is-vertical .embed-stage { width: 100%; height: 100%; aspect-ratio: auto; }
+.embed-stage > img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  opacity: .5;
+}
+/* 没封面时，弹窗里也用生成底图（和卡片同一套配色逻辑） */
+.embed-gen {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(120% 90% at 20% 12%, rgba(255, 255, 255, .14), transparent 62%),
+    linear-gradient(140deg,
+      hsl(var(--h) 40% 22%),
+      hsl(var(--h) 52% 33%) 58%,
+      hsl(calc(var(--h) + 38) 45% 24%));
+}
+.embed-gen b {
+  font-family: var(--font-serif); font-size: 26px; font-weight: 700; font-style: italic;
+  color: rgba(255, 255, 255, .9); text-align: center; line-height: 1.45;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, .4);
+}
+.embed-play {
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 13px 26px;
+  border: 1px solid var(--rose);
+  border-radius: var(--radius-pill);
+  background: rgba(224, 70, 111, .92);
+  color: #fff;
+  font-size: 13.5px; letter-spacing: .12em;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  transition: transform .2s, background .2s;
+}
+.embed-play span { font-size: 11px; }
+.embed-play:hover { transform: scale(1.05); background: var(--rose); }
+/* 点了播放之后：播放器铺满这个台子（放在上面 .modal-body 规则之后才能盖住它） */
+.embed-stage.is-playing { aspect-ratio: auto; width: 100%; height: 100%; background: #000; }
+.embed-stage iframe { aspect-ratio: auto; width: 100%; height: 100%; border: 0; display: block; max-height: none; margin: 0; }
 /* 视频打不开时的提示（代替一块纯黑屏） */
 .play-error {
   margin: 0; padding: 28px 24px 10px;
@@ -1032,12 +1088,16 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
     overflow: auto;
   }
   .modal-body video, .modal-body iframe { width: 100%; max-height: 100%; }
-  /* 竖屏视频：按 9:16 居中，撑满可用高度但不留黑边 */
-  .modal-body.is-vertical video,
-  .modal-body.is-vertical iframe {
-    width: auto; max-width: 100%; max-height: 100%;
-    aspect-ratio: 9 / 16;
+  /* 竖屏视频：手机上弹窗本来就是满屏，让播放区吃满剩余高度即可 */
+  .modal-panel.is-vertical { width: 100%; }
+  .modal-body.is-vertical {
+    width: 100%;
+    height: auto;
+    max-height: none;
+    aspect-ratio: auto;
+    flex: 1 1 auto;
   }
+  .modal-body.is-vertical .embed-stage { width: 100%; height: 100%; aspect-ratio: auto; }
   .embed-bar { flex: none; padding: 12px 14px 14px; font-size: 12px; }
   .embed-bar .play-download { padding: 7px 14px; margin-left: 8px; }
   /* 手机上竖向空间紧张，那行补充说明先收起来，只留「去原站看」按钮 */

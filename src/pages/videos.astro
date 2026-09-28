@@ -95,6 +95,7 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         data-vertical={v.vertical ? '1' : ''}
         data-src={v.embedUrl ? '' : asset(v.src || '')}
         data-poster={v.cover ? asset(v.cover) : ''}
+        data-hue={hueFor(v.title)}
         tabindex="0"
         role="button"
       >
@@ -169,6 +170,7 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
   <script>
     const modal = document.getElementById('videoModal');
     const body = document.getElementById('vmBody');
+    const panel = modal.querySelector('.modal-panel');
 
     function open(card) {
       document.getElementById('vmTitle').textContent = card.dataset.title || '';
@@ -178,22 +180,62 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
       // 用 DOM 接口搭播放器，不用拼字符串：
       // 文件名里带引号、括号、中文都不会把标签拼坏
       body.replaceChildren();
-      // 竖屏视频（抖音）按 9:16 显示，否则塞进 16:9 会上下大片黑边
-      body.classList.toggle('is-vertical', card.dataset.vertical === '1');
+
+      // 竖屏视频（抖音）：弹窗整体收成手机形状，否则 1040px 宽的弹窗里
+      // 只有中间一小块竖视频，两边全黑，很难看
+      const vertical = card.dataset.vertical === '1';
+      body.classList.toggle('is-vertical', vertical);
+      panel.classList.toggle('is-vertical', vertical);
 
       if (card.dataset.embed) {
-        const iframe = document.createElement('iframe');
-        iframe.src = card.dataset.embed;
-        iframe.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
-        iframe.allowFullscreen = true;
-        iframe.setAttribute('scrolling', 'no');
-        iframe.setAttribute('frameborder', '0');
-        iframe.setAttribute('referrerpolicy', 'unsafe-url');
-        body.appendChild(iframe);
+        const platform = card.dataset.platform || '原站';
+
+        // 先摆一个「封面 + 播放按钮」的台子，点了才真的加载外站播放器。
+        // 原因：抖音播放器一加载就先来一大块黑 + 抖音 logo（B 站 / YouTube 也要缓冲），
+        // 一打开弹窗就怼脸上很难看。点击后再加载，看起来就是我们自己的播放页。
+        const stage = document.createElement('div');
+        stage.className = 'embed-stage';
+
+        const poster = card.dataset.poster;
+        if (poster) {
+          const img = document.createElement('img');
+          img.src = poster;
+          img.alt = '';
+          stage.appendChild(img);
+        } else {
+          // 没封面时用同款「生成底图」，别让点开瞬间是一块纯黑
+          const gen = document.createElement('div');
+          gen.className = 'embed-gen';
+          gen.style.setProperty('--h', card.dataset.hue || '280');
+          const b = document.createElement('b');
+          b.textContent = card.dataset.title || '';
+          gen.appendChild(b);
+          stage.appendChild(gen);
+        }
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'embed-play';
+        btn.innerHTML = '<span>▶</span>播放';
+        stage.appendChild(btn);
+
+        function startPlay() {
+          const iframe = document.createElement('iframe');
+          iframe.src = card.dataset.embed;
+          iframe.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+          iframe.allowFullscreen = true;
+          iframe.setAttribute('scrolling', 'no');
+          iframe.setAttribute('frameborder', '0');
+          iframe.setAttribute('referrerpolicy', 'unsafe-url');
+          stage.replaceChildren(iframe);
+          stage.classList.add('is-playing');
+        }
+        btn.addEventListener('click', startPlay);
+
+        body.appendChild(stage);
 
         // 外站播放器（抖音 / B站 / YouTube）可能因为登录、地区、防盗链放不出来，
         // 给一个「去原站看」的出口，别让用户卡在一块空白里
-        const platform = card.dataset.platform || '原站';
         const bar = document.createElement('p');
         bar.className = 'embed-bar';
         bar.appendChild(document.createTextNode('放不出来？'));
