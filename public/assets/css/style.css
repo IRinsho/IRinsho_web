@@ -702,35 +702,118 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .markdown blockquote p { margin: 6px 0; }
 
 /* =========================================================
- *  笔记页动效（纯 CSS，尊重系统「减少动态效果」）
+ *  滚动浮现动效（由 Base.astro 里的 IntersectionObserver 驱动）
+ *  ---------------------------------------------------------
+ *  默认**全部可见** —— JS 挂了、被禁用、或系统开了「减少动态效果」时
+ *  页面照常完整显示，绝不会白屏。
+ *  只有脚本成功运行时才会给 <html> 加 .reveal，这时才先隐藏、滚到再浮现。
  * ======================================================= */
-@keyframes mdIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: none; }
+html.reveal .markdown > *,
+html.reveal .post-bar,
+html.reveal .post,
+html.reveal .gallery-item,
+html.reveal .video-card,
+html.reveal .panel {
+  opacity: 0;
+  transform: translateY(22px) scale(.985);
+  filter: blur(3px);
+  transition:
+    opacity .68s cubic-bezier(.22, .61, .36, 1),
+    transform .68s cubic-bezier(.22, .61, .36, 1),
+    filter .68s cubic-bezier(.22, .61, .36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
 }
-@keyframes barIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: none; }
+html.reveal .markdown > *.is-in,
+html.reveal .post-bar.is-in,
+html.reveal .post.is-in,
+html.reveal .gallery-item.is-in,
+html.reveal .video-card.is-in,
+html.reveal .panel.is-in {
+  opacity: 1;
+  transform: none;
+  filter: none;
 }
 
-/* 正文里的每个块依次浮现（前 12 块错开，再往后的不延迟避免等太久） */
-.markdown > * { animation: mdIn .52s cubic-bezier(.22, .61, .36, 1) both; }
-.markdown > *:nth-child(1)  { animation-delay: .02s; }
-.markdown > *:nth-child(2)  { animation-delay: .06s; }
-.markdown > *:nth-child(3)  { animation-delay: .10s; }
-.markdown > *:nth-child(4)  { animation-delay: .14s; }
-.markdown > *:nth-child(5)  { animation-delay: .18s; }
-.markdown > *:nth-child(6)  { animation-delay: .22s; }
-.markdown > *:nth-child(7)  { animation-delay: .26s; }
-.markdown > *:nth-child(8)  { animation-delay: .30s; }
-.markdown > *:nth-child(9)  { animation-delay: .34s; }
-.markdown > *:nth-child(10) { animation-delay: .38s; }
-.markdown > *:nth-child(11) { animation-delay: .42s; }
-.markdown > *:nth-child(12) { animation-delay: .46s; }
-.markdown > *:nth-child(n+13) { animation-delay: .5s; }
+/* =========================================================
+ *  自定义鼠标：一个贴住指针的点 + 一个带阻尼的圈
+ *  只有脚本建好元素后才加 .has-cursor（隐藏系统光标），
+ *  保证脚本失败时用户仍然有正常光标
+ * ======================================================= */
+html.has-cursor,
+html.has-cursor * { cursor: none !important; }
 
-/* 顶部的返回条（从上方滑下来） */
-.post-bar { animation: barIn .4s cubic-bezier(.22, .61, .36, 1) both; }
+.cur-dot,
+.cur-ring {
+  position: fixed;
+  left: 0; top: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .25s ease, width .22s ease, height .22s ease,
+              background .22s ease, border-color .22s ease;
+}
+.cur-dot.is-on, .cur-ring.is-on { opacity: 1; }
+
+/* 中心的小点 */
+.cur-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--rose);
+  box-shadow: 0 0 10px rgba(224, 70, 111, .85);
+}
+.cur-dot.is-hot { width: 4px; height: 4px; }
+
+/* 外圈：平时是个细环，悬停在可点元素上时放大并染色 */
+.cur-ring {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(224, 70, 111, .55);
+  background: rgba(224, 70, 111, .06);
+  backdrop-filter: blur(1px);
+  display: flex; align-items: center; justify-content: center;
+}
+.cur-ring.is-hot {
+  width: 46px; height: 46px;
+  border-color: rgba(224, 70, 111, .85);
+  background: rgba(224, 70, 111, .12);
+}
+.cur-ring.is-card {
+  width: 68px; height: 68px;
+  background: rgba(224, 70, 111, .16);
+  border-color: var(--rose);
+}
+.cur-ring.is-down { transform-origin: center; }
+.cur-ring.is-down { width: 22px; height: 22px; }
+
+/* 圈里的小字（例如卡片上的 OPEN） */
+.cur-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .14em;
+  color: var(--rose);
+  opacity: 0;
+  transition: opacity .2s ease;
+  white-space: nowrap;
+}
+.cur-ring.is-card .cur-label { opacity: 1; }
+
+/* 触屏设备：上面那套完全不生效（脚本也不会跑） */
+@media (hover: none), (pointer: coarse) {
+  .cur-dot, .cur-ring { display: none; }
+}
+
+/* 系统开了「减少动态效果」→ 全部关掉 */
+@media (prefers-reduced-motion: reduce) {
+  .markdown > *, .post-bar, .post, .gallery-item, .video-card, .panel {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+  .cur-dot, .cur-ring { display: none !important; }
+  html.has-cursor, html.has-cursor * { cursor: auto !important; }
+}
 
 /* 悬停反馈：图片轻微放大 + 阴影，链接变色 */
 .markdown img {
@@ -749,17 +832,7 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   transition: border-color .3s ease, background .3s ease;
 }
 
-/* 列表页的卡片：逐个浮现 + 悬停上浮 */
-.post { animation: mdIn .5s cubic-bezier(.22, .61, .36, 1) both; }
-.post:nth-child(1)  { animation-delay: .03s; }
-.post:nth-child(2)  { animation-delay: .08s; }
-.post:nth-child(3)  { animation-delay: .13s; }
-.post:nth-child(4)  { animation-delay: .18s; }
-.post:nth-child(5)  { animation-delay: .23s; }
-.post:nth-child(6)  { animation-delay: .28s; }
-.post:nth-child(7)  { animation-delay: .33s; }
-.post:nth-child(8)  { animation-delay: .38s; }
-.post:nth-child(n+9) { animation-delay: .43s; }
+/* 列表页卡片：悬停上浮（入场浮现交给 html.reveal 那套） */
 .post-card, .note-card, .blog-card, .post {
   transition: transform .3s cubic-bezier(.22, .61, .36, 1), box-shadow .3s ease, border-color .3s ease;
 }
@@ -767,13 +840,6 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
   transform: translateY(-3px);
   border-color: var(--rose-dim);
   box-shadow: 0 14px 34px rgba(0, 0, 0, .34);
-}
-
-/* 系统开了「减少动态效果」就全部关掉 */
-@media (prefers-reduced-motion: reduce) {
-  .markdown > *, .post-bar, .post { animation: none !important; }
-  .markdown img, .markdown a, .post-card, .note-card, .blog-card, .post { transition: none !important; }
-  .markdown img:hover, .post-card:hover, .note-card:hover, .blog-card:hover, .post:hover { transform: none; }
 }
 
 .md-table-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: var(--radius); }

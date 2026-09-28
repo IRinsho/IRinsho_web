@@ -1,126 +1,112 @@
 # IRinsho · 个人档案站
 
-用 **Astro** 构建的静态个人站：图片、视频、学习笔记，外加一个个人档案页。
+用 **Astro 5** 构建的静态个人站：相册、视频、学习笔记，外加一个个人档案页。
 
-- 图片放进 `img/`，自动压缩同步（转 WebP、丢 EXIF）
-- 笔记用 **Obsidian** 写，放进 `blog/`，构建时变成 Blog 页面
+- 图片丢进 `img/`，自动压缩同步（转 WebP、丢 EXIF）
+- 笔记用 **Obsidian** 写在 `blog/`，构建时变成 Blog 页面
 - `npm run build` 生成 `dist/` 文件夹，上传到腾讯云就能上线
 
 ---
 
-## 一、第一次使用
+## 目录
 
-需要先装 **Node.js 18 或更高版本**（[下载地址](https://nodejs.org/)）。装完在命令行里输入 `node -v` 能看到版本号就对了。
+- [一、快速开始](#一快速开始)
+- [二、日常写作](#二日常写作)
+- [三、图片](#三图片)
+- [四、笔记](#四笔记)
+- [五、视频](#五视频)
+- [六、支持的语法](#六支持的语法)
+- [七、自动化与同步](#七自动化与同步)
+- [八、部署到腾讯云](#八部署到腾讯云)
+- [九、常见问题](#九常见问题)
+- [十、换配色](#十换配色)
 
-然后在项目目录里执行：
+---
+
+## 一、快速开始
+
+### 1. 装 Node.js
+
+去 <https://nodejs.org/> 下载安装 **Node.js 22 或更高版本**（装 LTS 那个就行）。
+
+装完打开命令行（PowerShell）输入：
+
+```bash
+node -v
+```
+
+能看到版本号才算装好。
+
+> **为什么是 22**：抓抖音封面要走浏览器的调试协议，用的是 Node 22 才自带的功能。
+> 版本低一点网站照样能跑，只是抖音封面抓不了（其它的都不影响）。
+
+### 2. 装依赖
+
+在项目目录（就是有 `package.json` 的那个文件夹）里执行：
 
 ```bash
 npm install
 ```
 
-这一步会下载 Astro 和 sharp，需要联网，大约 1～3 分钟。**只需要做一次**。
+会下载 Astro 和 sharp（图片压缩用），需要联网，大约 1～3 分钟。**只需要做一次。**
 
-之后双击 `启动网站.cmd` 就能启动（它会自动跳过已安装的依赖）。
+### 3. 启动
+
+```bash
+npm run dev
+```
+
+它会先同步一次内容，然后启动服务器，浏览器打开 <http://localhost:4321>。
+
+**没有 `.cmd` 双击脚本了**，所有操作都在命令行里用 `npm run ...`。
 
 ---
 
-## 二、日常怎么用
+## 二、日常写作
 
-**双击 `启动网站.cmd`**，浏览器会自动打开 <http://localhost:4321>。
-
-### 全自动同步（你基本不用管）
-
-启动后会**自动**做这些事：
-
-1. 扫描 `img/`，把新图片压缩同步到 `public/media/images/`
-2. 扫描 `blog/`，把 Markdown 笔记构建成数据
-3. 抓抖音视频的**封面 / 标题 / 日期 / 时长**（有 `douyin` 链接但还没抓到的才会联网）
-
-而且**之后你往 `img/` 或 `blog/` 里丢文件、改文件，它会自动再同步一次**，
-不需要手动敲任何命令。同步完浏览器里按 **Ctrl+F5** 刷新即可。
-
-写东西的时候：
+启动 `npm run dev` 之后，日常就是「丢文件 → 刷新」：
 
 | 你想做的 | 怎么做 |
 | --- | --- |
-| 加图片 | 把图片复制进 `img/` → 自动同步 → Ctrl+F5 刷新 |
-| 写笔记 | 在 Obsidian 里写 `blog/` 里的 `.md` → 自动同步 → Ctrl+F5 刷新 |
-| 加抖音视频 | 在 `src/data/videos.js` 里填一行 `douyin: '链接'` → 自动抓封面和信息 |
-| 改站点信息 | 改 `src/data/config.js`，保存即热更新 |
+| 加图片 | 把图片复制进 `img/`（子文件夹名 = 相册分类）→ 自动同步 → 浏览器 **Ctrl+F5** |
+| 写笔记 | 在 Obsidian 里编辑 `blog/` 下的 `.md` → 自动同步 → Ctrl+F5 |
+| 加抖音 / B站 / YouTube 视频 | 在 `src/data/videos.js` 里加一条 `douyin` / `embed` 链接 → 自动抓封面和信息 |
+| 加本地视频 | 文件放进 `public/media/videos/`，在 `videos.js` 里写 `src` → 自动截封面 |
+| 改站点信息、个人页 | 改 `src/data/config.js`，保存即热更新 |
 | 改样式 | 改 `public/assets/css/style.css`，保存即热更新 |
 
-> 自动同步只在 `npm run dev`（也就是双击 `启动网站.cmd`）时生效。
-> 部署构建时由 `npm run build` 里的同步负责。
-> 想手动跑一次也行：`npm run sync`。
+> **为什么 `img/` 和 `blog/` 要「同步」一下**：这两个文件夹是原料，
+> 页面读的是加工后的 `src/data/*.generated.js`。同步就是把原料加工一遍，几秒钟的事。
+> `npm run dev` 会自动做，所以正常情况你不用管。
 
-> 抓取失败的视频不会一直重试：**首次失败后按 2 分钟 → 10 分钟 → 30 分钟 →
-> 2 小时 → 12 小时** 的间隔退避，不会每次启动都去打抖音。
-> 你改了链接（key 变了）会立刻重新尝试。
+### 命令速查
 
----
+| 命令 | 做什么 | 什么时候跑 |
+| --- | --- | --- |
+| `npm install` | 装依赖 | 只跑一次 |
+| `npm run dev` | 同步一次 → 启动本地预览（带自动同步） | 每次开始写东西 |
+| `npm run sync` | 图片 + 本地视频截帧 + 外链封面 + 笔记，全跑一遍 | 可选。自动同步不灵时手动补一刀 |
+| `npm run sync:photos` | 只同步图片 | 可选 |
+| `npm run sync:frames` | 只给本地视频截封面（需要 ffmpeg） | 可选 |
+| `npm run sync:covers` | 只抓 B站 / YouTube / 抖音 的封面和信息 | 可选 |
+| `npm run sync:blog` | 只重新构建笔记 | 可选 |
+| `npm run cover` | 手动粘一张封面图给某条视频 | 自动抓不到时用 |
+| `npm run build` | 同步 → 构建出 `dist/` | 要部署时 |
+| `npm run preview` | 本地预览构建结果 | 可选 |
 
-## 三、目录结构
-
-```
-├─ package.json            依赖和命令
-├─ astro.config.mjs        ★ 部署前要改这里（域名 / 子目录）
-├─ 启动网站.cmd            一键启动（双击它就行）
-├─ integrations/
-│  └─ auto-sync.mjs        自动同步：启动时跑一次 + 文件变化时再跑
-│
-├─ img/                    ★ 你的图片放这里（子文件夹 = 相册分类）
-├─ blog/                   ★ 你的笔记放这里（子文件夹 = 笔记分类）
-│  ├─ _怎么用.md           使用说明（下划线开头 → 不发布）
-│  ├─ _模板.md             新建笔记时复制这个
-│  └─ attachments/         笔记里的图片放这里
-│
-├─ public/                 直接原样复制到网站根目录的静态文件
-│  ├─ favicon.svg
-│  ├─ assets/css/style.css 全部样式（配色变量在文件最上面）
-│  └─ media/               头像、压缩后的图片、视频、封面
-│
-├─ src/
-│  ├─ pages/               ★ 五个页面（一个文件 = 一个网址）
-│  │  ├─ index.astro         /
-│  │  ├─ photos.astro        /photos/
-│  │  ├─ videos.astro        /videos/
-│  │  ├─ me.astro            /me/
-│  │  └─ notes/
-│  │     ├─ index.astro      /notes/        Blog 列表
-│  │     └─ [id].astro       /notes/xxx/    单篇笔记
-│  ├─ layouts/Base.astro   公共外壳（顶栏、页脚）
-│  ├─ lib/                 工具函数（图片合并、Markdown 渲染、日期、外链解析）
-│  │  ├─ url.js            资源路径 → 网址（自动转义 + 补 base）
-│  │  ├─ embeds.js         抖音 / B站 / YouTube 链接 → 播放器地址
-│  │  └─ ...               其它小工具
-│  └─ data/                ★ 内容数据
-│     ├─ config.js          ★ 站点名 / 首页 / 个人页 / 页脚（手改）
-│     ├─ videos.js          ★ 视频列表（手改）
-│     ├─ photo-meta.js      ★ 图片标题/描述/标签（手改）
-│     ├─ photos.generated.js    ← 自动生成，别手改
-│     ├─ covers.generated.js    ← 自动生成（抖音封面），别手改
-│     └─ notes.generated.js     ← 自动生成，别手改
-│
-└─ tools/
-   ├─ sync-photos.mjs       图片同步引擎
-   ├─ sync-frames.mjs       本地视频截帧（ffmpeg）→ 当封面
-   ├─ sync-covers.mjs       B站 / YouTube 封面抓取（抖音做不到，见下）
-   ├─ set-cover.mjs         手动配一张封面（交互式）
-   ├─ patch-videos.mjs      把抓到的信息安全写回 videos.js（保留注释）
-   └─ build-blog.mjs        笔记构建引擎
-```
+后四个 `sync:xxx` 平时不用手动跑，`npm run sync` 里已经按顺序带上了。
 
 ---
 
-## 四、图片
+## 三、图片
 
 ### 加图片
 
 1. 把图片复制进 `img/`
-2. 运行 `npm run sync`
-3. 刷新浏览器
+2. 跑一次 `npm run sync`（或者在跑着 `npm run dev`，它自己会同步）
+3. 浏览器 Ctrl+F5
 
-**子文件夹名 = 相册分类**：
+**子文件夹名 = 相册分类**，根目录下的图归到「未分类」：
 
 ```
 img/
@@ -129,21 +115,26 @@ img/
 └─ 随手拍.jpg          → 相册「未分类」
 ```
 
+从 `img/` 里删掉图片后再同步一次，`public/media/images/` 里对应的压缩图会自动清掉。
+
 ### 改标题 / 加描述 / 打标签
 
-编辑 `src/data/photo-meta.js`（这个文件不会被覆盖）：
+编辑 `src/data/photo-meta.js`（脚本不会碰这个文件）：
 
 ```js
 export default {
-  '旅行/海边.jpg': {
+  '旅行/海边.jpg': {              // 键 = 图片在 img/ 里的相对路径，用正斜杠
     title: '清晨的海边',
     desc: '六点起床换来的光线。',
-    album: '旅行',              // 不想用文件夹分类时，可以这样单独指定
+    album: '日常',                // 不想按文件夹分类时，用这个字段单独指定
     tags: ['海', '日出'],
     date: '2025-06-18'
   }
 };
 ```
+
+`title` / `album` / `date` / `desc` / `tags` 都能覆盖，没写的字段自动用默认值
+（标题取文件名，分类取子文件夹名，日期取文件修改时间）。
 
 ### 同步做了什么
 
@@ -154,20 +145,22 @@ export default {
 | 质量 | 82 |
 | EXIF | **全部丢弃**，包括 GPS 定位 |
 | 方向 | 按 EXIF 自动摆正 |
-| 增量 | 只处理新增和改动过的图片 |
+| 增量 | 只处理新增和改动过的图片（记录在 `.photo-sync.json`） |
 
-从 `img/` 删掉图片后运行 `npm run sync`，对应的压缩文件会自动清理。
+> 没找到 sharp（比如 `npm install` 没成功）时不会报错：图片会**原样复制**过去，
+> 网站照样能显示，只是不压缩。想补上就在项目目录跑一次 `npm install`。
 
 ---
 
-## 五、笔记（Obsidian）
+## 四、笔记
 
-### 第一次配置
+### 第一次配置 Obsidian
 
 1. 打开 Obsidian → 「打开其他仓库」→「打开文件夹作为仓库」
 2. 选中 `blog` 文件夹
 
-详细写法见 `blog/_怎么用.md`（Obsidian 里直接能看到）。
+Obsidian 自己的配置存在 `blog/.obsidian/`，不会发布到网站上。
+详细的写法也可以看 `blog/_怎么用.md`（Obsidian 里直接能看到）。
 
 ### 一篇笔记长什么样
 
@@ -185,39 +178,244 @@ draft: false
 正文用 Markdown 写……
 ```
 
+### 文件开头的设置项
+
+两行 `---` 之间那段。**字段都可以不写**，不写就用默认值：
+
 | 字段 | 作用 | 不写的话 |
 | --- | --- | --- |
-| `title` | 标题 | 用文件名 |
-| `date` | 日期 | 文件名里的日期，再没有就用文件修改时间 |
-| `category` | 分类 | 所在的**子文件夹名** |
-| `tags` | `[a, b]` 或换行 `- a` | 空 |
-| `summary` | 摘要 | 空 |
-| `cover` | 封面图文件名 | 自动生成底纹封面 |
-| `draft` | `true` 就不发布 | 发布 |
-| `slug` | 自定义网址 | 由文件名生成 |
+| `title` | 标题 | 用文件名（自动去掉 `.md` 和开头的日期） |
+| `date` | 日期 | 先用文件名里的日期，再没有就用文件修改时间 |
+| `category` | 分类 | 用所在的**子文件夹名**，根目录下的算「未分类」 |
+| `tags` | 标签，`[a, b]` 或换行写 `- a` | 空 |
+| `summary` | 摘要，显示在 Blog 卡片上 | 空 |
+| `cover` | 封面图，写 `blog/` 里的图片文件名 | 自动生成一张带编号的底纹封面 |
+| `pinned` | `true` → 列表排最前面 + 标题前加 📌 | 不置顶 |
+| `draft` | `true` → **不发布** | 发布 |
+| `slug` | 自定义网址里的 id | 由文件名生成 |
 
-### 图片
+### 分类和搜索
 
-放进 `blog/attachments/`，笔记里用 `![[图片名.png]]` 引用。
+- **子文件夹名 = 分类名**，Blog 页顶部的筛选按钮会自动跟着分类走，不用手动维护
+- 页面上有个搜索框，能搜**标题 / 标签 / 摘要**
+- 以 `_` 开头的文件和文件夹不发布（`_模板.md`、`_怎么用.md` 就是靠这个），
+  `README.md` 也不发布，隐藏目录（`.obsidian`、`.trash`）自动跳过
 
-### 支持与不支持
+### 笔记里的图片
 
-**基础语法（构建时渲染，零依赖）**
+放在 `blog/` 里任何位置都行，就像用 Obsidian 那样引用：
 
-标题、粗体/斜体/删除线、`==高亮==`、行内代码、代码块、有序/无序列表（可嵌套）、
-任务清单、引用、表格（支持 `:--` 对齐）、链接、图片、分隔线、`%%注释%%`、`draft`
+```markdown
+![[图片名.png]]
+```
 
-**Obsidian 增强语法（新增）**
+构建时会自动复制到 `public/media/notes/` 并转成正常的图片标签。
+**找不到的图片会跳过并打印一行提示**，不会让构建失败。
+
+---
+
+## 五、视频
+
+视频列表在 `src/data/videos.js`。三种填法，任选一种：
+
+```js
+export default [
+  // 1) 本地视频（文件放在 public/media/videos/）
+  {
+    title: 're0',
+    category: '动漫',
+    tags: ['动漫'],
+    date: '2025-06-01',
+    src: 'media/videos/re0.webm'      // 相对 public/ 的路径
+  },
+
+  // 2) 抖音：粘分享链接，或者只写那串数字 id
+  { title: '随手拍的一段', douyin: 'https://www.douyin.com/video/7301234567890123456' },
+  { title: '只写数字也行', douyin: '7301234567890123456' },
+
+  // 3) B站 / YouTube：粘分享链接或播放器地址都能认
+  { title: '学习录屏', embed: 'https://www.bilibili.com/video/BV1xx411c7mD' },
+  { title: 'YouTube 视频', embed: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }
+];
+```
+
+> **路径一定写正斜杠 `/`**，不要写成 Windows 的反斜杠（`media\videos\a.mp4`）——
+> 浏览器会当成一个古怪的文件名，结果就是「没有找到支持的视频格式和 MIME 类型」。
+> 文件名里有空格、括号、中文没问题，页面会自动转义。
+
+### 每条视频能填的字段
+
+| 字段 | 作用 | 谁写 |
+| --- | --- | --- |
+| `title` `desc` `category` `tags` `date` `duration` | 标题、描述、分类、标签、日期、时长（`'03:24'` 这种文字，只用来显示） | 你；空着的话同步会补上抓到的值 |
+| `src` | 本地视频，相对 `public/` 的路径 | 你 |
+| `douyin` | 抖音链接 / 数字 id / 整段分享口令 | 你 |
+| `embed` | B站 / YouTube 的分享链接或播放器地址 | 你 |
+| `link` | 原站链接。填了它，播放器放不出来时会多一个「去原站看」的按钮 | 你 |
+| `poster` | 封面图，相对 `public/`，建议 16:9 | 你；同步抓到封面且原来没填时会自动填上 |
+| `coverUrl` | 外链封面图地址，同步时自动下载到本地 | 你（手动兜底用） |
+| `ratio` | 画面比例，`'3:4'` / `'16:9'` / `'9:16'` 都行 | 你；B站会由接口自动写入 |
+| `vertical` | 写 `true` 强制按竖屏显示 | 你（一般不用） |
+| `frameAt` | 本地视频从第几秒截封面，默认 `1.5` | 你（截到的画面不好看时改） |
+| `playInline` | 写 `false` → 弹窗里不给站内播放，只留「去抖音看」按钮 | 你 |
+| `live` | 写 `true` → 卡片里直接嵌播放器（最不推荐，抖音播放器塞进卡片很难看） | 你 |
+| `cover` | 写 `false` → 这条完全不用自动封面 | 你 |
+| `stream` | 抖音视频流地址，**同步时自动写入、每次刷新**（签名会过期） | 同步脚本，别手改 |
+
+### 抖音链接有两种，务必用对
+
+| 链接长这样 | 能不能站内播放 |
+| --- | --- |
+| `https://www.douyin.com/video/7301234567890123456`（**一串 19 位数字**） | ✅ 可以，自动转成 `open.douyin.com/player/video?vid=...` |
+| `https://www.douyin.com/video/jFlBIKzLFO8`（**字母数字混合**） | ❌ 老格式短码，不是数字视频 id，官方播放器不认 |
+| `https://v.douyin.com/xxxxxxx/`（**短链**） | ❌ 里面没有 id，只能给「去抖音看」的按钮 |
+
+**怎么拿到能播的那种**：抖音 App 里点视频右下角「分享」→「复制链接」，
+粘到记事本里看 —— 如果是 `v.douyin.com` 短链，就用浏览器打开它，
+地址栏跳转后的 `www.douyin.com/video/` 后面那串**纯数字**就是视频 id，
+直接填 `douyin: '那串数字'` 最省事。
+
+整段分享口令（含「复制打开抖音…」那些字）也可以直接粘，会自动抠出链接。
+
+### 抓封面 / 时长 / 比例
+
+| 平台 | 能不能自动拿到 | 怎么做到的 |
+| --- | --- | --- |
+| **本地视频** | ✅ 封面 + 时长 + 比例 + 日期 | `npm run sync:frames` 用 ffmpeg 截第 1.5 秒当封面，用 ffprobe 读时长和画面尺寸 |
+| **B 站** | ✅ 封面 + 标题 + 日期 + 时长 + 比例 | 公开接口 `api.bilibili.com/x/web-interface/view?bvid=`，一次拿全 |
+| **YouTube** | ✅ 封面（+ 标题 / 日期 / 时长） | 封面地址可推导：`img.youtube.com/vi/<id>/maxresdefault.jpg`（依次退到 sd/hq/mq） |
+| **抖音** | ✅ 封面 + 时长 + 比例 + 日期 | 用**你本机的 Edge / Chrome** 无头渲染，再走调试协议**只截 `<video>` 那一块** |
+
+```bash
+npm run sync:covers     # 抓 B站 / YouTube / 抖音
+npm run sync            # 四步一起跑（npm run dev / build 会自动执行）
+```
+
+关于抖音，说清楚为什么绕这么大一圈：
+
+- **服务端直接抓不行**：视频页和分享页都是客户端渲染，抓下来的 HTML 里连图片域名都不出现，
+  只有 App 骨架 + JS；详情接口 `douyin.com/aweme/v1/web/aweme/detail/` 返回
+  **403 签名墙**（需要浏览器签名）；老接口已经废弃，返回空。
+- **所以改用你本机的浏览器**：让 Edge / Chrome 无头跑一遍页面，把 JS 执行完，
+  然后**只截视频画面那一块**（不是整页截图，所以不会带上抖音 logo、点赞数和灰底），
+  顺手把时长、分辨率、发布日期读出来。不需要登录，也不用额外装依赖。
+- **需要本机有 Edge 或 Chrome**，找不到就只能手动补封面（见下）。
+
+封面优先级是 **你手填的 `poster`（文件确实存在）> 自动抓到的封面 / `coverUrl` > 自动生成的底图**。
+
+> **没填封面也不会难看**：卡片会自动生成一张设计过的底图
+> （色调由标题推导 + 竖排斜纹 + 标题文字 + 「▶ 点开播放」），不会是灰暗的空白。
+
+### 抓不到时：手动补一张封面
+
+```bash
+npm run cover
+```
+
+它会问你两个问题：哪条视频（按标题里的一段字匹配，直接回车 = 第一条没封面的）、
+封面图的地址。然后自动把图存到 `public/media/covers/` 并写进 `videos.js` 的 `poster`。
+
+图片地址怎么拿（10 秒）：浏览器打开视频页 → **F12 → Network** → 找一张 `douyinpic.com`
+之类的图 → 右键 **Copy image address** → 粘进去。
+也可以直接给本机文件路径，例如 `C:\Users\123\Pictures\封面.jpg`。
+
+不想交互、想一行搞定：
+
+```bash
+node tools/set-cover.mjs "封面图片地址" "视频标题里的一段字"
+```
+
+### 画面比例（自适应，不用死磕 16:9）
+
+弹窗里那块播放区会**跟着视频真实比例走**，优先级：
+
+| 优先级 | 来源 | 说明 |
+| --- | --- | --- |
+| 1 | 你手写的 `ratio` | `'3:4'` / `'16:9'` / `'9:16'` 都行，最准 |
+| 2 | 同步抓到的真实尺寸 | B站接口的 `dimension`、抖音截图时的 `videoWidth/videoHeight` |
+| 3 | **本地视频** | 播放器读完元数据后自动算 —— 真·自动，精确 |
+| 4 | 网页默认 | 读不到时按**横屏 16:9**（实测抖音里横屏视频也很多，猜竖屏更容易错） |
+
+也就是说：本地视频什么都不用填；B站同步一次就自动写好；
+**抖音默认按横屏显示，如果那条是竖屏，加一行 `ratio: '9:16'` 即可**。
+
+比例一旦确定，弹窗会收窄成对应的形状（CSS 里的 `.modal-panel.narrow` / `.compact`），
+不会出现 1040px 宽的弹窗里只放一小块画面。
+
+> 卡片列表里的缩略图仍然是统一的 16:9（按 `object-fit: cover` 裁切）——
+> 这是有意为之：网格里混着各种比例会显得很乱。只有弹窗按真实比例显示。
+
+### 外链视频默认在页面内播放（点一下才加载）
+
+打开弹窗先看到**封面 / 生成底图 + 玫红「▶ 播放」按钮**，点一下才把外站播放器装进来：
+
+- 这样第一眼不会直接怼上抖音那块黑 + logo，也免得每次打开都去请求外站
+- 播放器下面一直有「放不出来？去原站看 ↗」的备用出口
+- 手机上是**居中卡片**（横屏视频不会占满整屏留一大片空黑）
+
+如果同步抓到了抖音的视频流地址（`stream` 字段），页面会先用**自己原生的播放器**播它
+（画面上完全没有抖音的界面）。但抖音 CDN 有防盗链，播不了时页面会**自动退回嵌入官方播放器**，
+不会甩一串报错给你。想要界面完全干净、不要嵌入播放器，就设：
+
+```js
+{ title: '某条', douyin: '...', playInline: false }
+```
+
+### 移动端
+
+手机上做了这些适配（都在 `public/assets/css/style.css` 的
+`@media (max-width: 760px)` 和 `@media (max-width: 380px)` 里，想调直接改）：
+
+- **视频弹窗近似全屏**：手机上点视频，弹窗铺满整屏（桌面端仍是居中浮层）
+- **弹窗高度用 `100dvh`**：不会被地址栏的高度变化骗到导致内容被切
+- **触屏点击区域变大**：导航菜单项、筛选按钮、关闭按钮、标签都加大
+- **没有 hover 的补偿**：相册的说明文字和角标在手机上直接常显（触屏没有悬停）
+- **搜索框独占一行**：手机上不再和分类挤在一行
+- **iPhone 安全区**：底部留出小横条空间（`env(safe-area-inset-bottom)`）
+- **小屏微调**：≤380px（iPhone SE 之类）标题、面板铭牌、生成底图字号都收小
+
+页面的入场动效（首页、笔记页的渐入 / 进度条）都遵循系统的
+`prefers-reduced-motion: reduce`：你在系统里关掉动画，页面上就不会动。
+
+---
+
+## 六、支持的语法
+
+笔记正文用 Markdown 写，由项目自带的渲染器处理（无第三方依赖）。
+
+### 基础语法
+
+标题、粗体 / 斜体 / 删除线、`==高亮==`、行内代码、代码块、有序 / 无序列表（可嵌套）、
+任务清单、引用、表格（支持 `:--` 对齐）、链接、图片、分隔线、
+Obsidian 注释 `%%像这样%%`（构建时直接删掉，不会出现在页面上）。
+
+### Obsidian 增强语法
 
 | 语法 | 效果 | 实现方式 |
 | --- | --- | --- |
 | `$E=mc^2$` / `$$\int x\,dx$$` | 数学公式 | 构建时保留 TeX，页面上用 **KaTeX** 渲染（CDN，按需加载） |
 | ` ```mermaid ` 代码块 | 流程图 / 时序图 / 甘特图等 | 页面上用 **Mermaid** 渲染（CDN，按需加载） |
 | `[[笔记名]]` / `[[笔记名\|显示文字]]` | **站内笔记跳转** | 构建时查索引转成 `/notes/xxx/` 链接 |
-| `![[图片.png]]` | 插图 | 转成 `<img>` |
+| `![[图片.png]]` | 插图 | 转成普通图片标签（文件会复制到 `media/notes/`） |
 | ` ```dataview ` 查询块 | 自动列出笔记 | **构建时求值**成静态 HTML（见下方支持的子集） |
 
-**Dataview 支持的子集**（只做常用写法，够日常用）
+> 数学和 Mermaid 都是**按需加载**的：正文里没有公式 / 图表时，
+> 根本不会去请求那两个 CDN。它们只影响显示，加载失败也不影响正文阅读。
+
+### 双向链接怎么用
+
+```markdown
+请看 [[如何输出字符串位数]]，里面提到了 [[实现倒序输出-for循环|倒序输出]]。
+```
+
+- 方括号里写**笔记标题**或**文件名（不含扩展名）**都行，大小写不敏感
+- 用 `|` 可以自定义显示文字（`[[真名|显示名]]`）
+- **找不到对应笔记时不会报错**：会显示成灰色带虚线的文字（鼠标悬停提示「站内找不到」），
+  方便你在 Obsidian 里发现拼错的名字
+
+### Dataview 支持的子集
+
+只做常用写法，够日常用：
 
 ````markdown
 ```dataview
@@ -231,298 +429,96 @@ TASK FROM #todo
 ```
 ````
 
-- 类型：`LIST` / `TABLE 字段1, 字段2` / `TASK`
-- 筛选：`FROM #标签`、`FROM "文件夹名或分类名"`（多个条件按「任一命中」处理）
-- 排序：`SORT date DESC|ASC`（字段可用 `date` / `title` / `file` / `category`）
-- 限量：`LIMIT 10`
-- TABLE 可用字段：`title`、`date`、`category`、`tags`、`file`
+| 部分 | 支持什么 |
+| --- | --- |
+| 类型 | `LIST` / `TABLE 字段1, 字段2` / `TASK` |
+| 筛选 | `FROM #标签`、`FROM "文件夹名或分类名"`（多个条件按「任一命中」处理） |
+| 排序 | `SORT date DESC\|ASC`（字段可用 `date` / `title` / `file` / `category`） |
+| 限量 | `LIMIT 10` |
+| TABLE 可用字段 | `title`、`date`、`category`、`tags`、`file` |
 
 > Dataview 的**表达式**（`WHERE contains(...)`、`choice()`、`join()`、`dateformat()` 等）
 > 暂不支持 —— 完整实现等于在构建时跑一个查询引擎。
-> 需要复杂查询时，用普通 Markdown 手写，或者拆成多个简单查询。
+> 需要复杂查询时用普通 Markdown 手写，或者拆成多个简单查询。
 
-**仍然不支持**：DataviewJS、Canvas、Excalidraw、Obsidian 的 CSS snippet
-
-> 数学和 Mermaid 是**按需加载**的：正文里没有公式/图表时，
-> 不会去请求那两个 CDN。它们只影响显示，渲染失败也不影响正文阅读。
-
-### 双向链接怎么用
-
-```markdown
-请看 [[如何输出字符串位数]]，里面提到了 [[实现倒序输出-for循环|倒序输出]]。
-```
-
-- 方括号里写**笔记标题**或**文件名（不含扩展名）**都可以，大小写不敏感
-- 用 `|` 可以自定义显示文字（`[[真名|显示名]]`）
-- **找不到对应笔记时**：不会报错，会显示成灰色带虚线的文字（鼠标悬停提示「站内找不到」），
-  方便你在 Obsidian 里发现拼错的名字
-- 支持附件：`![[某图.png]]` 会直接变成图片
+**仍然不支持**：DataviewJS、Canvas、Excalidraw、Obsidian 的 CSS snippet。
 
 ---
 
-## 六、视频
+## 七、自动化与同步
 
-把 mp4 放进 `public/media/videos/`，然后编辑 `src/data/videos.js`：
+### `npm run dev` 的自动同步（`integrations/auto-sync.mjs`）
 
-```js
-{
-  title: '我的视频',
-  desc: '描述',
-  category: '旅行',
-  src: 'media/videos/我的视频.mp4',   // 相对 public/ 的路径
-  poster: 'media/covers/封面.jpg',
-  duration: '03:24',
-  date: '2025-06-20'
-}
+它在 `npm run dev` 启动时自动跑一次，然后**盯着 `img/` 和 `blog/`**：
+你往里丢文件、改文件，它会防抖 600ms 后再同步一次（另外还有 5 秒轮询兜底，
+防止某些系统不支持递归监听）。同步内容依次是：
+
+1. `img/` → 压缩图片
+2. 本地视频 → 截封面（没装 ffmpeg 会自己跳过）
+3. 外链封面 + 标题 / 日期 / 时长（B站 / YouTube / 抖音，抖音一条要 10~20 秒）
+4. `blog/` → 构建笔记
+
+**它只在 `npm run dev` 时生效**。构建（`npm run build`）时由 `npm run sync` 负责，不会重复跑。
+
+### 抓取失败不会一直重试
+
+第一次失败后按 **20 秒 → 5 分钟 → 30 分钟 → 2 小时 → 12 小时** 的间隔退避
+（记录在 `.cover-sync.json`），不会每次启动都去打抖音。
+你改了链接（key 变了）会立刻重新尝试；想立刻重试就加上 `-- --force`：
+
+```bash
+npm run sync:covers -- --force
 ```
 
-B 站 / YouTube / 抖音的视频，直接粘分享链接就行，页面会自动换成播放器地址：
+抓 B站 / YouTube 时想留一份原始页面来诊断（存到系统临时目录）：`npm run sync:covers -- --force --dump`。
+也可以直接跑脚本：`node tools/sync-covers.mjs --force --dump`。
 
-```js
-// 抖音：网页链接、分享链接、或者只有那串数字，都可以
-{ title: '随手拍的一段', douyin: 'https://www.douyin.com/video/7301234567890123456' }
-{ title: '只有数字 id', douyin: '7301234567890123456' }
+抖音就不用诊断了 —— 上面的结论已经是实测结果，抓不到就用 `npm run cover` 手动补一张。
 
-// B 站
-{ title: '学习录屏', embed: 'https://www.bilibili.com/video/BV1xx411c7mD' }
-{ title: 'B 站播放器地址也行', embed: 'https://player.bilibili.com/player.html?bvid=BV1xx411c7mD' }
+### 部署 / CI 环境会自动跳过抓取
 
-// YouTube
-{ title: 'YouTube 视频', embed: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }
-```
+云端构建机没有浏览器、也没有图形环境，抓封面这一步跑不了。所以
+`tools/sync-covers.mjs` 里的 `isDeployEnv()` 会判断，命中就直接跳过、**不报错**：
 
-字段说明：
-
-| 字段 | 作用 |
+| 判据 | 说明 |
 | --- | --- |
-| `src` | 本地视频，相对 `public/` 的路径 |
-| `douyin` | 抖音链接或数字 id（自动转 `open.douyin.com/player/video?vid=...`） |
-| `embed` | 其它外站链接（B 站 / YouTube），粘分享链接即可 |
-| `link` | 原站链接；填了它，播放器放不出来时会显示「去原站看」的按钮 |
-| `poster` | 封面图，相对 `public/`，建议 16:9 |
+| `CI` / `VERCEL` / `NETLIFY` / `EDGEONE` / `GITHUB_ACTIONS` / `CF_PAGES` / `GITLAB_CI` / `BUILD_ID` | 这些环境变量有任意一个就跳过 |
+| 系统不是 Windows | 一般就是容器 / 云端构建（你自己的开发机是 Windows） |
+| `IRINSHO_NO_FETCH=1` | 手动强制跳过 |
 
-> **抖音链接有两种，务必用对**：
->
-> | 链接长这样 | 能不能站内播放 |
-> | --- | --- |
-> | `https://www.douyin.com/video/7301234567890123456`（**一串 19 位数字**） | ✅ 可以，自动转 `open.douyin.com/player/video?vid=...` |
-> | `https://www.douyin.com/video/jFlBIKzLFO8`（**字母数字混合**） | ❌ 这种是老格式短码，不是数字视频 id，官方播放器不认 |
-> | `https://v.douyin.com/xxxxxxx/`（**短链**） | ❌ 里面没有 id，只能给「去抖音看」的按钮 |
->
-> **怎么拿到能播的那种**：抖音 App 里点视频右下角「分享」→「复制链接」，
-> 粘到记事本里看 —— 如果得到的是 `v.douyin.com` 短链，就用浏览器打开它，
-> 地址栏跳转后的 `www.douyin.com/video/` 后面那串**纯数字**就是视频 id，
-> 直接填 `douyin: '那串数字'` 最省事。
->
-> 整段分享口令（含「复制打开抖音…」那些字）也可以直接粘，会自动抠出链接。
+跳过之后，页面直接用仓库里**已经抓好的封面**（`public/media/covers/`）
+和 `src/data/covers.generated.js`。所以**这些文件要一起提交进 git**，别忽略掉。
 
-### 从视频里截一帧当封面
+想强制抓（需要本机装了 Edge / Chrome），PowerShell 里这样写：
 
-| 视频类型 | 能不能自动截帧 |
-| --- | --- |
-| **本地视频**（`src: 'media/videos/xx.webm'`） | ✅ 能。`npm run sync:frames` 用 ffmpeg 截第 1.5 秒，写进 `poster` |
-| **抖音 / B站 / YouTube** | ❌ 截不了。拿不到视频文件（抖音详情接口实测 403 签名墙），且 iframe 跨域，canvas 读不了像素 |
-
-本地视频截帧需要系统里有 **ffmpeg**；没有就自动跳过（并打印一行安装提示），不影响其它同步。
-`npm run dev` / `npm run build` / 自动同步都会带上这一步。
-
-想让某条截别的时间点，在那条记录里加：
-
-```js
-{ title: 're0', src: 'media/videos/re0.webm', frameAt: 3 }   // 截第 3 秒
+```powershell
+$env:IRINSHO_FETCH='1'; npm run build
 ```
 
-**外链视频默认在页面内播放（点一下加载）**
+（cmd 里写 `set IRINSHO_FETCH=1 && npm run build`；git bash / WSL 里写
+`IRINSHO_FETCH=1 npm run build`。）
 
-打开弹窗先看到**封面 / 生成底图 + 玫红「▶ 播放」按钮**，点一下才把外站播放器装进来：
+本地视频截帧也有一层同样的判断：部署环境且没有 ffmpeg 时跳过。
 
-- 这样第一眼不会直接怼上抖音那块黑 + logo，也免得每次打开都去请求外站
-- 播放器下面一直有「放不出来？去抖音看 ↗」的备用出口
-- 手机上是**居中卡片**（横屏视频不会占满整屏留一大片空黑）
+所以云端 `npm run build` 的实际行为是：**图片同步照跑**（不联网）、
+**笔记构建照跑**（不联网）、本地视频截帧和封面抓取直接跳过。
+第一次把你自己的内容部署上去，最好在本地先跑一次 `npm run sync` 再 `git push`，
+这样图片、封面、笔记数据都是现成的（`public/media/` 和 `src/data/` 里的生成文件记得一起提交）。
 
-不想要站内播放、只想给跳转按钮：
+### 缓存在哪
 
-```js
-{ title: '某条', douyin: '...', playInline: false }
-```
-
-卡片里直接嵌播放器（最不推荐，抖音播放器塞进卡片很难看）：
-
-```js
-{ title: '某条', douyin: '...', live: true }
-```
-
-### 画面比例（自适应，不用死磕 16:9）
-
-弹窗里那块播放区会**跟着视频真实比例走**，优先级：
-
-| 优先级 | 来源 | 说明 |
+| 文件 | 存什么 | 要不要提交 |
 | --- | --- | --- |
-| 1 | `videos.js` 里手写的 `ratio` | `ratio: '3:4'` / `'16:9'` / `'9:16'` 都行，最准 |
-| 2 | B站接口返回的 `dimension` | 自动，精确（竖屏 1080×1920 也能认出来） |
-| 3 | **本地视频** | 浏览器读完元数据后自动算 —— **真·自动，精确** |
-| 4 | 网页默认 | 读不到时按**横屏 16:9**（比猜竖屏稳，实测抖音里横屏视频很多） |
-
-也就是说：
-
-- **本地视频**：什么都不用填，播放时会自动按真实比例把弹窗调好
-- **B站**：同步一次就自动写入真实比例
-- **抖音**：跨域读不到尺寸（浏览器的安全限制），默认按横屏显示；
-  如果那条是竖屏，加一行 `ratio: '9:16'` 即可
-
-```js
-{ title: '某条竖屏', douyin: '...', ratio: '9:16' }
-```
-
-比例一旦确定，弹窗会**收窄成对应的形状**（`.modal-panel.narrow`），
-不会出现 1040px 宽的弹窗里只放一小块画面的情况。
-
-> 卡片列表里的缩略图仍然是统一的 16:9（按 `object-fit: cover` 裁切）——
-> 这是有意为之：网格里混着各种比例会显得很乱。只有弹窗按真实比例显示。
-
-### 移动端
-
-手机上做了这些适配（都在 `public/assets/css/style.css` 的
-`@media (max-width: 760px)` 和 `@media (max-width: 380px)` 里，想调直接改）：
-
-- **视频弹窗近似全屏**：手机上点视频，弹窗铺满整屏（桌面端仍是居中浮层）
-- **播放区按真实比例**：见上一节，手机上同样是自适应的，不再写死一个比例
-- **弹窗高度用 `100dvh`**：手机上不会被地址栏骗到导致内容被切
-- **外链视频「点一下才加载播放器」**：打开弹窗先看到的是封面 / 生成底图 + 播放按钮，
-  点了才把抖音 / B站 / YouTube 的播放器装进来（避免一进来就是对方的黑屏或 logo）
-- **触屏点击区域变大**：导航菜单项、筛选按钮、关闭按钮（42px）、标签都加大
-- **没有 hover 的补偿**：相册的说明文字和角标在手机上直接常显（触屏没有悬停）
-- **搜索框独占一行**：手机上不再和分类挤在一行
-- **iPhone 安全区**：底部留出小横条空间（`env(safe-area-inset-bottom)`）
-- **文字缩放不乱**：`-webkit-text-size-adjust: 100%`
-- **小屏微调**：≤380px（iPhone SE 之类）标题、面板铭牌、生成底图字号都收小
-
-### 封面 + 信息自动抓取
-
-| 平台 | 能不能自动抓封面 | 怎么做到的 |
-| --- | --- | --- |
-| **B 站** | ✅ 能 | 公开接口 `api.bilibili.com/x/web-interface/view?bvid=`，封面 / 标题 / 日期 / 时长一次拿全 |
-| **YouTube** | ✅ 能 | 封面地址可推导：`img.youtube.com/vi/<id>/maxresdefault.jpg`（依次退到 sd/hq/mq） |
-| **抖音** | ❌ **不能**（已实测） | 见下方说明 |
-
-```bash
-npm run sync:covers      # 抓 B站 / YouTube 封面
-npm run sync             # 图片 + 封面 + 笔记 一起跑（dev / build 会自动执行）
-```
-
-#### 抖音为什么抓不到（实测结论，别再尝试正则了）
-
-2026-09 实测，三条路全部堵死：
-
-1. **视频页 / 分享页都是客户端渲染**：抓下来 72KB / 32KB 的 HTML，
-   里面**连 `douyinpic` 图片域名都不出现**，只有 App 骨架 + JS。
-   `<script>window._ROUTER_DATA</script>` 里只有 `itemId`、`ua` 这类路由信息，**没有视频数据**。
-2. **详情接口要浏览器签名**：
-   `douyin.com/aweme/v1/web/aweme/detail/` → **HTTP 403
-   `Blocked by ArgusSecurityPlugin Uifid Not Found`**
-3. **老接口已废弃**：`iesdouyin.com/web/api/v2/aweme/iteminfo/` → HTTP 200 但**响应体为空**
-
-⇒ 所以抖音封面只能靠下面两条路（都很简单）：
-
-**办法 1：`npm run cover`（10 秒，推荐）**
-
-```bash
-npm run cover        # 或者直接双击「手动配封面.cmd」
-```
-
-浏览器打开视频页 → **F12 → Network → 找一张 `douyinpic.com` 的图 → 右键 Copy image address**
-→ 粘进去。它会下载到 `public/media/covers/` 并写进 `videos.js`。
-
-**办法 2：直接在 `videos.js` 里填 `coverUrl`**
-
-```js
-{ title: '奇蛋物语', douyin: '...', coverUrl: 'https://p3-sign.douyinpic.com/....jpeg' }
-```
-
-> **没填封面也不会难看**：卡片会自动生成一张设计过的底图
-> （色调由标题推导 + 竖排斜纹 + 标题文字 + 「▶ 点开播放」），
-> 不会再是一块灰暗的空白。
-
-#### 手动抓 B 站 / YouTube 时的其它字段
-
-B 站接口顺带给出标题、发布日期、播放时长，会自动补进 `videos.js` 的空字段
-（你写过的值不会被动）。YouTube 只给封面，标题日期请手填。
-
-优先级：**手填 `poster` > 自动抓取 / `coverUrl` > 生成底图**。
-想让某条完全不动，写 `cover: false`。
-
-### 还是抓不到？
-
-B 站 / YouTube 抓不到时，跑一次诊断（会把返回的原始页面存到系统临时目录）：
-
-```bash
-node tools/sync-covers.mjs --force --dump
-```
-
-抖音则不用再诊断了 —— 上面的结论已经是实测结果。
-
-> 清空字段等自动填是可以的：`tools/patch-videos.mjs` 会识别
-> `date: '',` / `poster: '',` 这种**空值**并填进去，而有值的字段一律不覆盖。
-
-> **路径一定写正斜杠 `/`**，不要写成 Windows 的反斜杠（`media\videos\a.mp4`）。
-> 后者浏览器会当成一个古怪的文件名，结果就是「没有找到支持的视频格式和 MIME 类型」。
-> 文件名里有空格、括号、中文是没问题的，页面会自动转义。
-
-> 现在预置的那条用的是你自己的 `re0.webm`（在 public/media/videos/ 里），离线也能播。
-
-**播放不了怎么排查（按顺序）**：
-
-1. 打开页面按 F12 → Network，点一下那条视频请求：
-   - 404 → 路径或文件名写错了（注意大小写、后缀）
-   - 200 但还是放不出来 → 编码格式浏览器不认（尽量用 mp4 / H.264 + AAC）
-2. 外站播放器（抖音 / B 站 / YouTube）放不出来，通常是对方限制（需要登录、
-   地区限制、防盗链）。播放弹窗里都给了「去原站看」的按钮
-3. 本地文件的播放弹窗会直接显示「文件应该放在哪」和一个下载按钮，方便对照
-
----
-
-## 七、个人档案页
-
-全部内容在 `src/data/config.js` 的 `me` 字段里，包括标语、自我介绍、社交链接、
-右侧竖排导航、底部大字。改完保存，浏览器会自动热更新。
-
-### 头像
-
-顶栏右上角那个圆圈用的是 `config.js` 里的 `avatar` 字段，值是**相对 `public/` 的路径**：
-
-```js
-avatar: 'media/images/119178066_p0.webp',   // 也就是 public/media/images/119178066_p0.webp
-```
-
-想换成自己的头像，把图片放进 `public/media/`（建议正方形、200×200 以上、webp 或 jpg），
-再把这一行改成对应的文件名即可。**路径写错的话，右上角会显示一个玫红菱形占位。**
-
----
-
-## 七点五、资源自检（图片 / 视频显示不出来时用）
-
-图片显示不出来时，按这两步查最快：
-
-1. 打开要看的页面，按 **F12 → Console / Network**
-2. 看那条图片或视频请求是不是 **404**
-   - 404 → 路径或文件名写错了（`config.js` / `videos.js` / `photos.generated.js` 里的值）
-   - 200 但还是显示不出来 → 换个写法或格式（面板底图用 `<img>`，视频优先 mp4 / H.264）
-
-所有本地文件都在 `public/` 下，路径一律用正斜杠 `/`。
+| `.photo-sync.json` | 图片同步记录（改没改过） | 不用，已在 `.gitignore` 里 |
+| `.cover-sync.json` | 封面抓取记录 + 失败退避时间 | 不用，已在 `.gitignore` 里 |
+| `.frame-sync.json` | 本地视频截帧记录 | 不用，已在 `.gitignore` 里 |
+| `public/media/covers/`、`src/data/covers.generated.js` | 抓好的封面 | **要提交**，部署环境就靠它们 |
 
 ---
 
 ## 八、部署到腾讯云
 
-### 第 1 步：本地构建
-
-```bash
-npm run build
-```
-
-生成 `dist/` 文件夹，里面的内容就是整个网站。
-
-**构建前建议改一下 `astro.config.mjs`**：
+### 第 1 步：改一下 `astro.config.mjs`
 
 ```js
 export default defineConfig({
@@ -532,11 +528,18 @@ export default defineConfig({
 });
 ```
 
-### 第 2 步：上传到腾讯云
+填了 `site`，分享卡片、站点地图这类绝对链接才正确。
+填了 `base`，页面里所有资源链接会自动带上这个前缀（`src/lib/url.js` 负责）。
 
-两种常见方式，按需选一种。
+### 第 2 步：本地构建
 
----
+```bash
+npm run build
+```
+
+生成 `dist/` 文件夹，里面的内容就是整个网站。
+
+### 第 3 步：上传，三选一
 
 #### 方式 A：对象存储 COS + 静态网站（推荐，便宜）
 
@@ -548,13 +551,11 @@ export default defineConfig({
    - 错误文档填 `index.html`（这样刷新子页面不会 404）
 3. 把本地 `dist/` 文件夹里的**所有内容**上传到存储桶根目录
    （不是把 `dist` 这个文件夹本身传上去，而是传它里面的东西）
-4. 在「静态网站」页面能看到访问地址，形如
+4. 「静态网站」页面能看到访问地址，形如
    `https://你的存储桶名.cos-website.ap-guangzhou.myqcloud.com`
 5. 想用自己的域名：在同一页面绑定自定义域名，再去 CDN 或域名解析里加 CNAME
 
 > 以后每次更新：本地 `npm run build`，然后重新上传 `dist/` 里的内容（同名覆盖）。
-
----
 
 #### 方式 B：轻量应用服务器 + nginx
 
@@ -600,9 +601,7 @@ sudo nginx -t && sudo systemctl reload nginx
 > 配 HTTPS：用 `certbot`（`sudo apt install certbot python3-certbot-nginx` 然后
 > `sudo certbot --nginx`），或者直接用腾讯云的 SSL 证书。
 
----
-
-#### 方式 C：自动化（可选）
+#### 方式 C：命令行自动化（可选）
 
 不想每次手动传，可以用腾讯云的命令行工具：
 
@@ -613,29 +612,15 @@ npm run build
 coscmd upload -r dist/ /
 ```
 
-（`SecretId` / `SecretKey` 在腾讯云「访问管理 → API 密钥管理」里创建。）
+`SecretId` / `SecretKey` 在腾讯云「访问管理 → API 密钥管理」里创建。
 
 ---
 
-## 九、换配色
-
-`public/assets/css/style.css` 最上面的 `:root` 里：
-
-```css
---rose:      #e0466f;   /* 主强调色：玫红 */
---bg:        #12142a;   /* 暗色页面底色：深蓝 */
---paper-ink: #241a20;   /* 纸质页面文字色 */
-```
-
-改 `--rose` 系列就能整体换色调。
-
----
-
-## 十、常见问题
+## 九、常见问题
 
 **Q：`npm install` 报错 / 卡住不动？**
 A：先确认能上网。公司网络有代理的话：
-`npm config set proxy http://代理地址:端口`，或者考虑换成国内镜像
+`npm config set proxy http://代理地址:端口`，或者考虑换国内镜像
 `npm config set registry https://registry.npmmirror.com`。
 
 **Q：`npm run dev` 起来了，但页面是空的？**
@@ -644,7 +629,21 @@ Astro 读的是加工后的 `src/data/*.generated.js`。
 
 **Q：改了内容但页面没变？**
 A：改 `src/data/` 或 `src/pages/` 里的文件会热更新；
-改 `img/` 或 `blog/` 里的文件需要先跑 `npm run sync`。
+改 `img/` 或 `blog/` 里的文件由自动同步处理，同步完要按 **Ctrl+F5** 强制刷新
+（普通刷新有时会吃到浏览器缓存）。
+
+**Q：图片 / 视频显示不出来？**
+A：打开页面按 **F12 → Console / Network**，看那条请求是不是 **404**：
+
+- 404 → 路径或文件名写错了（检查 `config.js` / `videos.js` / `photo-meta.js` 里的值，
+  注意大小写和后缀）
+- 200 但还是出不来 → 换个格式（面板底图用 `<img>`，视频优先 mp4 / H.264 + AAC）
+
+所有本地文件都在 `public/` 下，路径一律用正斜杠 `/`。
+
+**Q：本地视频能播，抖音那条放不出来？**
+A：外站播放器放不出来通常是对方的限制（需要登录、地区限制、防盗链）。
+播放弹窗里都给了「去原站看」的出口。本地文件的弹窗会直接告诉你文件该放在哪，并给一个下载按钮。
 
 **Q：上传到 COS 后，点进笔记详情页 404？**
 A：静态网站设置里的**错误文档**要填 `index.html`，
@@ -656,6 +655,82 @@ A：可以，同步时会自动转成 WebP。
 **Q：笔记详情页的网址是一串中文，正常吗？**
 A：正常。id 由文件名生成，中文会保留，浏览器会自动转成百分号编码。
 
-**Q：原来的 `serve.mjs` / `index.html` 去哪了？**
-A：已经删掉了。这套是 Astro 项目，用 `npm run dev` 启动、
-`npm run build` 构建，不再需要自己写的服务器和单页文件。
+**Q：原来的 `serve.mjs` / `index.html` / `.cmd` 启动脚本去哪了？**
+A：都删掉了。这套是 Astro 项目：用 `npm run dev` 启动、`npm run build` 构建，
+不再需要自己写的服务器、单页文件，也不需要双击 `启动网站.cmd`。
+
+---
+
+## 十、换配色
+
+`public/assets/css/style.css` 最上面的 `:root` 里：
+
+```css
+--rose:      #e0466f;   /* 主强调色：玫红 */
+--bg:        #12142a;   /* 暗色页面底色：深蓝 */
+--paper-ink: #241a20;   /* 纸质页面文字色 */
+```
+
+改 `--rose` 系列就能整体换色调。改完保存，跑着 `npm run dev` 的话浏览器会自动热更新。
+
+---
+
+## 附：目录结构
+
+```
+├─ package.json            依赖和命令
+├─ astro.config.mjs        ★ 部署前要改这里（域名 / 子目录）
+├─ integrations/
+│  └─ auto-sync.mjs        自动同步：启动时跑一次 + 文件变化时再跑
+│
+├─ img/                    ★ 你的图片放这里（子文件夹 = 相册分类）
+├─ blog/                   ★ 你的笔记放这里（子文件夹 = 笔记分类）
+│  ├─ _怎么用.md           使用说明（下划线开头 → 不发布）
+│  ├─ _模板.md             新建笔记时复制这个
+│  └─ attachments/         笔记里的图片放这里
+│
+├─ public/                 原样复制到网站根目录的静态文件
+│  ├─ favicon.svg
+│  ├─ assets/css/style.css 全部样式（配色变量在文件最上面）
+│  └─ media/               头像、压缩后的图片、视频、封面、笔记插图
+│
+├─ src/
+│  ├─ pages/               页面（一个文件 = 一个网址）
+│  │  ├─ index.astro         /
+│  │  ├─ photos.astro        /photos/
+│  │  ├─ videos.astro        /videos/
+│  │  ├─ me.astro            /me/
+│  │  └─ notes/
+│  │     ├─ index.astro      /notes/        Blog 列表
+│  │     └─ [id].astro       /notes/xxx/    单篇笔记
+│  ├─ layouts/Base.astro   公共外壳（顶栏、页脚）
+│  ├─ lib/                 工具函数（图片合并、Markdown 渲染、日期、外链解析）
+│  └─ data/                ★ 内容数据
+│     ├─ config.js               ★ 站点名 / 首页 / 个人页 / 页脚（手改）
+│     ├─ videos.js               ★ 视频列表（手改）
+│     ├─ photo-meta.js           ★ 图片标题 / 描述 / 标签（手改）
+│     ├─ photos.generated.js     ← 自动生成，别手改
+│     ├─ covers.generated.js     ← 自动生成（视频封面），别手改
+│     └─ notes.generated.js      ← 自动生成，别手改
+│
+└─ tools/
+    ├─ sync-photos.mjs       图片同步引擎（压缩 / 清理 / 生成数据）
+    ├─ sync-frames.mjs       本地视频截帧（ffmpeg）+ 读时长 / 比例
+    ├─ sync-covers.mjs       封面 + 信息抓取（B站 / YouTube / 抖音）
+    ├─ douyin-frames.mjs     抖音取画面：无头浏览器 + 调试协议精确截图
+    ├─ set-cover.mjs         手动配一张封面（`npm run cover`）
+    ├─ patch-videos.mjs      把抓到的信息安全写回 videos.js（保留注释）
+    └─ build-blog.mjs        笔记构建引擎
+```
+
+`src/data/config.js` 是你唯一需要手改的「站点信息」文件，里面每一段都有中文注释：
+站点名、首页抬头与底部的章节条、顶栏头像、个人页文案与社交链接、右侧竖排导航、页脚。
+
+顶栏右上角那个圆圈头像是 `avatar` 字段，值是**相对 `public/` 的路径**：
+
+```js
+avatar: 'media/images/119178066_p0.webp',   // 也就是 public/media/images/119178066_p0.webp
+```
+
+想换成自己的头像，把图片放进 `public/media/`（建议正方形、200×200 以上、webp 或 jpg），
+再把这一行改成对应的文件名。**路径写错的话右上角会显示一个玫红菱形占位。**

@@ -129,6 +129,20 @@ export async function syncFrames(options = {}) {
   const force = !!options.force;
   const say = quiet ? () => {} : (...a) => console.log(...a);
 
+  // 部署构建：云端一般没装 ffmpeg，也没必要重截（封面已提交进仓库）
+  if (process.env.IRINSHO_FETCH !== '1' &&
+      (process.platform !== 'win32' || process.env.CI || process.env.EDGEONE ||
+       process.env.VERCEL || process.env.NETLIFY || process.env.GITHUB_ACTIONS)) {
+    const hasFf = !!ffmpegVersion();
+    if (!hasFf) {
+      if (!quiet) {
+        console.log('\n本地视频截帧：');
+        console.log('  · 检测到部署环境且没有 ffmpeg，跳过（用仓库里已截好的封面）。');
+      }
+      return { total: 0, got: 0, skipped: 0, failed: 0, hasFfmpeg: false, skippedByEnv: true };
+    }
+  }
+
   const videos = await loadVideos(root);
 
   // 只处理本地视频（有 src）。封面、时长、日期、比例都尽量自动补齐，

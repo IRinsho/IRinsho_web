@@ -825,11 +825,47 @@ async function loadVideos(root) {
 }
 
 /* ---------- 主流程 ---------- */
+/**
+ * 是不是「部署构建」环境？
+ * ---------------------------------------------------------
+ * 抓封面依赖**本机的 Edge / Chrome**（抖音要先无头渲染再截图），
+ * 云端的构建机（EdgeOne / Vercel / Netlify / GitHub Actions…）里
+ * 没有浏览器，也没有图形环境，这一步跑不了。
+ *
+ * 而且**构建时根本不需要重抓**：封面图已经下载到 public/media/covers/
+ * 并和 src/data/covers.generated.js 一起提交进仓库了，
+ * 云端只要直接用这些现成的文件就行。
+ *
+ * 所以：部署环境直接跳过，避免构建失败或白等几十秒。
+ * 想强制跑：设 IRINSHO_FETCH=1
+ */
+export function isDeployEnv() {
+  if (process.env.IRINSHO_FETCH === '1') return false;   // 明确要求就照跑
+  if (process.env.IRINSHO_NO_FETCH === '1') return true;
+  if (process.env.CI || process.env.VERCEL || process.env.NETLIFY ||
+      process.env.EDGEONE || process.env.GITHUB_ACTIONS || process.env.CF_PAGES ||
+      process.env.GITLAB_CI || process.env.BUILD_ID) return true;
+  // 非 Windows 一般就是容器/云端构建（本机开发是 Windows）
+  if (process.platform !== 'win32') return true;
+  return false;
+}
+
 export async function syncCovers(options = {}) {
   const root = options.root || ROOT;
   const quiet = !!options.quiet;
   const force = !!options.force;
   const say = quiet ? () => {} : (...a) => console.log(...a);
+
+  // 部署构建：跳过抓取，直接用仓库里已经抓好的封面 / 数据
+  if (options.skipFetch !== true && isDeployEnv()) {
+    if (!quiet) {
+      console.log('\n抓取视频封面：');
+      console.log('  · 检测到部署/CI 环境（没有本机浏览器），跳过自动抓取。');
+      console.log('  · 直接使用仓库里已抓好的封面与 src/data/covers.generated.js。');
+      console.log('  · 想强制抓：设环境变量 IRINSHO_FETCH=1（需要本机装了 Edge/Chrome）。');
+    }
+    return { total: 0, got: 0, skipped: 0, failed: 0, skippedByEnv: true };
+  }
 
   const coverDir = join(root, COVER_DIR_REL);
   const cachePath = join(root, CACHE);

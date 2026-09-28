@@ -114,6 +114,115 @@ const footerText = footerRaw.includes('{year}')
       }
     });
   }
+
+  /* =========================================================
+   *  ① 滚动浮现动效（IntersectionObserver 驱动）
+   *  ---------------------------------------------------------
+   *  为什么不用纯 CSS animation：
+   *    纯 CSS 的入场动画只在「页面加载那一刻」播一次，加载完就没了，
+   *    而且一旦被浏览器缓存 / 系统开了「减少动态效果」就完全看不到。
+   *    这里改成：默认全部可见（JS 挂了也不会白屏），
+   *    只有脚本正常运行时才加 .reveal，然后**滚到哪块、哪块才浮现** ——
+   *    一页长笔记滑下去会不断有内容浮出来，看得见、也更耐看。
+   * ======================================================= */
+  const prefersReduced = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!prefersReduced) {
+    document.documentElement.classList.add('reveal');
+
+    const targets = document.querySelectorAll(
+      '.markdown > *, .post-bar, .post, .gallery-item, .video-card, .panel'
+    );
+
+    if ('IntersectionObserver' in window && targets.length) {
+      const io = new IntersectionObserver((entries) => {
+        for (const en of entries) {
+          if (!en.isIntersecting) continue;
+          en.target.classList.add('is-in');
+          io.unobserve(en.target);
+        }
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
+
+      targets.forEach((el, i) => {
+        // 同一屏内依次错开一点点，像涟漪一样浮上来
+        el.style.setProperty('--reveal-delay', (i % 8) * 55 + 'ms');
+        io.observe(el);
+      });
+    } else {
+      targets.forEach((el) => el.classList.add('is-in'));
+    }
+  }
+
+  /* =========================================================
+   *  ② 自定义鼠标（一个跟随的点 + 一个带阻尼的圈）
+   *  ---------------------------------------------------------
+   *  · 只在「有真实鼠标」的设备上启用（触屏手机不动它）
+   *  · 只有脚本跑起来、点/圈都建好了，才隐藏系统光标
+   *    （否则脚本一挂用户就没光标了，那是灾难）
+   *  · 悬停在链接/按钮/卡片上时：圈会放大、变色，出现提示
+   * ======================================================= */
+  const finePointer = window.matchMedia &&
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+  if (finePointer && !prefersReduced) {
+    const dot = document.createElement('div');
+    dot.className = 'cur-dot';
+    const ring = document.createElement('div');
+    ring.className = 'cur-ring';
+    const label = document.createElement('span');
+    label.className = 'cur-label';
+    ring.appendChild(label);
+    document.body.append(dot, ring);
+
+    // 光标就绪 → 才隐藏系统光标
+    document.documentElement.classList.add('has-cursor');
+
+    let mx = window.innerWidth / 2;
+    let my = window.innerHeight / 2;
+    let rx = mx;
+    let ry = my;
+    let visible = false;
+
+    window.addEventListener('mousemove', (e) => {
+      mx = e.clientX;
+      my = e.clientY;
+      if (!visible) {
+        visible = true;
+        dot.classList.add('is-on');
+        ring.classList.add('is-on');
+      }
+      // 点在链接上时，圈里显示一个小提示（可点击）
+      const hot = e.target.closest(
+        'a, button, .post, .video-card, .gallery-item, .chip, input, textarea, [role="button"]'
+      );
+      const isCard = !!(hot && hot.matches('.post, .video-card, .gallery-item'));
+      ring.classList.toggle('is-hot', !!hot);
+      ring.classList.toggle('is-card', isCard);
+      dot.classList.toggle('is-hot', !!hot);
+      label.textContent = isCard ? 'OPEN' : '';
+      if (hot && hot.dataset && hot.dataset.cursorLabel) label.textContent = hot.dataset.cursorLabel;
+    }, { passive: true });
+
+    document.addEventListener('mouseleave', () => {
+      visible = false;
+      dot.classList.remove('is-on');
+      ring.classList.remove('is-on');
+    });
+
+    // 按下时收一下，手感更实
+    window.addEventListener('mousedown', () => ring.classList.add('is-down'), { passive: true });
+    window.addEventListener('mouseup', () => ring.classList.remove('is-down'), { passive: true });
+
+    // 圈的跟随用阻尼（lerp），点则完全贴住指针
+    (function loop() {
+      rx += (mx - rx) * 0.18;
+      ry += (my - ry) * 0.18;
+      dot.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
+      ring.style.transform = `translate3d(${rx}px, ${ry}px, 0) translate(-50%, -50%)`;
+      requestAnimationFrame(loop);
+    })();
+  }
 </script>
 
 </body>
