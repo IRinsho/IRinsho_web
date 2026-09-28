@@ -694,7 +694,10 @@ async function resolveDouyin(raw, opts = {}) {
         meta: {
           date: cap.date || '',
           duration: cap.duration || '',
-          ratio: cap.ratio || ''
+          ratio: cap.ratio || '',
+          // ★ 必须放进 meta：下面写 videos.js 时读的是 meta.stream，
+          //   之前漏了这一行，导致「拿到了流地址却没写进文件」。
+          stream: cap.stream || ''
         }
       };
     }
@@ -1009,25 +1012,28 @@ export async function syncCovers(options = {}) {
       continue;
     }
 
-    // CDP 精确截图那条路：图已经落盘，还带回了时长 / 比例 / 日期
+    // CDP 精确截图那条路：图已经落盘，还带回了时长 / 比例 / 日期 / 视频流地址
     if (r.localFile) {
       out[key] = {
         poster: r.localFile,
         title: meta.title || '',
         date: meta.date || '',
         duration: meta.duration || '',
-        ratio: meta.ratio || ''
+        ratio: meta.ratio || '',
+        stream: meta.stream || ''
       };
       cache[key] = {
         file: r.localFile, at: Date.now(), fails: 0, numId: r.numId || '',
         title: meta.title || '', date: meta.date || '',
-        duration: meta.duration || '', ratio: meta.ratio || ''
+        duration: meta.duration || '', ratio: meta.ratio || '',
+        stream: meta.stream || ''
       };
       got++;
       say(`    ✓ 封面 ${r.localFile}（${r.source || '截图'}）`);
       if (meta.duration) say(`      时长：${meta.duration}`);
       if (meta.ratio) say(`      比例：${meta.ratio}`);
       if (meta.date) say(`      日期：${meta.date}`);
+      if (meta.stream) say(`      视频流：已拿到（页面可用原生播放器，无抖音界面）`);
       continue;
     }
 
@@ -1071,6 +1077,14 @@ export async function syncCovers(options = {}) {
       if (info.date && !v.date) fields.date = info.date;
       if (info.duration && !v.duration) fields.duration = info.duration;
       if (info.ratio && !v.ratio) fields.ratio = info.ratio;
+
+      // 视频流地址：**每次同步都更新**（抖音的地址带签名，会过期），
+      // 有了它页面就用原生 <video> 播放 —— 没有抖音界面。
+      const overwriteStream = [];
+      if (info.stream && info.stream !== v.stream) {
+        fields.stream = info.stream;
+        overwriteStream.push('stream');
+      }
       // poster：原来写的值如果指向一个**不存在的文件**，就当成没填、用新抓到的补上。
       // （踩过坑：之前抓到一张错误的图并写进 poster，文件后来被删掉，
       //   页面就一直请求不存在的文件，卡片永远空白。）
@@ -1083,6 +1097,8 @@ export async function syncCovers(options = {}) {
         // 旧值指向一个已经不存在的文件 → 它是坏值，允许覆盖
         if (v.poster) overwrite.push('poster');
       }
+      // 视频流地址每次都要刷新（签名会过期）
+      for (const f of overwriteStream) overwrite.push(f);
       if (!Object.keys(fields).length) return null;
       return {
         index: i,

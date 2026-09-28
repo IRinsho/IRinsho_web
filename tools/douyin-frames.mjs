@@ -61,7 +61,7 @@ async function waitForTarget(port, ms = 20000) {
 }
 
 /** 极简 CDP 客户端（用 Node 内置 WebSocket，Node 22+ 自带） */
-function connect(wsUrl) {
+function connect(wsUrl, onEvent) {
   const ws = new WebSocket(wsUrl);
   let seq = 0;
   const pending = new Map();
@@ -75,12 +75,18 @@ function connect(wsUrl) {
   ws.onmessage = (ev) => {
     let msg;
     try { msg = JSON.parse(ev.data); } catch (e) { return; }
-    if (!msg.id || !pending.has(msg.id)) return;
-    const { resolve, reject, timer } = pending.get(msg.id);
-    pending.delete(msg.id);
-    clearTimeout(timer);
-    if (msg.error) reject(new Error(msg.error.message || 'CDP 报错'));
-    else resolve(msg.result);
+    if (msg.id && pending.has(msg.id)) {
+      const { resolve, reject, timer } = pending.get(msg.id);
+      pending.delete(msg.id);
+      clearTimeout(timer);
+      if (msg.error) reject(new Error(msg.error.message || 'CDP 报错'));
+      else resolve(msg.result);
+      return;
+    }
+    // 事件（没有 id）：交给调用方处理
+    if (msg.method && typeof onEvent === 'function') {
+      try { onEvent(msg); } catch (e) { /* 忽略 */ }
+    }
   };
 
   return {
@@ -103,6 +109,14 @@ function connect(wsUrl) {
     },
     close() { try { ws.close(); } catch (e) { /* 忽略 */ } }
   };
+}
+
+/** 这个地址像不像视频流？（mp4 / m3u8 / 抖音的 vod 域名） */
+function looksLikeStream(u) {
+  if (!u || !/^https?:/i.test(u)) return false;
+  if (/\.(mp4|m4s|ts|webm|m3u8)(\?|$)/i.test(u)) return true;
+  if (/(douyinvod|bytev|vod-|media\.|aweme.*video|play)/i.test(u) && /video|media|vod/i.test(u)) return true;
+  return false;
 }
 
 /** 在页面里跑的探测脚本：读出 video 的位置 / 时长 / 分辨率 + 页面日期 + 是否被要求登录 */
@@ -181,10 +195,27 @@ export async function captureDouyinFrame(numId, opts = {}) {
     const target = await waitForTarget(port);
     if (!target) return { ok: false, reason: '浏览器调试端口没起来（可能被安全软件拦了）' };
 
-    client = connect(target.webSocketDebuggerUrl);
+    // 网络层捡到的视频流地址（mp4 / m3u8）
+    const mediaUrls = [];
+
+    client = connect(target.webSocketDebuggerUrl, (msg) => {
+      // ★ 顺手把「视频流地址」捡出来：抖音网页播放器用 MSE 播，
+      //   <video>.currentSrc 往往是 blob:（出了页面就没用），
+      //   但它在网络层一定会去请求真正的 mp4/m3u8 —— 那个地址可以在别处播放。
+      //   拿到之后页面就能用原生 <video> 播放（不下载视频，浏览器直接拉流）。
+      if (msg.method === 'Network.responseReceived' || msg.method === 'Network.requestWillBeSent') {
+        const p = msg.params || {};
+        const url = (p.response && p.response.url) || (p.request && p.request.url) || '';
+        const type = (p.type || '').toLowerCase();
+        if (type === 'media' || looksLikeStream(url)) {
+          if (!mediaUrls.includes(url)) mediaUrls.push(url);
+        }
+      }
+    });
     await client.ready;
     await client.send('Runtime.enable').catch(() => {});
     await client.send('Page.enable').catch(() => {});
+    await client.send('Network.enable').catch(() => {});
 
     // ⚠ 优先用「官方播放器页」：主视频页 www.douyin.com/video/...
     //   对未登录 / 无头访问会弹登录框，截出来就是「请登录」。
@@ -277,6 +308,12 @@ export async function captureDouyinFrame(numId, opts = {}) {
       const dest = join(opts.coverDir, 'douyin-' + numId + '.jpg');
       writeFileSync(dest, buf);
       const ratio = info.cw && info.ch ? `${info.cw}:${info.ch}` : '';
+
+      // 视频流地址：优先 mp4（浏览器原生 <video> 直接能播），其次 m3u8
+      const streams = mediaUrls.filter((u) => /\.mp4(\?|$)/i.test(u));
+      const stream = streams[0] || mediaUrls[0] || '';
+      if (stream) log(`      拿到视频流地址（页面可用原生播放器播放）`);
+
       return {
         ok: true,
         file: 'media/covers/douyin-' + numId + '.jpg',
@@ -285,6 +322,7 @@ export async function captureDouyinFrame(numId, opts = {}) {
         duration: fmtSec(info.duration),
         ratio,
         date: normDate(info.date),
+        stream,
         clip,
         page: pg.label
       };

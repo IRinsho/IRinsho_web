@@ -22,6 +22,10 @@ export function asset(p = '') {
   let path = String(p == null ? '' : p).trim();
   if (!path) return prefix;
 
+  // 已经是完整网址（例如从抖音抓到的视频流地址）→ 原样返回，
+  // 绝不能加 base 前缀、也不能再转义（签名参数被转义会直接失效）
+  if (/^(https?:)?\/\//i.test(path) || /^(data|blob):/i.test(path)) return path;
+
   // Windows 反斜杠 → 正斜杠；去掉开头的 ./ 和 /
   path = path.replace(/\\/g, '/').replace(/^(\.?\/)+/, '');
 

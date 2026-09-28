@@ -37,7 +37,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "测试.md",
+                "file": "c语言练习总结.md",
                 "mode": "preview",
                 "source": true,
                 "backlinks": true,
@@ -52,7 +52,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "测试"
+              "title": "c语言练习总结"
             }
           }
         ],
@@ -194,7 +194,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "测试.md",
+                "file": "c语言练习总结.md",
                 "followCursor": false,
                 "showSearch": true,
                 "searchQuery": ""
@@ -226,7 +226,7 @@
   "active": "22ea09ba60ad74cf",
   "lastOpenFiles": [
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
-    "测试.md",
+    "c语言练习总结.md",
     "_怎么用.md",
     "c语言学习/如何输出字符串位数.md",
     "_模板.md",

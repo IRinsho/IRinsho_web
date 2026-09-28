@@ -60,7 +60,8 @@ export default [
     douyin: 'https://www.douyin.com/video/7338819585061178662',
     poster: 'media/covers/douyin-7338819585061178662.jpg',
     duration: '00:12',
-    ratio: '576:576'
+    ratio: '576:576',
+    stream: 'https://open.douyin.com/player/video?vid=7338819585061178662',
   },
   {
     title: '四月是你的谎言',
@@ -75,6 +76,7 @@ export default [
     poster: 'media/covers/douyin-7300469476099640591.jpg',
     duration: '00:17',
     ratio: '1504:720',
+    stream: 'https://open.douyin.com/player/video?vid=7300469476099640591',
   },
   
   /* 抖音示例（把 douyin 换成你自己的分享链接即可）：

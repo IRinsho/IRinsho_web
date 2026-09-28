@@ -79,7 +79,10 @@ const items = videos.map((v) => {
     live,
     playInline,
     ratioCss,
-    cover: (posterExists(v.poster) ? v.poster : '') || auto.poster || ''
+    cover: (posterExists(v.poster) ? v.poster : '') || auto.poster || '',
+    // 视频流地址（抖音这类外站，由同步工具用 CDP 从网络层抓出来）；
+    // 有它就用原生 <video> 播放，没有就退回嵌入官方播放器
+    stream: v.stream || ''
   };
 });
 
@@ -128,7 +131,8 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         data-vertical={v.vertical ? '1' : ''}
         data-ratio={v.ratioCss || ''}
         data-inline={v.playInline === false ? '0' : '1'}
-        data-src={v.embedUrl ? '' : asset(v.src || '')}
+        data-src={v.embedUrl && !v.stream ? '' : asset(v.stream || v.src || '')}
+        data-stream={v.stream || ''}
         data-poster={v.cover ? asset(v.cover) : ''}
         data-hue={hueFor(v.title)}
         tabindex="0"
@@ -383,6 +387,24 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
         video.preload = 'auto';
         if (card.dataset.poster) video.poster = card.dataset.poster;
         video.src = card.dataset.src;   // 路径已由 asset() 转义，能正常取到文件
+
+        // 外站视频流（抖音等）：直接播它 CDN 上的流 —— 用我们的原生播放器，
+        // 完全没有对方的界面。地址带签名会过期，播不了就退回嵌入播放器。
+        if (card.dataset.stream) {
+          video.crossOrigin = null;
+          video.setAttribute('referrerpolicy', 'no-referrer');
+          video.addEventListener('error', () => {
+            if (card.dataset.embed) {
+              video.remove();
+              const iframe = document.createElement('iframe');
+              iframe.src = card.dataset.embed;
+              iframe.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+              iframe.allowFullscreen = true;
+              iframe.setAttribute('referrerpolicy', 'unsafe-url');
+              body.appendChild(iframe);
+            }
+          }, { once: true });
+        }
 
         // 本地视频：读到元数据后就知道真实尺寸了，按它调整弹窗比例（最准的一路）
         video.addEventListener('loadedmetadata', () => {
