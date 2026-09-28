@@ -1,5 +1,25 @@
 ---
 // 本页已作废，可以安全删除本文件（删掉后 /debug-paths/ 就不会再生成）
-// 临时自检页已移除，不再需要；这里只做一次跳转，直接回首页。
-return Astro.redirect('/');
+//
+// 临时自检页已经移除，这里只做一件事：立刻跳回首页。
+// 为什么不用 Astro.redirect('/')：本站是静态构建（astro.config.mjs 里没有配
+// output: 'server' 或任何 adapter），Astro.redirect 在静态模式下会直接报错
+// （StaticRedirectNotAvailable），构建就跑不过去。
+// 所以改用等价的最小实现：一个带 meta refresh 的极简页面。
+import { asset } from '../lib/url.js';
+
+const home = asset(''); // 默认是 '/'；将来部署到子目录（设了 base）时会自动带上前缀
 ---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>页面已作废</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta http-equiv="refresh" content={`0; url=${home}`} />
+  </head>
+  <body>
+    <p>这个页面已经作废，正在回到<a href={home}>首页</a>……</p>
+  </body>
+</html>
