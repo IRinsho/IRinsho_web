@@ -1609,24 +1609,20 @@ html.reveal .finale {
 }
 .friend-entry:hover .friend-icon {
   border-color: var(--rose);
-  background: var(--rose);
+  background: linear-gradient(150deg, var(--rose), #b8325a);
   color: #fff;
+  /* 悬停反馈用 transform 过渡（.friend-icon 上已经声明了 transition）——
+     可逆、平滑、不会闪。 */
+  transform: scale(1.05);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .2),
-    0 10px 26px rgba(224, 70, 111, .42),
-    0 0 22px rgba(224, 70, 111, .4);
-  animation: friendHeart .62s cubic-bezier(.22, .61, .36, 1);
+    inset 0 1px 0 rgba(255, 255, 255, .22),
+    0 8px 20px rgba(224, 70, 111, .34),
+    0 0 14px rgba(224, 70, 111, .26);
 }
-/* 悬停时爱心跳一下：整块（图标位）rotate+scale，动画结束后正好停在
-   略微左倾的状态上，不会「跳完又弹回去」。
-   ⚠ 别在 :hover 里同时写 transform，否则会和关键帧的 scale 相乘，
-     变成夸张的放大。 */
-@keyframes friendHeart {
-  0%   { transform: rotate(0) scale(1); }
-  38%  { transform: rotate(-5deg) scale(1.09); }
-  64%  { transform: rotate(-5deg) scale(.95); }
-  100% { transform: rotate(-5deg) scale(1); }
-}
+/* ⚠ 原来的 @keyframes friendHeart 已删除。
+   它没写 animation-fill-mode: forwards —— 动画播完会立刻回到初始值，
+   表现就是"爱心跳一下又弹回原位"，看着像抽动（用户实际看到的就是这个）。
+   悬停反馈一律走 transition，不要用只播一次的关键帧。 */
 
 /* 中间文字块 */
 .friend-text {
