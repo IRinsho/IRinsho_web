@@ -2131,40 +2131,84 @@ html.reveal .finale {
   color: #4a3a43;
   font-size: 14px; line-height: 2;
 }
-.me-links { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin-bottom: 26px; }
+/* --- 三张轻薄小卡片：浅色描边 + 极淡填充 + 圆角（旧版是「细横线表格行」） ---
+   ⚠ 修对比度：这两行的所有文字一律用 --paper-ink(#241a20，约 14:1) 或
+   --paper-rose-deep(#a52b52，约 6.2:1)，不再用 --paper-ink-2 —— 它在浅粉底上
+   只有约 3.5:1，对 9.5px 的小字是明确的可访问性问题。 */
+/* --paper-rose-deep 是本页局部令牌（不改 :root，避免影响别的页面）：
+   #a52b52 在浅粉底（#f8ebf0 上下）上约 6.2:1，达到正文级对比度。 */
+.me-links { --paper-rose-deep: #a52b52; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
 .me-links a {
-  display: flex; align-items: center; gap: 10px;
-  padding: 13px 0;
-  border-top: 1px solid var(--paper-line);
-  border-bottom: 1px solid var(--paper-line);
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, .62);
+  border: 1px solid rgba(200, 57, 95, .17);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 1px 2px rgba(140, 80, 110, .05);
   font-size: 12px; letter-spacing: .16em;
   color: var(--paper-ink);
   transition: .22s;
 }
-.me-links a svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; }
-.me-links a .ml-arrow { margin-left: auto; color: var(--paper-ink-2); transition: transform .25s; }
-.me-links a:hover { color: var(--paper-rose); border-color: var(--paper-rose); }
-.me-links a:hover .ml-arrow { transform: translate(3px, -3px); }
+/* 方形图标位：线框 + 圆角 + 图标居中（svg 本身是 <a> 的直接子元素，
+   所以只能用 .me-links a svg 选中它，me.astro 里没有包一层的元素） */
+.me-links a svg {
+  width: 36px; height: 36px; flex: none;
+  padding: 10px;
+  fill: none; stroke: currentColor; stroke-width: 1.6;
+  border: 1px solid rgba(200, 57, 95, .3);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .5);
+  transition: .22s;
+}
+.me-links a .ml-arrow {
+  margin-left: auto; color: var(--paper-rose-deep);
+  transition: transform .25s;
+}
+.me-links a:hover {
+  background: rgba(255, 255, 255, .92);
+  border-color: var(--paper-rose);
+  box-shadow: 0 10px 22px rgba(140, 80, 110, .16);
+}
+.me-links a:hover svg {
+  background: var(--rose-dim);
+  border-color: var(--paper-rose);
+  color: var(--paper-rose);
+}
+.me-links a:hover .ml-arrow { transform: translate(3px, -3px); color: var(--paper-rose); }
 
 .me-friend {
   display: flex; align-items: center; gap: 16px;
-  padding: 14px 0;
-  border-top: 1px solid var(--paper-line);
-  border-bottom: 1px solid var(--paper-line);
+  padding: 11px 14px;
+  background: rgba(255, 255, 255, .62);
+  border: 1px solid rgba(200, 57, 95, .17);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 1px 2px rgba(140, 80, 110, .05);
   transition: .22s;
 }
 .me-friend .mf-icon {
-  width: 40px; height: 40px; flex: none;
+  width: 36px; height: 36px; flex: none;
   display: grid; place-items: center;
-  border: 1px solid var(--paper-line);
-  color: var(--paper-rose); font-size: 15px;
+  border: 1px solid rgba(200, 57, 95, .3);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .5);
+  color: var(--paper-rose-deep); font-size: 15px;
+  transition: .22s;
 }
 .me-friend .mf-text { display: flex; flex-direction: column; line-height: 1.5; }
-.me-friend .mf-text i { font-style: normal; font-size: 9.5px; letter-spacing: .2em; color: var(--paper-ink-2); }
-.me-friend .mf-text b { font-family: var(--font-serif); font-size: 17px; font-weight: 700; }
-.me-friend .mf-arrow { margin-left: auto; color: var(--paper-ink-2); transition: transform .25s; }
+.me-friend .mf-text i { font-style: normal; font-size: 9.5px; letter-spacing: .2em; color: var(--paper-ink); }
+/* 「进入友链」：正文级对比度（深玫红约 6.2:1），不再是淡淡的水印色 */
+.me-friend .mf-text b { font-family: var(--font-serif); font-size: 17px; font-weight: 700; color: var(--paper-rose-deep); }
+.me-friend .mf-arrow {
+  margin-left: auto; color: var(--paper-rose-deep);
+  transition: transform .25s;
+}
 .me-friend:hover .mf-text b { color: var(--paper-rose); }
 .me-friend:hover .mf-arrow { transform: translate(3px, -3px); color: var(--paper-rose); }
+.me-friend:hover .mf-icon {
+  background: var(--rose-dim);
+  border-color: var(--paper-rose);
+  color: var(--paper-rose);
+}
 
 /* 右侧竖排导航（真实链接） */
 .me-sidenav { display: flex; flex-direction: column; gap: 26px; align-items: flex-end; }
@@ -2741,40 +2785,45 @@ body[data-view='me'] .me-photo:hover::after {
   box-shadow: inset 0 0 36px rgba(224, 70, 111, .07);
 }
 
-/* ---------- ③ 信息行 / 友链行：左侧"扫"出一条玫红细线 ＋ 整行右移 ----------
-   细线起点在 -12px（行左侧的留白里），行同时右移，所以线最终落在容器内沿，
-   窄屏万一触发 sticky hover 也不会把页面撑出横向滚动条。 */
+/* ---------- ③ 三张卡片：悬停微微上浮 ＋ 阴影加深，不再整行右移 ----------
+   transform / box-shadow / background / color / border-color 都是**不参与布局**的
+   属性，所以浮起来不会挤到旁边那张卡，也不会引发布局抖动。
+   位移只有 -3px（旧版是 translateX(10px)"扫"出去），配合新卡片观感更收得住。 */
 body[data-view='me'] .me-links a,
 body[data-view='me'] .me-friend {
   position: relative;
   transition:
     transform .5s cubic-bezier(.22, .61, .36, 1),
+    box-shadow .5s cubic-bezier(.22, .61, .36, 1),
+    background-color .5s cubic-bezier(.22, .61, .36, 1),
     color .5s cubic-bezier(.22, .61, .36, 1),
     border-color .5s cubic-bezier(.22, .61, .36, 1);
 }
-body[data-view='me'] .me-links a:hover { transform: translateX(10px); }
+body[data-view='me'] .me-links a:hover,
 body[data-view='me'] .me-friend:hover {
-  transform: translateX(8px);
-  border-color: rgba(200, 57, 95, .45);
+  transform: translateY(-3px);
+  border-color: var(--paper-rose);
+  box-shadow: 0 14px 28px rgba(140, 80, 110, .18);
 }
 
-body[data-view='me'] .me-links a::before,
-body[data-view='me'] .me-friend::before {
-  content: '';
-  position: absolute; left: -12px; top: 50%;
-  width: 2px; height: 0;
-  border-radius: 2px;
-  background: linear-gradient(180deg,
-    rgba(224, 70, 111, .1), var(--paper-rose), rgba(224, 70, 111, .1));
-  transform: translateY(-50%);
-  opacity: 0;
-  pointer-events: none;
+/* 方形图标位也跟着卡片一起亮起来（背景填充 + 描边转玫红） */
+body[data-view='me'] .me-links a svg,
+body[data-view='me'] .me-friend .mf-icon {
   transition:
-    height .5s cubic-bezier(.22, .61, .36, 1),
-    opacity .42s cubic-bezier(.22, .61, .36, 1);
+    background-color .5s cubic-bezier(.22, .61, .36, 1),
+    border-color .5s cubic-bezier(.22, .61, .36, 1),
+    color .5s cubic-bezier(.22, .61, .36, 1);
 }
-body[data-view='me'] .me-links a:hover::before,
-body[data-view='me'] .me-friend:hover::before { height: 72%; opacity: 1; }
+body[data-view='me'] .me-links a:hover svg,
+body[data-view='me'] .me-friend:hover .mf-icon {
+  background: var(--rose-dim);
+  border-color: var(--paper-rose);
+  color: var(--paper-rose);
+}
+
+/* （旧版这里是一条从左侧"扫"出来的玫红细线 ::before。现在三行改成了卡片，
+   它们本身已经有描边 + 填充把彼此分开，再多一条侧线视觉上就脏了，所以撤掉；
+   图标位的填充变化放在 ③→④ 之间统一升级。） */
 
 /* ---------- ④ 社交 / 友链的 ↗ 箭头：右上位移 4px 并变玫红 ---------- */
 body[data-view='me'] .me-links a .ml-arrow,
@@ -2838,12 +2887,13 @@ body[data-view='me'] #main::before {
   body[data-view='me'] .me-photo,
   body[data-view='me'] .me-photo::after,
   body[data-view='me'] .me-links a,
-  body[data-view='me'] .me-links a::before,
+  body[data-view='me'] .me-links a svg,
   body[data-view='me'] .me-friend,
-  body[data-view='me'] .me-friend::before,
+  body[data-view='me'] .me-friend .mf-icon,
   body[data-view='me'] .me-links a .ml-arrow,
   body[data-view='me'] .me-friend .mf-arrow { transition: none !important; }
 
+  /* 位移归零：卡片不上浮，箭头不右上移（颜色/描边变化仍保留，作为悬停反馈） */
   body[data-view='me'] .me-photo:hover,
   body[data-view='me'] .me-links a:hover,
   body[data-view='me'] .me-friend:hover,
