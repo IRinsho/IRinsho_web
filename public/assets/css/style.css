@@ -1506,83 +1506,233 @@ html.reveal .finale {
  *  首页「进入友链」入口条
  *  （参考用户给的那张图：左边心形方块 + 中间 eyebrow/大字 + 右边 ↗）
  * ======================================================= */
+/* ---------------------------------------------------------
+ *  整条：深色玻璃横幅卡片
+ *  · 底色比页面略亮（gradient 叠在 --bg-2 上），四周玫红细描边 + 圆角
+ *  · box-shadow 第一层是 inset 高光 → 玻璃质感的内圈亮线
+ *  · isolation 让 ::before/::after 的斜切带留在卡片层叠里
+ *  · 悬停只动 transform / border / box-shadow，绝不动 padding|margin，
+ *    所以不会把下面的章节推来推去
+ * ------------------------------------------------------- */
 .friend-entry {
   /* 显式抬到上层 + 允许点击：首页里有几个 position:relative / fixed 的元素
      （gate、seam、进度轨、finale），万一有重叠就会把点击吃掉 */
   position: relative;
   z-index: 3;
   pointer-events: auto;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: clamp(15px, 3vw, 28px);
-  margin: 30px 0 0;
-  padding: 20px clamp(16px, 3vw, 26px);
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
+  margin: 36px 0 0;
+  padding: clamp(18px, 2.4vw, 24px) clamp(18px, 3vw, 30px);
+  overflow: hidden;                      /* 剪住斜切带与圆角 */
+  border: 1px solid rgba(224, 70, 111, .28);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, .055) 0%, rgba(255, 255, 255, .014) 42%, rgba(224, 70, 111, .05) 100%),
+    var(--bg-2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .09),      /* 内侧一圈高光 */
+    inset 0 0 0 1px rgba(255, 255, 255, .02),
+    0 20px 48px rgba(0, 0, 0, .32);
   transition:
-    background .35s ease,
+    transform .45s cubic-bezier(.22, .61, .36, 1),
     border-color .35s ease,
-    padding-left .42s cubic-bezier(.22, .61, .36, 1);
+    background .35s ease,
+    box-shadow .45s ease;
 }
 .friend-entry:hover {
-  background: rgba(224, 70, 111, .05);
-  border-color: var(--rose-dim);
-  padding-left: clamp(24px, 4.4vw, 42px);   /* 整条内容往右挪一点，像被"拉开" */
+  transform: translateY(-4px);
+  border-color: rgba(224, 70, 111, .55);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, .08) 0%, rgba(255, 255, 255, .02) 42%, rgba(224, 70, 111, .1) 100%),
+    var(--bg-2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .14),
+    inset 0 0 0 1px rgba(224, 70, 111, .12),
+    0 30px 64px rgba(0, 0, 0, .46),
+    0 0 34px rgba(224, 70, 111, .16);
 }
 
+/* 右侧极淡的斜切色带（借 .seam 的 clip-path 做法，呼应首页两条接缝条）
+   · 不透明度压到 ~1/4，只作为装饰，不抢内容
+   · inset 取负值 → 色带斜着切出卡片边缘，像被裁掉一刀
+   · 悬停时用 transform 轻微扫过（不动 clip-path，避免重绘抖动） */
+.friend-entry::before,
+.friend-entry::after {
+  content: '';
+  position: absolute;
+  inset: -6% -10% -6% 40%;
+  z-index: -1;                           /* 沉到卡片背景之下，只被 overflow 剪出来 */
+  pointer-events: none;
+  transition: transform .8s cubic-bezier(.22, .61, .36, 1);
+}
+.friend-entry::before {                     /* 玫红带 */
+  background: rgba(224, 70, 111, .16);
+  clip-path: polygon(100% 2%, 100% 34%, 0 72%, 0 46%);
+}
+.friend-entry::after {                      /* 青灰带（和 .seam 的 --band-b 同源） */
+  background: rgba(123, 182, 178, .11);
+  clip-path: polygon(100% 44%, 100% 62%, 0 96%, 0 76%);
+}
+.friend-entry:hover::before { transform: translate3d(-22px, -6px, 0); }
+.friend-entry:hover::after  { transform: translate3d(-38px, -10px, 0); }
+
+/* 内容抬到色带之上 */
+.friend-entry > .friend-icon,
+.friend-entry > .friend-text,
+.friend-entry > .friend-arrow { position: relative; z-index: 1; }
+
+/* ---------------------------------------------------------
+ *  左侧图标位：圆角方块 + 玫红描边 → 悬停填充玫红 + 发光
+ * ------------------------------------------------------- */
 .friend-icon {
   flex: none;
-  width: 58px; height: 58px;
+  width: 64px; height: 64px;
   display: flex; align-items: center; justify-content: center;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
-  color: var(--rose);
-  font-size: 23px;
+  border: 1px solid rgba(224, 70, 111, .45);
+  border-radius: var(--radius);          /* 比 --radius-sm 更圆润，和卡片同族 */
+  background: linear-gradient(150deg, rgba(224, 70, 111, .16), rgba(224, 70, 111, .05));
+  color: var(--rose-2);
+  font-size: 26px;
   line-height: 1;
-  transition: transform .42s cubic-bezier(.22, .61, .36, 1), border-color .35s ease;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .1),
+    0 0 0 0 rgba(224, 70, 111, 0);
+  transition:
+    transform .45s cubic-bezier(.22, .61, .36, 1),
+    border-color .35s ease,
+    background .35s ease,
+    color .3s ease,
+    box-shadow .45s ease;
 }
 .friend-entry:hover .friend-icon {
-  transform: scale(1.07) rotate(-5deg);
   border-color: var(--rose);
+  background: var(--rose);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .2),
+    0 10px 26px rgba(224, 70, 111, .42),
+    0 0 22px rgba(224, 70, 111, .4);
+  animation: friendHeart .62s cubic-bezier(.22, .61, .36, 1);
+}
+/* 悬停时爱心跳一下：整块（图标位）rotate+scale，动画结束后正好停在
+   略微左倾的状态上，不会「跳完又弹回去」。
+   ⚠ 别在 :hover 里同时写 transform，否则会和关键帧的 scale 相乘，
+     变成夸张的放大。 */
+@keyframes friendHeart {
+  0%   { transform: rotate(0) scale(1); }
+  38%  { transform: rotate(-5deg) scale(1.09); }
+  64%  { transform: rotate(-5deg) scale(.95); }
+  100% { transform: rotate(-5deg) scale(1); }
 }
 
-.friend-text { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+/* 中间文字块 */
+.friend-text {
+  display: flex; flex-direction: column; gap: 5px;
+  min-width: 0;
+  position: relative;
+  padding-left: 15px;
+  transition: transform .45s cubic-bezier(.22, .61, .36, 1);
+}
+/* 左侧一道玫红竖线 —— 呼应卡片切角，也给这块文字一个「被框住」的起点 */
+.friend-text::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px; bottom: 2px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--rose), rgba(224, 70, 111, .06));
+  transition: background .35s ease, box-shadow .35s ease;
+}
+.friend-entry:hover .friend-text::before {
+  background: linear-gradient(180deg, var(--rose-2), rgba(224, 70, 111, .14));
+  box-shadow: 0 0 12px rgba(224, 70, 111, .5);
+}
 .friend-eyebrow {
   font-family: var(--font-mono);
   font-size: 10.5px; letter-spacing: .3em;
-  color: var(--ink-3);
+  color: rgba(242, 116, 154, .82);       /* 原来 --ink-3 太淡，提到可读 */
 }
 .friend-title {
   font-family: var(--font-serif);
   font-size: clamp(22px, 3.6vw, 34px);
   font-weight: 700;
-  line-height: 1.1;
-  color: var(--rose-2);
-  opacity: .82;
-  transition: opacity .3s ease, letter-spacing .45s cubic-bezier(.22, .61, .36, 1);
+  line-height: 1.12;
+  letter-spacing: .01em;
+  white-space: nowrap;                   /* clamp 上限 34px 无需换行 */
+  background-image: linear-gradient(
+    98deg,
+    #ffffff 0%, #ffe6ef 26%, var(--rose-2) 58%, var(--rose) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 18px rgba(224, 70, 111, .2));
+  transition: filter .4s ease;
 }
-.friend-entry:hover .friend-title { opacity: 1; letter-spacing: .04em; }
+.friend-entry:hover .friend-title {
+  filter: drop-shadow(0 5px 24px rgba(224, 70, 111, .42));
+}
 
+/* ---------------------------------------------------------
+ *  右侧 ↗：圆形圆环按钮；悬停整条右移 + 箭头右上位移 + 描边变亮
+ * ------------------------------------------------------- */
 .friend-arrow {
   margin-left: auto; flex: none;
-  font-size: 20px;
-  color: var(--ink-3);
-  transition: transform .42s cubic-bezier(.22, .61, .36, 1), color .3s ease;
+  width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(236, 237, 246, .18);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, .03);
+  font-family: var(--font-mono);         /* 等宽字里的 ↗ 更工整 */
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-2);                   /* 比 --ink-3 亮一档 */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07);
+  transition:
+    transform .45s cubic-bezier(.22, .61, .36, 1),
+    border-color .35s ease,
+    color .3s ease,
+    background .35s ease,
+    box-shadow .45s ease;
 }
-.friend-entry:hover .friend-arrow { transform: translate(4px, -4px); color: var(--rose); }
+.friend-entry:hover .friend-arrow {
+  transform: translateX(4px);
+  border-color: var(--rose);
+  color: var(--rose);
+  background: rgba(224, 70, 111, .1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .12),
+    0 0 22px rgba(224, 70, 111, .3);
+}
 
 @media (max-width: 560px) {
-  .friend-icon { width: 46px; height: 46px; font-size: 19px; }
+  .friend-entry { gap: 13px; padding: 15px 16px; margin-top: 28px; }
+  .friend-entry::before,
+  .friend-entry::after { left: 30%; }    /* 窄屏色带别盖到文字上 */
+  .friend-icon { width: 42px; height: 42px; font-size: 18px; border-radius: var(--radius-sm); }
+  .friend-text { padding-left: 12px; }
   .friend-eyebrow { letter-spacing: .18em; font-size: 9.5px; }
+  .friend-title { font-size: clamp(19px, 5.4vw, 24px); }
+  .friend-arrow { width: 38px; height: 38px; font-size: 16px; }
 }
 
-/* 减少动态效果：只保留颜色变化，不做位移/旋转 */
+/* 减少动态效果：只保留颜色变化，不做位移/旋转/跳动 */
 @media (prefers-reduced-motion: reduce) {
-  .friend-entry, .friend-icon, .friend-title, .friend-arrow { transition: none !important; }
-  .friend-entry:hover { padding-left: clamp(16px, 3vw, 26px); }
-  .friend-entry:hover .friend-icon { transform: none; }
-  .friend-entry:hover .friend-arrow { transform: none; }
+  .friend-entry, .friend-icon, .friend-text, .friend-text::before,
+  .friend-title, .friend-arrow, .friend-entry::before, .friend-entry::after {
+    transition: none !important;
+  }
+  .friend-entry:hover { transform: none !important; }
+  .friend-entry:hover .friend-icon { transform: none !important; animation: none !important; }
+  .friend-entry:hover .friend-arrow { transform: none !important; }
+  .friend-entry:hover .friend-text { transform: none !important; }
+  .friend-entry:hover::before,
+  .friend-entry:hover::after { transform: none !important; }
 }
 
 /* =========================================================
