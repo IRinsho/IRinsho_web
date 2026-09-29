@@ -207,11 +207,19 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
   </div>
 
   <script>
-    const modal = document.getElementById('videoModal');
-    const body = document.getElementById('vmBody');
-    const panel = modal.querySelector('.modal-panel');
+    /* ⚠ 这些元素引用**不能在最外层只取一次**：
+       开了页面过渡后，从别的页面切回视频页时 DOM 是全新的，
+       如果还拿着旧的（已从文档里移除的）节点去 hidden=false，
+       屏幕上什么都不会发生 —— 这也是"切回来点视频没反应"的一半原因。
+       所以都改成每次用时现取。 */
+    const $modal = () => document.getElementById('videoModal');
+    const $body = () => document.getElementById('vmBody');
 
     function open(card) {
+      const modal = $modal();
+      const body = $body();
+      if (!modal || !body) return;
+      const panel = modal.querySelector('.modal-panel');
       document.getElementById('vmTitle').textContent = card.dataset.title || '';
       document.getElementById('vmMeta').textContent = card.dataset.meta || '';
       document.getElementById('vmDesc').textContent = card.dataset.desc || '';
@@ -466,34 +474,48 @@ const sorted = items.slice().sort((a, b) => String(b.date || '').localeCompare(S
     }
 
     function close() {
-      modal.hidden = true;
-      body.innerHTML = '';   // 清空以停止播放
+      const modal = $modal();
+      const body = $body();
+      if (modal) modal.hidden = true;
+      if (body) body.innerHTML = '';   // 清空以停止播放
       document.body.style.overflow = '';
     }
 
-    document.getElementById('videoFilters').addEventListener('click', (e) => {
-      const btn = e.target.closest('.filter');
-      if (!btn) return;
-      document.querySelectorAll('#videoFilters .filter').forEach((b) => b.classList.toggle('active', b === btn));
-      const cat = btn.dataset.category;
-      document.querySelectorAll('.video-card').forEach((el) => {
-        el.hidden = cat !== '全部' && el.dataset.category !== cat;
+    /* ⚠ 全部改成「事件委托」，绑在 document 上，只绑一次。
+       为什么：开了页面过渡后，从别的页面切回视频页时
+       #videoGrid / #videoFilters / 弹窗 都是**重新生成的元素**，
+       原来绑在旧元素上的监听会随之消失 —— 表现就是
+       「切回来点视频没反应，必须刷新页面」。
+       委托绑在 document 上，换多少次页都还在。 */
+    if (!window.__irinshoVideoBound) {
+      window.__irinshoVideoBound = true;
+
+      document.addEventListener('click', (e) => {
+        // ① 分类筛选
+        const btn = e.target.closest('#videoFilters .filter');
+        if (btn) {
+          document.querySelectorAll('#videoFilters .filter')
+            .forEach((b) => b.classList.toggle('active', b === btn));
+          const cat = btn.dataset.category;
+          document.querySelectorAll('.video-card').forEach((el) => {
+            el.hidden = cat !== '全部' && el.dataset.category !== cat;
+          });
+          return;
+        }
+
+        // ② 点卡片 → 开弹窗
+        const card = e.target.closest('.video-card');
+        if (card) { open(card); return; }
+
+        // ③ 点弹窗遮罩 → 关闭（弹窗里的链接不要顺手关掉）
+        if (e.target.closest('a')) return;
+        if (e.target.closest('[data-modal]')) close();
       });
-    });
-
-    document.getElementById('videoGrid').addEventListener('click', (e) => {
-      const card = e.target.closest('.video-card');
-      if (card) open(card);
-    });
-
-    modal.addEventListener('click', (e) => {
-      // 弹窗里的「去原站看」是链接，点它不要顺手把弹窗关掉
-      if (e.target.closest('a')) return;
-      if (e.target.closest('[data-modal]')) close();
-    });
+    }
 
     document.addEventListener('keydown', (e) => {
-      if (!modal.hidden && e.key === 'Escape') close();
+      const m = $modal();   // 现取：切页返回后 modal 是新元素
+      if (m && !m.hidden && e.key === 'Escape') close();
     });
   </script>
 </Base>

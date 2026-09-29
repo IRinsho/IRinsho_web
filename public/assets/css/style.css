@@ -2653,3 +2653,200 @@ html.reveal .finale {
   .topbar, .footer, .blog-bar, .post-bar, .lightbox, .modal, .toast, .filters { display: none !important; }
   body { background: #fff; color: #000; }
 }
+
+/* =========================================================
+ *  ME 页（/me/ 浅粉纸页）动效增强
+ *  ---------------------------------------------------------
+ *  ⚠ 整块都是**追加**的：上面任何已有规则都没有被改动。
+ *  作用域一律带 body[data-view='me'] 前缀 —— data-view 由 Base.astro
+ *  按路径算出来，只有 /me/ 会得到 'me'，所以不可能漏到别的页面。
+ *  选择器全部逐字核对过 me.astro 里真实存在的类名：
+ *    .me-grid > .me-photo / .me-body > (.eyebrow|.me-quote|.me-bio|
+ *    .me-links|.me-friend) / .me-sidenav a / .me-foot
+ *    .me-links a > .ml-arrow / .me-friend > .mf-arrow / .mf-text
+ *
+ *  【和全局「滚动浮现」系统的关系：不冲突，也没有叠两层】
+ *    Base.astro 的 startReveal() 只观察
+ *      .markdown > * / .post-bar / .post / .gallery-item /
+ *      .video-card / .panel / .finale / .gate-inner > *
+ *    style.css 里 html.reveal 那一组同名选择器也是这几个。
+ *    ME 页的元素（.me-*）**一个都不在其中** —— 它们从来没被浮现系统
+ *    隐藏过（所以 ME 页此前是"没有任何进场动效"的），这里补上第一层，
+ *    不是第二层；两边不会争同一个 opacity/transform。
+ *
+ *  【fill-mode 只用 backwards，绝不用 forwards/both】
+ *    动画结束后元素回到自己声明的样式（transform: none / filter: none），
+ *    悬停的 transform 才不会被动画终值永久压制。
+ *    （对比：.route-* 那套用 both，所以友链页悬停只能改 padding —— 这里
+ *     是故意反着来的，为的是"进场"和"悬停浮起"能共存。）
+ *
+ *  循环动画：整块只有 .me-friend::after 一个极慢的呼吸光（7.6s），
+ *  没有任何大幅无限循环。缓动统一 cubic-bezier(.22, .61, .36, 1)。
+ * ========================================================= */
+
+/* ---------- ① 进场编排：照片 → eyebrow → 引文 → 简介 → 社交行 → 友链行
+                → 侧栏逐行 → 页脚，错开 80ms 依次淡入上浮 ---------- */
+@keyframes meRiseIn {
+  from { opacity: 0; transform: translateY(22px) scale(.985); filter: blur(3px); }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body[data-view='me'] .me-grid > .me-photo,
+  body[data-view='me'] .me-body > *,
+  body[data-view='me'] .me-sidenav a,
+  body[data-view='me'] .me-foot {
+    animation: meRiseIn .76s cubic-bezier(.22, .61, .36, 1) backwards;
+  }
+
+  body[data-view='me'] .me-body > .eyebrow   { animation-delay: .09s; }
+  body[data-view='me'] .me-body > .me-quote  { animation-delay: .17s; }
+  body[data-view='me'] .me-body > .me-bio    { animation-delay: .25s; }
+  body[data-view='me'] .me-body > .me-links  { animation-delay: .33s; }
+  body[data-view='me'] .me-body > .me-friend { animation-delay: .41s; }
+  body[data-view='me'] .me-foot              { animation-delay: .49s; }
+
+  /* 右侧竖排导航：一行一行落下来 */
+  body[data-view='me'] .me-sidenav a:nth-child(1)   { animation-delay: .45s; }
+  body[data-view='me'] .me-sidenav a:nth-child(2)   { animation-delay: .53s; }
+  body[data-view='me'] .me-sidenav a:nth-child(3)   { animation-delay: .61s; }
+  body[data-view='me'] .me-sidenav a:nth-child(4)   { animation-delay: .69s; }
+  body[data-view='me'] .me-sidenav a:nth-child(n+5) { animation-delay: .77s; }
+}
+
+/* ---------- ② 照片：悬停轻轻浮起（-4px + 1.02）＋ 阴影加深 ＋ 一圈极淡描边光 ---------- */
+body[data-view='me'] .me-photo {
+  transition:
+    transform .62s cubic-bezier(.22, .61, .36, 1),
+    box-shadow .62s cubic-bezier(.22, .61, .36, 1);
+}
+body[data-view='me'] .me-photo:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow:
+    0 36px 68px rgba(140, 80, 110, .26),
+    0 0 0 1px rgba(200, 57, 95, .16);
+}
+/* 贴在照片内沿的一圈玫红细光（绝对定位 + pointer-events:none，不参与布局） */
+body[data-view='me'] .me-photo::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  border: 1px solid rgba(200, 57, 95, 0);
+  transition:
+    border-color .62s cubic-bezier(.22, .61, .36, 1),
+    box-shadow .62s cubic-bezier(.22, .61, .36, 1);
+}
+body[data-view='me'] .me-photo:hover::after {
+  border-color: rgba(200, 57, 95, .22);
+  box-shadow: inset 0 0 36px rgba(224, 70, 111, .07);
+}
+
+/* ---------- ③ 信息行 / 友链行：左侧"扫"出一条玫红细线 ＋ 整行右移 ----------
+   细线起点在 -12px（行左侧的留白里），行同时右移，所以线最终落在容器内沿，
+   窄屏万一触发 sticky hover 也不会把页面撑出横向滚动条。 */
+body[data-view='me'] .me-links a,
+body[data-view='me'] .me-friend {
+  position: relative;
+  transition:
+    transform .5s cubic-bezier(.22, .61, .36, 1),
+    color .5s cubic-bezier(.22, .61, .36, 1),
+    border-color .5s cubic-bezier(.22, .61, .36, 1);
+}
+body[data-view='me'] .me-links a:hover { transform: translateX(10px); }
+body[data-view='me'] .me-friend:hover {
+  transform: translateX(8px);
+  border-color: rgba(200, 57, 95, .45);
+}
+
+body[data-view='me'] .me-links a::before,
+body[data-view='me'] .me-friend::before {
+  content: '';
+  position: absolute; left: -12px; top: 50%;
+  width: 2px; height: 0;
+  border-radius: 2px;
+  background: linear-gradient(180deg,
+    rgba(224, 70, 111, .1), var(--paper-rose), rgba(224, 70, 111, .1));
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    height .5s cubic-bezier(.22, .61, .36, 1),
+    opacity .42s cubic-bezier(.22, .61, .36, 1);
+}
+body[data-view='me'] .me-links a:hover::before,
+body[data-view='me'] .me-friend:hover::before { height: 72%; opacity: 1; }
+
+/* ---------- ④ 社交 / 友链的 ↗ 箭头：右上位移 4px 并变玫红 ---------- */
+body[data-view='me'] .me-links a .ml-arrow,
+body[data-view='me'] .me-friend .mf-arrow {
+  transition:
+    transform .5s cubic-bezier(.22, .61, .36, 1),
+    color .5s cubic-bezier(.22, .61, .36, 1);
+}
+body[data-view='me'] .me-links a:hover .ml-arrow,
+body[data-view='me'] .me-friend:hover .mf-arrow {
+  transform: translate(4px, -4px);
+  color: var(--paper-rose);
+}
+
+/* ---------- ⑤ 友链入口：一层极慢的柔和呼吸光（全块唯一的循环动画）----------
+   放在 ::after 上而不是 .me-friend 自己身上：
+   .me-friend 已经有 ①的进场动画，同一个元素再声明一次 animation 会**覆盖**掉
+   进场（animation 是单值属性，不是叠加的），所以呼吸光必须换一个元素承载。
+   isolation:isolate 把 z-index:-1 锁在这一格内部 → 光永远在文字之下、又在
+   浅粉底之上，不依赖 transform 是否生效。 */
+@keyframes meFriendBreathe {
+  0%, 100% { opacity: .3; }
+  50%      { opacity: 1; }
+}
+body[data-view='me'] .me-friend { isolation: isolate; }
+body[data-view='me'] .me-friend::after {
+  content: '';
+  position: absolute; inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(120% 170% at 50% 50%,
+    rgba(224, 70, 111, .12), rgba(224, 70, 111, 0) 72%);
+  opacity: .3;
+  animation: meFriendBreathe 7.6s ease-in-out infinite;
+}
+
+/* ---------- ⑥ 浅粉底之上再叠一层极淡的径向光晕 ----------
+   fixed + z-index:-1：画在 body 那层渐变之上、所有内容之下，
+   页面滚动时内容从光晕上滑过（本身就是一层很轻的视差）。
+   这里**故意不加**滚动驱动的 keyframes：ME 页只有一屏左右，
+   滚动位移几乎看不出来，不值得再引入第二个循环动画。 */
+body[data-view='me'] #main::before {
+  content: '';
+  position: fixed; inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 46% at 16% 10%, rgba(224, 70, 111, .085), rgba(224, 70, 111, 0) 70%),
+    radial-gradient(52% 42% at 86% 84%, rgba(200, 57, 95, .07), rgba(200, 57, 95, 0) 72%);
+}
+
+/* ---------- 降级：系统开了「减少动态效果」→ 动画/过渡全关、位移归零 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  body[data-view='me'] .me-grid > .me-photo,
+  body[data-view='me'] .me-body > *,
+  body[data-view='me'] .me-sidenav a,
+  body[data-view='me'] .me-foot,
+  body[data-view='me'] .me-friend::after,
+  body[data-view='me'] #main::before { animation: none !important; }
+
+  body[data-view='me'] .me-photo,
+  body[data-view='me'] .me-photo::after,
+  body[data-view='me'] .me-links a,
+  body[data-view='me'] .me-links a::before,
+  body[data-view='me'] .me-friend,
+  body[data-view='me'] .me-friend::before,
+  body[data-view='me'] .me-links a .ml-arrow,
+  body[data-view='me'] .me-friend .mf-arrow { transition: none !important; }
+
+  body[data-view='me'] .me-photo:hover,
+  body[data-view='me'] .me-links a:hover,
+  body[data-view='me'] .me-friend:hover,
+  body[data-view='me'] .me-links a:hover .ml-arrow,
+  body[data-view='me'] .me-friend:hover .mf-arrow { transform: none !important; }
+}
