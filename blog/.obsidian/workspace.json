@@ -54,9 +54,33 @@
               "icon": "lucide-file",
               "title": "特殊换行代码"
             }
+          },
+          {
+            "id": "e75b1ae276593724",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "AI实现AE输入法自动切换.md",
+                "mode": "preview",
+                "source": true,
+                "backlinks": true,
+                "backlinkOpts": {
+                  "collapseAll": false,
+                  "extraContext": false,
+                  "sortOrder": "alphabetical",
+                  "showSearch": false,
+                  "searchQuery": "",
+                  "backlinkCollapsed": false,
+                  "unlinkedCollapsed": true
+                }
+              },
+              "icon": "lucide-file",
+              "title": "AI实现AE输入法自动切换"
+            }
           }
         ],
-        "currentTab": 1
+        "currentTab": 2
       }
     ],
     "direction": "vertical"
@@ -194,7 +218,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "c语言学习/特殊换行代码.md",
+                "file": "AI实现AE输入法自动切换.md",
                 "followCursor": false,
                 "showSearch": true,
                 "searchQuery": ""
@@ -223,12 +247,13 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "22ea09ba60ad74cf",
+  "active": "e75b1ae276593724",
   "lastOpenFiles": [
+    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
+    "AI实现AE输入法自动切换.md",
+    "c语言学习/特殊换行代码.md",
     "c语言学习/实现倒序输出（for循环）.md",
     "c语言学习/如何输出字符串位数.md",
-    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
-    "c语言学习/特殊换行代码.md",
     "c语言练习总结.md",
     "_怎么用.md",
     "_模板.md",
