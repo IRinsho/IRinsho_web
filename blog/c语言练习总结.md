@@ -2,7 +2,7 @@
 title: c语言练习总结
 pinned: "true"
 date: 2026-09-28
-category: c语言练习总结
+category: c语言学习
 tags:
   - C语言
 draft: false
