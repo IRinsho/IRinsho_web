@@ -6,6 +6,7 @@ date: 2026-09-30
 slug: AEsw
 draft: false
 cover: p2.png
+category: AE插件
 ---
 
 **以下皆为AI写入仅做参考**

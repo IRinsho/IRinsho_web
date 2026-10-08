@@ -67,7 +67,7 @@ slug:
     
 - `printf("%c ", str[i])` 逐个打印。
 [[特殊换行代码]]
-
+[去掉末尾的空格](去掉末尾的空格.md)
 
 ```dataview
 LIST FROM #C语言 SORT date DESC
