@@ -15,7 +15,7 @@
   --panel:     #1b1f38;
   --ink:       #ecedf6;
   --ink-2:     #9298b8;
-  --ink-3:     #676d8c;
+  --ink-3:     #7b82a4;
   --line:      rgba(236, 237, 246, .13);
   --line-2:    rgba(236, 237, 246, .07);
 
@@ -81,7 +81,7 @@ button, input { font: inherit; color: inherit; }
   display: flex;
   align-items: center;
   gap: 14px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   letter-spacing: .22em;
   text-transform: uppercase;
   color: var(--ink-2);
@@ -165,7 +165,7 @@ button, input { font: inherit; color: inherit; }
 /* 品牌名下面的小字：当前板块 / 序号 */
 .brand-sub {
   font-style: normal;
-  font-family: var(--font-mono); font-size: 9px;
+  font-family: var(--font-mono); font-size: 10px;
   letter-spacing: .18em; text-transform: uppercase;
   color: var(--ink-3); margin-top: 1px;
 }
@@ -181,7 +181,7 @@ button, input { font: inherit; color: inherit; }
 }
 /* 导航前面的小序号，学 Kisara 那种目录感 */
 .tab-no {
-  font-family: var(--font-mono); font-size: 9px;
+  font-family: var(--font-mono); font-size: 10px;
   letter-spacing: .06em; color: var(--ink-3);
   transition: color .2s;
 }
@@ -230,7 +230,7 @@ main { max-width: 1320px; margin: 0 auto; padding: 34px 26px 70px; }
 .footer {
   max-width: 1320px; margin: 0 auto;
   padding: 22px 26px 40px;
-  color: var(--ink-3); font-size: 11.5px; letter-spacing: .1em;
+  color: var(--ink-3); font-size: 12.5px; letter-spacing: .1em;
   border-top: 1px solid var(--line-2);
 }
 body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(--paper-line); }

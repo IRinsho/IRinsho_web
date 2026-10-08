@@ -15,7 +15,9 @@ const {
   hero = '',
   heroKicker = 'CHAPTER',
   heroSub = '',
-  heroImage = ''
+  heroImage = '',
+  // 单页分享图（Open Graph / Twitter 卡片）。不传就用 config.ogImage
+  image = ''
 } = Astro.props;
 
 // 注意：属性解构统一在上面那段（title / description / hero…），
@@ -67,6 +69,21 @@ const footerRaw = String(config.footer || '');
 const footerText = footerRaw.includes('{year}')
   ? footerRaw.replace(/\{year\}/g, year)
   : footerRaw;
+
+/* ---------- SEO / 分享（Open Graph、Twitter Card、canonical） ----------
+   绝对地址只在 config.site 填了之后才生成；没填就用相对地址兜底，
+   网站照常打开，只是微信 / QQ / Twitter 抓不到预览图。 */
+const site = String(config.site || '').trim().replace(/\/+$/, '');
+const ogImageSrc = image || config.ogImage || 'media/images/home-hero.jpg';
+const ogTitle = title;
+const ogDescription = description || config.homeMotto || '';
+const ogType = Astro.url.pathname === '/' ? 'website' : 'article';
+const canonical = site ? new URL(Astro.url.pathname, site).href : '';
+const ogUrl = site ? new URL(Astro.url.pathname, site).href : '';
+const ogImageUrl = site
+  ? new URL(asset(ogImageSrc).replace(/^\//, ''), site).href
+  : asset(ogImageSrc);
+const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
 ---
 <!doctype html>
 <html lang="zh-CN">
@@ -76,6 +93,22 @@ const footerText = footerRaw.includes('{year}')
   <title>{title}</title>
   <meta name="author" content={config.author || config.name}>
   {description && <meta name="description" content={description}>}
+  {canonical && <link rel="canonical" href={canonical}>}
+  <meta name="theme-color" content={themeColor}>
+
+  <!-- 分享（Open Graph / Twitter Card）：微信 / QQ / Twitter / 搜索引擎 -->
+  <meta property="og:site_name" content={config.name}>
+  <meta property="og:title" content={ogTitle}>
+  <meta property="og:description" content={ogDescription}>
+  <meta property="og:type" content={ogType}>
+  <meta property="og:locale" content="zh_CN">
+  {ogUrl && <meta property="og:url" content={ogUrl}>}
+  {ogImageUrl && <meta property="og:image" content={ogImageUrl}>}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content={ogTitle}>
+  <meta name="twitter:description" content={ogDescription}>
+  {ogImageUrl && <meta name="twitter:image" content={ogImageUrl}>}
+
   <link rel="icon" href={asset('favicon.svg')}>
   <link rel="stylesheet" href={asset('assets/css/style.css')}>
   <ClientRouter />

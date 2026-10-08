@@ -5,12 +5,22 @@
  * ======================================================= */
 export default {
 
+  /* ---------- 站点网址（SEO / 分享 / 站点地图） ---------- */
+  // 填成你正式上线的域名，例如 'https://irinsho.example.com'。
+  // 填了之后：canonical、Open Graph 分享卡片、sitemap.xml 的绝对地址才正确；
+  // 不填网站也能正常打开，只是分享出去的链接和预览图可能是相对地址（微信 / QQ 抓不到图）。
+  site: 'https://irinsho.top',
+
+  /* ---------- 默认分享图（Open Graph / Twitter 卡片） ---------- */
+  // 分享到微信 / QQ / Twitter 时显示的预览图。建议 1200×630 或 1920×1080 的横图。
+  ogImage: 'media/images/home-hero.jpg',
+
   /* ---------- 署名 ---------- */
   author: 'IRinsho',
 
   /* ---------- 品牌（左上角） ---------- */
   name: 'IRinsho',
-  nameAccent: '',              // 想让品牌名的一部分显示成玫红色，就把那部分填进来（例如 'LAB'），不用就留空
+  nameAccent: 'I',             // 品牌名的一部分染玫红（现在染第一个字母 I）；想整体恢复单色就改成 ''
 
   /* ---------- 首页抬头 ---------- */
   homeTitle: 'IRinsho',
@@ -41,7 +51,7 @@ export default {
     bio: '这里放我随手拍的图、剪的片子，还有一路学习留下的笔记。' +
          '不追热点，只做一个能长期用下去的地方。',
     links: [
-      { label: 'GITHUB', url: 'https://github.com/' },
+      { label: 'GITHUB', url: 'https://github.com/IRinsho' },
       { label: 'BILIBILI', url: 'https://space.bilibili.com/' }
     ],
     // 友链入口。url 可以填两种：

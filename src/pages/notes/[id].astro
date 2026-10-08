@@ -47,7 +47,7 @@ const crumb = [note.category, fmtSlash(note.date), note.title].filter(Boolean).j
 const hasMath = /\$[^$\n]+\$|\$\$[\s\S]+?\$\$/.test(note.content || '');
 const hasMermaid = /```+\s*mermaid/i.test(note.content || '');
 ---
-<Base title={`${note.title} · IRinsho`} description={note.summary}>
+<Base title={`${note.title} · IRinsho`} description={note.summary} image={note.cover || ''}>
   {hasMath && (
     <>
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
