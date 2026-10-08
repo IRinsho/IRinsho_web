@@ -100,25 +100,49 @@ button { font: inherit; }
   to { opacity: 1; transform: none; }
 }
 
-.gate-logo {
-  width: 46px; height: 46px;
-  display: grid; place-items: center;
-  border-radius: 14px;
-  background: rgba(224, 70, 111, 0.14);
-  border: 1px solid rgba(224, 70, 111, 0.32);
+/* 登录卡片顶部的头像（和侧栏那套一致：圆形 + 玫红描边 + 在线点） */
+.gate-avatar {
+  position: relative;
+  width: 72px;
+  height: 72px;
   margin-bottom: 18px;
 }
-.gate-logo .dot {
-  width: 15px; height: 15px;
+.gate-avatar img {
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  background: var(--rose);
-  box-shadow: 0 0 22px 4px rgba(224, 70, 111, 0.55);
-  animation: pulse 2.6s ease-in-out infinite;
+  object-fit: cover;
+  display: block;
+  background: #23263f;
+  box-shadow:
+    0 0 0 2px rgba(224, 70, 111, 0.9),
+    0 0 0 5px rgba(224, 70, 111, 0.14),
+    0 16px 34px -18px rgba(224, 70, 111, 0.95);
 }
-@keyframes pulse { 50% { transform: scale(0.72); opacity: 0.65; } }
+.gate-dot {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ok);
+  border: 3px solid #12142a;
+  box-shadow: 0 0 12px 1px rgba(62, 207, 142, 0.6);
+}
 
-.gate-title { margin: 0; font-size: 22px; letter-spacing: 0.02em; font-weight: 700; }
-.gate-sub { margin: 6px 0 24px; color: var(--ink-dim); font-size: 13px; }
+.gate-title {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: 0.01em;
+  font-weight: 700;
+  /* 和侧栏、站点一致的品牌感：名字用渐变字 */
+  background: linear-gradient(120deg, #ffffff 10%, #ffd9e3 55%, var(--rose) 130%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.gate-sub { margin: 8px 0 24px; color: var(--ink-dim); font-size: 13px; }
 .gate-form { display: grid; gap: 16px; }
 
 .gate-error {
