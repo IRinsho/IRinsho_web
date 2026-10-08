@@ -13,7 +13,10 @@
     "sync:covers": "node tools/sync-covers.mjs",
     "sync:blog": "node tools/build-blog.mjs",
     "sync:sitemap": "node tools/build-sitemap.mjs",
-    "cover": "node tools/set-cover.mjs"
+    "cover": "node tools/set-cover.mjs",
+    "admin": "node admin/server/admin-server.mjs",
+    "admin:test": "node --test admin/tests/unit.test.mjs",
+    "admin:test:api": "node --test admin/tests/api.test.mjs"
   },
   "devDependencies": {
     "astro": "^5.0.0",
