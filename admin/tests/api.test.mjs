@@ -27,6 +27,7 @@ const COPY = [
   'src/data/links.js',
   'src/data/photo-meta.js',
   'src/lib/markdown.js',
+  'shared/markdown.js',        // ⚠ src/lib/markdown.js 只是转发到这里，少了它预览就崩
   'public/assets/css/style.css',
   'public/admin/index.html',
   'public/admin/admin.css',
@@ -40,11 +41,19 @@ let server = null;
 
 async function makeSandbox() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'irinsho-api-test-'));
+  const missing = [];
   for (const rel of COPY) {
     const from = path.join(REAL_ROOT, rel);
     const to = path.join(root, rel);
     await fs.mkdir(path.dirname(to), { recursive: true });
-    try { await fs.copyFile(from, to); } catch { /* 缺文件就跳过 */ }
+    try {
+      await fs.copyFile(from, to);
+    } catch {
+      missing.push(rel);       // 别静默跳过 —— 漏文件会让测试报出莫名其妙的错
+    }
+  }
+  if (missing.length) {
+    throw new Error('沙盒缺少这些文件，请补进 COPY 列表：' + missing.join('、'));
   }
   // 一篇笔记 + 一张图片
   await fs.mkdir(path.join(root, 'blog', 'c语言学习'), { recursive: true });

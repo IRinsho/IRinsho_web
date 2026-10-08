@@ -16,7 +16,12 @@
     "cover": "node tools/set-cover.mjs",
     "admin": "node admin/server/admin-server.mjs",
     "admin:test": "node --test admin/tests/unit.test.mjs",
-    "admin:test:api": "node --test admin/tests/api.test.mjs"
+    "admin:test:api": "node --test admin/tests/api.test.mjs",
+    "admin:test:cloud": "node --test node-functions/_lib/cloud.test.mjs",
+    "admin:test:all": "node --test admin/tests/unit.test.mjs admin/tests/api.test.mjs node-functions/_lib/cloud.test.mjs"
+  },
+  "dependencies": {
+    "@edgeone/pages-blob": "^0.0.18"
   },
   "devDependencies": {
     "astro": "^5.0.0",

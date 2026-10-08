@@ -80,12 +80,25 @@ Obsidian 有时候会把布尔值写成带引号的字符串：`pinned: "true"`�
 ## 测试
 
 ```bash
-npm run admin:test       # 单元测试：frontmatter、保真、路径安全（20 项）
-npm run admin:test:api   # 接口测试：在系统临时目录里跑完整后端（16 项）
+npm run admin:test         # 单元测试：frontmatter、保真、路径安全（20 项）
+npm run admin:test:api     # 本地接口：在系统临时目录里跑完整后端（16 项）
+npm run admin:test:cloud   # 云端接口：用假 GitHub 跑 Node 函数（27 项）
+npm run admin:test:all     # 三个一起跑
 ```
 
 接口测试会把需要的文件**复制到系统临时目录**，在沙盒里起一个随机端口的后台实例，
 把所有写入接口跑一遍 —— **你真实的笔记、照片、配置一个字都不会被碰到**。
+云端测试同理，只是把后端换成**假的 GitHub 服务器**。
+
+## 先看一眼云端版长什么样
+
+想在推上 EdgeOne 之前预览云端后台（用假 GitHub 当后端，随便点都不影响真仓库）：
+
+```bash
+node admin/tools/preview-cloud.mjs
+```
+
+然后打开 <http://127.0.0.1:4399/admin/>。
 
 ---
 

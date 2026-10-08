@@ -1,0 +1,30 @@
+{
+  "name": "irinsho-web",
+
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "outputDirectory": "./dist",
+  "nodeVersion": "22.11.0",
+
+  "cloudFunctions": {
+    "nodejs": {
+      "maxDuration": 60
+    }
+  },
+
+  "headers": [
+    {
+      "source": "/admin/*",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/assets/*",
+      "headers": [
+        { "key": "Cache-Control", "value": "max-age=31536000" }
+      ]
+    }
+  ]
+}
