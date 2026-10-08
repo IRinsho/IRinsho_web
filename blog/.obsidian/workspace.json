@@ -61,7 +61,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "AI实现AE输入法自动切换.md",
+                "file": "c语言练习总结.md",
                 "mode": "preview",
                 "source": true,
                 "backlinks": true,
@@ -76,7 +76,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "AI实现AE输入法自动切换"
+              "title": "c语言练习总结"
             }
           }
         ],
@@ -218,7 +218,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "AI实现AE输入法自动切换.md",
+                "file": "c语言练习总结.md",
                 "followCursor": false,
                 "showSearch": true,
                 "searchQuery": ""
@@ -233,7 +233,7 @@
             "state": {
               "type": "file-properties",
               "state": {
-                "file": "AI实现AE输入法自动切换.md"
+                "file": "c语言练习总结.md"
               },
               "icon": "lucide-info",
               "title": "笔记属性"
@@ -261,14 +261,14 @@
   },
   "active": "e75b1ae276593724",
   "lastOpenFiles": [
+    "AI实现AE输入法自动切换.md",
+    "_怎么用.md",
+    "去掉末尾的空格.md",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
     "c语言学习/如何输出字符串位数.md",
     "c语言学习/实现倒序输出（for循环）.md",
     "c语言学习/特殊换行代码.md",
     "_模板.md",
-    "_怎么用.md",
-    "去掉末尾的空格.md",
-    "AI实现AE输入法自动切换.md",
     "c语言练习总结.md",
     "c语言学习/c语言练习总结.md",
     "如何输出字符串位数.md",
