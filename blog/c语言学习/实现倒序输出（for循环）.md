@@ -43,5 +43,7 @@ slug:
 
 
 ```dataview
-LIST FROM #C语言 SORT date DESC
+LIST
+FROM #C语言
+SORT date DESC
 ```

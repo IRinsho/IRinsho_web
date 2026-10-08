@@ -70,5 +70,7 @@ slug:
 [去掉末尾的空格](去掉末尾的空格.md)
 
 ```dataview
-LIST FROM #C语言 SORT date DESC
+LIST
+FROM #C语言
+SORT date DESC
 ```

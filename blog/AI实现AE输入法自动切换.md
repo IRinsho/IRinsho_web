@@ -1,7 +1,7 @@
 ---
+title: AI实现AE自动动输入法切换
 tags:
   - AI
-title: AI实现AE自动动输入法切换
 date: 2026-09-30
 slug: AEsw
 draft: false

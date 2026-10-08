@@ -4,7 +4,6 @@ pinned: "true"
 date: 2026-09-28
 category: c语言学习
 tags:
-  - C语言
 draft: false
 summary: c语言练习总结
 cover: p1.png
@@ -14,5 +13,7 @@ slug:
 
 
 ```dataview
-LIST FROM #C语言 SORT date DESC
+LIST
+FROM #C语言
+SORT date DESC
 ```
