@@ -1,10 +1,14 @@
 /* =========================================================
- *  本地预览云端后台（用完即删）
+ *  本地预览云端后台
  *  ---------------------------------------------------------
- *  起一个假 GitHub + 一个静态服务器，让浏览器能打开云端版的 /admin/
+ *  起一个假 GitHub + 一个静态服务器，让浏览器能打开云端版的界面，
  *  用来在推上 EdgeOne 之前先看界面、点一遍功能。
  *
- *  跑法：node admin/_preview-cloud.mjs   然后开 http://127.0.0.1:4399/admin/
+ *  跑法：node admin/tools/preview-cloud.mjs
+ *  然后开 http://127.0.0.1:4399/admin-cloud/
+ *
+ *  ⚠ 界面文件在 public/admin-cloud/（构建时会原样进 dist/，所以云端能访问）。
+ *    以前放在 node-functions/ 下，结果 EdgeOne 不发布那个目录 —— 线上 404。
  * ======================================================= */
 
 import http from 'node:http';
@@ -13,10 +17,10 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { startFakeGitHub } from '../node-functions/_lib/fake-github.mjs';
+import { startFakeGitHub } from '../../node-functions/_lib/fake-github.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const UI_DIR = path.join(ROOT, 'node-functions', 'admin');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const UI_DIR = path.join(ROOT, 'public', 'admin-cloud');
 const PORT = 4399;
 
 /* 假仓库：放一份和真实项目相近的内容 */
@@ -55,7 +59,7 @@ const env = {
   GITHUB_API_BASE: gh.baseUrl
 };
 
-const { onRequest } = await import('../node-functions/api/admin/index.js');
+const { onRequest } = await import('../../node-functions/api/admin/index.js');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -103,8 +107,10 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ---- 界面静态文件 ----
-  let rel = url.pathname.replace(/^\/admin\/?/, '') || 'index.html';
+  // ---- 界面静态文件（/admin-cloud/… 与 /admin/ 都走这里）----
+  let rel = url.pathname
+    .replace(/^\/admin-cloud\/?/, '')
+    .replace(/^\/admin\/?/, '') || 'index.html';
   const file = path.join(UI_DIR, rel);
   if (file.startsWith(UI_DIR) && fs.existsSync(file) && fs.statSync(file).isFile()) {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'text/plain', 'Cache-Control': 'no-store' });
@@ -117,7 +123,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log('');
-  console.log('  云端后台预览: http://127.0.0.1:' + PORT + '/admin/');
+  console.log('  云端后台预览: http://127.0.0.1:' + PORT + '/admin-cloud/');
   console.log('  （用假 GitHub 当后端，随便改都不影响真仓库）');
   console.log('');
 });

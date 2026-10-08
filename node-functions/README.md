@@ -168,21 +168,40 @@ npm run admin:test:cloud
 ## 六、代码在哪
 
 ```
-node-functions/
-├─ admin/                 后台界面（/admin/ 直接访问）
-│  ├─ index.html
-│  ├─ admin.css           和本地版同一套样式
-│  └─ admin.js            云端版：所有请求打到 /api/admin/*
-├─ api/admin/index.js     云端接口（/api/admin/*）
+node-functions/            ← 函数（EdgeOne 只认 api/，_lib/ 是辅助模块）
+├─ api/admin/index.js      云端接口（路由 /api/admin/*）
 └─ _lib/
-   ├─ github.mjs          GitHub 读写（Contents API + Trees API 批量提交）
-   ├─ auth.mjs            密码哈希、会话签名、Blob 存储
-   ├─ content.mjs         内容逻辑（复用本地版已测过的纯函数）
-   ├─ fake-github.mjs     测试用的假 GitHub
-   └─ cloud.test.mjs      25 项端到端测试
+   ├─ github.mjs           GitHub 读写（Contents API + Trees API 批量提交）
+   ├─ auth.mjs             密码哈希、会话签名、Blob 存储
+   ├─ content.mjs          内容逻辑（复用本地版已测过的纯函数）
+   ├─ fake-github.mjs      测试用的假 GitHub
+   └─ cloud.test.mjs       27 项端到端测试
+
+public/admin-cloud/        ← 云端后台界面（关键：必须放在 public/ 下）
+├─ index.html              访问地址 /admin-cloud/
+├─ admin.css
+├─ admin.js                云端版：所有请求打到 /api/admin/*
+├─ avatar.webp
+└─ avatar-fallback.svg
 ```
 
-**为什么目录叫 `node-functions`**：国际站（`pages.edgeone.ai`）用 `cloud-functions`，
+> ⚠️ **界面为什么必须放 `public/` 里**：
+> EdgeOne 只发布 `outputDirectory`（也就是 `dist/`）里的东西。
+> `public/` 下的文件会在构建时原样进 `dist/`，所以能被访问到；
+> 而 `node-functions/` 整个目录**不进 `dist/`**，放那里的界面在线上必然 404
+> —— 这个坑我踩过一次了。
+
+**两个后台的分工**（构建脚本 `integrations/hide-admin.mjs` 负责区分）：
+
+| 目录 | 谁用 | 会不会上线 |
+| --- | --- | --- |
+| `public/admin/` | 本地后台界面（本机 `npm run admin`） | ❌ 构建时从 `dist/` 删掉 |
+| `public/admin-cloud/` | 云端后台界面（手机/任意设备） | ✅ 发布到 `/admin-cloud/` |
+
+构建时还会自动生成一个 `dist/admin/index.html` 跳转页，
+所以**你只需要记 `/admin/` 这个地址**，它会跳到 `/admin-cloud/`。
+
+**为什么函数目录叫 `node-functions`**：国际站（`pages.edgeone.ai`）用 `cloud-functions`，
 中国站（腾讯云）用 `node-functions`，两边文档各自自洽但结论相反。
 你在腾讯云建的项目，所以用 `node-functions`。
 
