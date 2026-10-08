@@ -8,7 +8,7 @@
  *  平台会自动重新构建上线。
  * ======================================================= */
 
-const API_BASE = '/api/admin';
+const API_BASE = '/api/admin';   // 单一入口，动作走 ?action=
 
 /* ---------------- 小工具 ---------------- */
 
@@ -47,7 +47,14 @@ function toast(msg, kind = '') {
 }
 
 async function api(path, options = {}) {
-  const res = await fetch(API_BASE + path, {
+  /* 把动作拼成查询参数：'/note?rel=x' → '/api/admin?action=note&rel=x'
+     这样就只有一个确定的接口地址，不用依赖平台的路径路由规则
+     （EdgeOne 的 index.js 会被剥掉、catch-all 写法也要看版本）。 */
+  const [action, query] = String(path).replace(/^\/+/, '').split('?');
+  const params = new URLSearchParams(query || '');
+  params.set('action', action || 'session');
+
+  const res = await fetch(API_BASE + '?' + params.toString(), {
     credentials: 'same-origin',
     headers: options.body ? { 'Content-Type': 'application/json' } : {},
     ...options,

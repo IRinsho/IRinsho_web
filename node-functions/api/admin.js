@@ -13,13 +13,13 @@
  *  所有业务逻辑在 ../\_lib/ 里，本文件只做「解析请求 → 调逻辑 → 返回 JSON」。
  * ======================================================= */
 
-import { storeFromEnv } from '../../_lib/github.mjs';
+import { storeFromEnv } from '../_lib/github.mjs';
 import {
   BlobAuthStore, readAuth, setupPassword, verifyPassword,
   createSession, checkSession, destroySession, signToken,
   tooManyFailures, noteFailure, clearFailures,
   parseCookies, sessionCookie, clearCookie, COOKIE_NAME
-} from '../../_lib/auth.mjs';
+} from '../_lib/auth.mjs';
 
 import {
   listNotes, readNote, saveNote, deleteNote, makeNoteFileName,
@@ -27,11 +27,11 @@ import {
   saveArrayEntry, deleteArrayEntry, setPhotoMeta, removePhotoMeta,
   readTheme, saveTheme, listPhotos, uploadPhoto,
   CONFIG_PATH, VIDEOS_PATH, LINKS_PATH, PHOTO_META_PATH, syntaxOk
-} from '../../_lib/content.mjs';
+} from '../_lib/content.mjs';
 
 /* 站点自己的 Markdown 渲染器，和网站上是同一份实现
    （src/lib/markdown.js 只是转发到 shared/markdown.js） */
-import { renderMarkdown, buildLinkIndex } from '../../../shared/markdown.js';
+import { renderMarkdown, buildLinkIndex } from '../../shared/markdown.js';
 
 /* ---------------- 响应助手 ---------------- */
 
@@ -71,25 +71,35 @@ export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
 
-  // action 从路径里取：/api/admin/notes → notes
-  //
-  // ⚠ 这里必须多兜几层，因为不同平台的路径传法不一样：
-  //   · 本文件是 catch-all（[[route]].js），所以 /api/admin/xxx 都能进来
-  //   · 某些情况下 context.params 里才有剩余路径
-  let action = '';
-  if (url.pathname.startsWith('/api/admin')) {
-    action = url.pathname.slice('/api/admin'.length);
-  } else if (url.pathname.startsWith('/api/')) {
-    action = url.pathname.slice('/api'.length);
+  /* action 从哪来？按可靠程度依次尝试：
+   *   1. 查询参数 ?action=session        ← 首选，与路由规则完全无关，最稳
+   *   2. 路径 /api/admin/session         ← 兼容老写法
+   *   3. context.params 里的剩余路径     ← 平台把参数塞这里时
+   *
+   * 为什么首选查询参数：EdgeOne 的路由规则有坑 ——
+   *   · index.js 会被剥掉（node-functions/api/admin/index.js 只匹配 /api/admin）
+   *   · catch-all 是 [[route]] 双中括号，能不能用要看平台版本
+   * 把动作放进查询参数后，整个后台只需要一个确定的地址 /api/admin，
+   * 不管路由怎么解析都命中，不用再猜。
+   */
+  let action = url.searchParams.get('action') || '';
+
+  if (!action) {
+    if (url.pathname.startsWith('/api/admin')) {
+      action = url.pathname.slice('/api/admin'.length);
+    } else if (url.pathname.startsWith('/api/')) {
+      action = url.pathname.slice('/api'.length);
+    }
+    action = action.replace(/^\/+|\/+$/g, '');
+    if (action === 'admin' || action === 'index') action = '';
   }
-  action = action.replace(/^\/+|\/+$/g, '');
 
   if (!action && context.params) {
     const p = context.params.route || context.params.path || context.params['[[route]]'];
     if (Array.isArray(p)) action = p.join('/');
     else if (typeof p === 'string') action = p;
   }
-  if (!action || action === 'index') action = 'session';
+  if (!action) action = 'session';
 
   const method = request.method.toUpperCase();
 

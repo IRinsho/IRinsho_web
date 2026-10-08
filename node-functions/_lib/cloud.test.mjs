@@ -123,7 +123,16 @@ function makeRequest(path, { method = 'GET', body, cookieValue } = {}) {
 }
 
 async function call(path, opts = {}) {
-  const req = makeRequest(path, opts);
+  /* 测试里继续写 /api/admin/notes 这种直观形式，
+     这里自动转成线上真正用的单一入口 /api/admin?action=notes ——
+     因为 EdgeOne 对目录路由的解析有坑（index.js 被剥掉、catch-all 看版本），
+     所以线上只用一个确定的地址，动作走查询参数。 */
+  const m = String(path).match(/^\/api\/admin\/([^?]+)(\?.*)?$/);
+  const realPath = m
+    ? '/api/admin?action=' + m[1] + (m[2] ? '&' + m[2].slice(1) : '')
+    : path;
+
+  const req = makeRequest(realPath, opts);
   const res = await onRequest({ request: req, env, clientIp: '127.0.0.1' });
   const text = await res.text();
   let data;
@@ -133,7 +142,7 @@ async function call(path, opts = {}) {
   if (setCookie && setCookie.startsWith('irinsho_cloud=')) {
     cookie = setCookie.split(';')[0];
   }
-  return { status: res.status, data, setCookie };
+  return { status: res.status, data, setCookie, realPath };
 }
 
 /* ---------------- 启动 ---------------- */
@@ -148,7 +157,7 @@ test('启动假 GitHub + 云端接口', async () => {
     GITHUB_API_BASE: gh.baseUrl
   };
   // 文件名是 EdgeOne 的 catch-all 写法：[[route]].js → 匹配 /api/admin/*
-  const mod = await import('../api/admin/[[route]].js');
+  const mod = await import('../api/admin.js');
   onRequest = mod.onRequest;
   assert.equal(typeof onRequest, 'function');
 });

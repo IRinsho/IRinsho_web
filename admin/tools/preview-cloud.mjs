@@ -59,7 +59,7 @@ const env = {
 };
 
 /* 直接调用云端函数本体，不经过网络 */
-const { onRequest } = await import('../../node-functions/api/admin/[[route]].js');
+const { onRequest } = await import('../../node-functions/api/admin.js');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
