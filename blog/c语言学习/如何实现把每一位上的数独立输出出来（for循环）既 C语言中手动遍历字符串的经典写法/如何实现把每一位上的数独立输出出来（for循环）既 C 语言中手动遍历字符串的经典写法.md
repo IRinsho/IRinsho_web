@@ -10,10 +10,12 @@ cover: p2.png
 cssclasses:
 slug:
 ---
+**==*修正案例*==**
+![](https://myblog-1329557458.cos.ap-hongkong.myqcloud.com/imagees/20261008132137097.png)
 
-案例代码
+~~案例代码~~
 
-![Pasted image 20260922164034|700](https://myblog-1329557458.cos.ap-hongkong.myqcloud.com/imagees/Pasted%20image%2020260922164034.png)
+~~![Pasted image 20260922164034|700](https://myblog-1329557458.cos.ap-hongkong.myqcloud.com/imagees/Pasted%20image%2020260922164034.png)~~
 
 其中
 ![Pasted image 20260922164209](https://myblog-1329557458.cos.ap-hongkong.myqcloud.com/imagees/Pasted%20image%2020260922164209.png)

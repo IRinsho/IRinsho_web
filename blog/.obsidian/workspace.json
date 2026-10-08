@@ -61,8 +61,8 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "c语言练习总结.md",
-                "mode": "preview",
+                "file": "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
+                "mode": "source",
                 "source": true,
                 "backlinks": true,
                 "backlinkOpts": {
@@ -76,7 +76,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "c语言练习总结"
+              "title": "如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法"
             }
           }
         ],
@@ -233,7 +233,7 @@
             "state": {
               "type": "file-properties",
               "state": {
-                "file": "c语言练习总结.md"
+                "file": "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md"
               },
               "icon": "lucide-info",
               "title": "笔记属性"
@@ -259,15 +259,15 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "f7bbc304db0a9054",
+  "active": "e75b1ae276593724",
   "lastOpenFiles": [
+    "去掉末尾的空格.md",
+    "c语言练习总结.md",
     "AI实现AE输入法自动切换.md",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
     "c语言学习/如何输出字符串位数.md",
     "c语言学习/实现倒序输出（for循环）.md",
     "c语言学习/特殊换行代码.md",
-    "去掉末尾的空格.md",
-    "c语言练习总结.md",
     "_模板.md",
     "_怎么用.md",
     "c语言学习/c语言练习总结.md",
