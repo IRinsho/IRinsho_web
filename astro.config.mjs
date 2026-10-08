@@ -5,11 +5,13 @@
  * ======================================================= */
 import { defineConfig } from 'astro/config';
 import { irinshoAutoSync } from './integrations/auto-sync.mjs';
+import { irinshoHideAdmin } from './integrations/hide-admin.mjs';
 
 export default defineConfig({
   // 你的网站地址（腾讯云 COS 的默认域名，或你自己的域名）
   // 填上之后，分享卡片、站点地图这类绝对链接才正确
-  // site: 'https://your-domain.com',
+  // 注意：src/data/config.js 里的 site 也要填成同一个
+  site: 'https://irinsho.top',
 
   // 如果部署在子目录（例如 https://xxx.com/blog/），把 base 也一起打开
   // base: '/blog/',
@@ -27,5 +29,6 @@ export default defineConfig({
 
   /* 自动同步：npm run dev 启动时自动同步图片 / 抖音封面 / 笔记，
      之后往 img/ 或 blog/ 丢文件也会自动再同步一次 */
-  integrations: [irinshoAutoSync()]
+  /* 构建完成后把 admin/ 从 dist/ 里删掉 —— 后台只在本机用，不随站点上线 */
+  integrations: [irinshoAutoSync(), irinshoHideAdmin()]
 });

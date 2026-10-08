@@ -41,34 +41,41 @@
 
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <span class="brand-mark"></span>
-      <span class="brand-text">
-        <strong>林夕的小站</strong>
+      <div class="brand-avatar">
+        <img src="/admin/avatar.webp" alt="头像" width="44" height="44"
+             onerror="this.onerror=null;this.src='/admin/avatar-fallback.svg'">
+        <span class="brand-dot" title="本地服务运行中"></span>
+      </div>
+      <div class="brand-text">
+        <strong>IRinsho</strong>
         <em>专属后台</em>
-      </span>
+      </div>
     </div>
 
     <nav class="nav" id="nav">
       <a class="nav-item" href="#/dashboard" data-view="dashboard"><i class="ic">◈</i><span>仪表盘</span></a>
 
-      <div class="nav-group">内容</div>
+      <div class="nav-group"><span>内容</span></div>
       <a class="nav-item" href="#/notes" data-view="notes"><i class="ic">✎</i><span>笔记</span><b class="pill" id="pillDrafts" hidden></b></a>
       <a class="nav-item" href="#/photos" data-view="photos"><i class="ic">▣</i><span>相册</span></a>
       <a class="nav-item" href="#/videos" data-view="videos"><i class="ic">▶</i><span>视频</span></a>
       <a class="nav-item" href="#/links" data-view="links"><i class="ic">♡</i><span>友链</span></a>
 
-      <div class="nav-group">站点</div>
+      <div class="nav-group"><span>站点</span></div>
       <a class="nav-item" href="#/config" data-view="config"><i class="ic">⚙</i><span>站点信息</span></a>
       <a class="nav-item" href="#/theme" data-view="theme"><i class="ic">◐</i><span>配色外观</span></a>
       <a class="nav-item" href="#/health" data-view="health"><i class="ic">✚</i><span>内容体检</span></a>
 
-      <div class="nav-group">发布</div>
+      <div class="nav-group"><span>发布</span></div>
       <a class="nav-item" href="#/publish" data-view="publish"><i class="ic">↑</i><span>构建发布</span></a>
     </nav>
 
     <div class="sidebar-foot">
-      <div class="foot-row" id="footRoot" title="项目路径"></div>
-      <button class="btn btn-ghost btn-small" id="btnLogout">退出登录</button>
+      <div class="foot-row">
+        <span class="foot-label">项目</span>
+        <span class="foot-path" id="footRoot" title="项目路径"></span>
+      </div>
+      <button class="btn btn-ghost btn-small btn-block" id="btnLogout">退出登录</button>
     </div>
   </aside>
 
