@@ -7,8 +7,10 @@
  *  跑法：node admin/tools/preview-cloud.mjs
  *  然后开 http://127.0.0.1:4399/admin-cloud/
  *
- *  ⚠ 界面文件在 public/admin-cloud/（构建时会原样进 dist/，所以云端能访问）。
- *    以前放在 node-functions/ 下，结果 EdgeOne 不发布那个目录 —— 线上 404。
+ *  ⚠ 两处踩过的坑，改这个文件时注意：
+ *    1. 界面文件必须在 public/admin-cloud/ 下（构建会原样进 dist/，云端才访问得到）。
+ *       以前放在 node-functions/ 下，EdgeOne 不发布那个目录 —— 线上 404。
+ *    2. 接口文件是 catch-all 命名 [[route]].js，import 路径里带方括号。
  * ======================================================= */
 
 import http from 'node:http';
@@ -23,7 +25,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const UI_DIR = path.join(ROOT, 'public', 'admin-cloud');
 const PORT = 4399;
 
-/* 假仓库：放一份和真实项目相近的内容 */
+/* 假仓库：放一份和真实项目相近的内容，界面才有东西可看 */
 const FIXTURE = {
   'src/data/config.js': await fsp.readFile(path.join(ROOT, 'src/data/config.js'), 'utf8').catch(() => 'export default {};'),
   'src/data/videos.js': await fsp.readFile(path.join(ROOT, 'src/data/videos.js'), 'utf8').catch(() => 'export default [];'),
@@ -32,20 +34,17 @@ const FIXTURE = {
   'public/assets/css/style.css': await fsp.readFile(path.join(ROOT, 'public/assets/css/style.css'), 'utf8').catch(() => ':root { --rose: #e0466f; }')
 };
 
-// 把真实的笔记也放进去，界面才有东西看
-const blogDir = path.join(ROOT, 'blog');
 async function addNotes(dir, rel) {
   for (const e of await fsp.readdir(dir, { withFileTypes: true })) {
     if (e.name.startsWith('.')) continue;
     const r = rel ? rel + '/' + e.name : e.name;
     if (e.isDirectory()) await addNotes(path.join(dir, e.name), r);
     else if (/\.(md|jpg|png|webp)$/i.test(e.name)) {
-      const buf = await fsp.readFile(path.join(dir, e.name));
-      FIXTURE['blog/' + r] = buf;
+      FIXTURE['blog/' + r] = await fsp.readFile(path.join(dir, e.name));
     }
   }
 }
-await addNotes(blogDir, '').catch(() => {});
+await addNotes(path.join(ROOT, 'blog'), '').catch(() => {});
 
 const gh = await startFakeGitHub(FIXTURE);
 console.log('假 GitHub 已启动:', gh.baseUrl);
@@ -59,7 +58,8 @@ const env = {
   GITHUB_API_BASE: gh.baseUrl
 };
 
-const { onRequest } = await import('../../node-functions/api/admin/index.js');
+/* 直接调用云端函数本体，不经过网络 */
+const { onRequest } = await import('../../node-functions/api/admin/[[route]].js');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -74,7 +74,7 @@ const MIME = {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
 
-  // ---- API：交给云端函数处理 ----
+  /* ---- 接口：交给云端函数处理 ---- */
   if (url.pathname.startsWith('/api/admin')) {
     const chunks = [];
     for await (const c of req) chunks.push(c);
@@ -94,7 +94,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ---- 图片：从假仓库里读 ----
+  /* ---- 图片：从假仓库里读 ---- */
   if (url.pathname.startsWith('/img/')) {
     const p = decodeURIComponent(url.pathname.slice(1));
     const buf = gh.raw(p);
@@ -107,16 +107,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ---- 界面静态文件（/admin-cloud/… 与 /admin/ 都走这里）----
-  let rel = url.pathname
+  /* ---- 界面静态文件（/admin-cloud/… 与 /admin/ 都走这里）---- */
+  const rel = url.pathname
     .replace(/^\/admin-cloud\/?/, '')
     .replace(/^\/admin\/?/, '') || 'index.html';
   const file = path.join(UI_DIR, rel);
   if (file.startsWith(UI_DIR) && fs.existsSync(file) && fs.statSync(file).isFile()) {
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'text/plain', 'Cache-Control': 'no-store' });
+    res.writeHead(200, {
+      'Content-Type': MIME[path.extname(file)] || 'text/plain',
+      'Cache-Control': 'no-store'
+    });
     res.end(await fsp.readFile(file));
     return;
   }
+
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('404');
 });

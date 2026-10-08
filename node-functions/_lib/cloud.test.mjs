@@ -147,7 +147,8 @@ test('启动假 GitHub + 云端接口', async () => {
     GITHUB_BRANCH: 'main',
     GITHUB_API_BASE: gh.baseUrl
   };
-  const mod = await import('../api/admin/index.js');
+  // 文件名是 EdgeOne 的 catch-all 写法：[[route]].js → 匹配 /api/admin/*
+  const mod = await import('../api/admin/[[route]].js');
   onRequest = mod.onRequest;
   assert.equal(typeof onRequest, 'function');
 });

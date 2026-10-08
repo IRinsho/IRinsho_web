@@ -71,8 +71,26 @@ export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
 
-  // 路径形如 /api/admin/notes → action = notes
-  const action = url.pathname.replace(/^\/api\/admin\/?/, '').replace(/\/+$/, '') || 'session';
+  // action 从路径里取：/api/admin/notes → notes
+  //
+  // ⚠ 这里必须多兜几层，因为不同平台的路径传法不一样：
+  //   · 本文件是 catch-all（[[route]].js），所以 /api/admin/xxx 都能进来
+  //   · 某些情况下 context.params 里才有剩余路径
+  let action = '';
+  if (url.pathname.startsWith('/api/admin')) {
+    action = url.pathname.slice('/api/admin'.length);
+  } else if (url.pathname.startsWith('/api/')) {
+    action = url.pathname.slice('/api'.length);
+  }
+  action = action.replace(/^\/+|\/+$/g, '');
+
+  if (!action && context.params) {
+    const p = context.params.route || context.params.path || context.params['[[route]]'];
+    if (Array.isArray(p)) action = p.join('/');
+    else if (typeof p === 'string') action = p;
+  }
+  if (!action || action === 'index') action = 'session';
+
   const method = request.method.toUpperCase();
 
   try {
