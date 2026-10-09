@@ -1109,25 +1109,31 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   background-size: cover;
   background-repeat: no-repeat;
 }
-/* ⚠ 三件必须记住的事：
-   1. 这里**不能**默认 opacity:0 再等脚本加类 —— 脚本没跑（换页返回）
-      就会剩一个空首屏。默认可见，滚动进度再来接管透明度。
-   2. **不能**挂 transition：--gate-p 是滚动时每帧都在变的，
-      每帧重新起一次永远走不完的过渡 = 发飘、发糊。
-   3. **不能**用 transform: scale(...)：1253×830 的大图每帧重新栅格化，
-      画面会发软。缩放交给外层 .gate-bg 的开场动画，位移走 translate3d。 */
+/* ⚠ 主视觉的 opacity：**只有这一条规则说了算**。
+   ---------------------------------------------------------
+   这一版修的是一个"把主视觉永久锁死成透明"的 bug，成因是这样叠出来的：
+
+     ① 原来这里有一条独立的 `.gate-hero { animation: gateHeroIn … both }`，
+        而基础规则里是 `opacity: calc(1 - var(--gate-p) * .9)`
+     ② `both` 填充 + 延迟 ⇒ 动画开始前就先用 from 的值（0），
+        所以每次加载的前 0.4 秒主视觉本来就是空的
+     ③ 用户只要在那 1.75 秒里滚一下，脚本就给 .gate 打上 data-opened，
+        CSS 里 `animation: none !important` 把整条动画撤掉
+     ④ opacity 落回基础值 calc(1 - p * .9)，而接近顶部时它就是 0
+     ⑤ 结果：主视觉永久是 0，整个首屏只剩氛围层的深蓝渐变（截图那样）
+
+   现在把入场透明度整个删掉：
+     · 开场由幕布（.gate-bg::after）负责 —— 它本来就是"整块盖住再提起"，
+       主视觉不需要自己再淡入一次，多一个 opacity 来源就多一次踩踏机会
+     · 透明度只服务于滚动淡出，并且**设了下限 .15**：
+       最坏情况是"淡到很暗"，永远不会淡成 0 —— 一张图看不见是灾难，
+       暗一点只是设计
+   如果以后还想给主视觉加入场淡入，请用**外层包裹元素**的 opacity，
+   不要再往这个元素上叠第二条 opacity 规则。 */
 .gate-hero {
   background-image: var(--hero);
-  opacity: calc(1 - var(--gate-p, 0) * .9);
+  opacity: max(.15, calc(1 - var(--gate-p, 0) * .9));
   will-change: opacity;
-}
-/* 主视觉的响应是"拖着走"的：--gate-p 乘一个额外的 0.72 再叠加到
-   opacity 上，等于开场那 0.55s 里它自己还额外淡入一次。
-   好处：就算某台机器上的幕布动画被系统降级掉了，主视觉也不是硬切进来的。 */
-.gate-hero { animation: gateHeroIn 1.35s cubic-bezier(.2, .7, .2, 1) .4s both; }
-@keyframes gateHeroIn {
-  from { opacity: calc(1 - var(--gate-p, 0) * .9 - .72); }
-  to   { opacity: calc(1 - var(--gate-p, 0) * .9); }
 }
 
 /* 压暗层：只压够文字可读的程度。之前压得太重（上 .62 / 下 .88），
@@ -1392,10 +1398,14 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 .gate-atmosphere {
   position: absolute; inset: 0; z-index: 3;
   pointer-events: none;
+  /* ⚠ 数值比参考站轻得多。它那张底图是深色插画、压暗是为了统一画面；
+     这里的主视觉是白底插画，照抄它的强度会把人物整个吃掉 ——
+     第一版就是压太重，整屏糊成一片深蓝。
+     现在只保留"斜向一道冷光 + 很轻的暗角 + 底部稍微压暗"。 */
   background:
-    linear-gradient(112deg, rgba(20, 25, 55, .22), rgba(20, 25, 55, .04) 42%, rgba(255, 190, 210, .10)),
-    radial-gradient(at 50% 46%, transparent 38%, rgba(8, 10, 31, .10) 68%, rgba(8, 10, 31, .32) 100%),
-    linear-gradient(rgba(7, 10, 31, .28), rgba(7, 10, 31, .17) 44%, rgba(7, 10, 31, .42));
+    linear-gradient(112deg, rgba(20, 25, 55, .10), rgba(20, 25, 55, 0) 46%, rgba(255, 190, 210, .05)),
+    radial-gradient(at 50% 46%, transparent 52%, rgba(8, 10, 31, .07) 74%, rgba(8, 10, 31, .18) 100%),
+    linear-gradient(rgba(7, 10, 31, .12), rgba(7, 10, 31, .04) 46%, rgba(7, 10, 31, .22));
 }
 
 /* 减少动态效果 / 窄屏：尘埃不要（省电也省视觉噪音），氛围层留着 */
