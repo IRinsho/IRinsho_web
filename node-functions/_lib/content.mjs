@@ -68,16 +68,26 @@ function normalizeTags(v) {
 }
 
 /**
+ * 把 `export default` 换成 `module.exports = `，好让脚本解析器吃得下。
+ *
+ * ⚠ 必须锚定行首（^...m）。这些文件的开头注释里常常写着
+ *   「内容包在 export default { ... } 里」这种说明文字，
+ *   用不带锚点的正则会替换到**注释里那一句**，
+ *   而真正的导出语句原封不动 —— 结果是解析报 "Unexpected token 'export'"。
+ *   config.js 就正好踩了这个坑。
+ */
+function maskExportDefault(src) {
+  return String(src).replace(/^([ \t]*)export\s+default\s/gm, '$1module.exports = ');
+}
+
+/**
  * 语法检查（云端版，不 spawn 子进程）。
  *
- * ⚠ 坑：`vm.Script` 与 `new Function` 都是**脚本**解析器，不认 ESM 的
- *   `export default`（会报 "Unexpected token 'export'"）。
- *   而这些数据文件恰恰就是 `export default {...}`。
- *   所以先把 `export default` 遮成 `module.exports =`，再检查。
- *   这样既保住了「语法不过就不写入」这条保护，又不会误杀正常文件。
+ * `vm.Script` 与 `new Function` 都是**脚本**解析器，不认 ESM 的 `export default`，
+ * 所以先遮罩再检查。这样既保住「语法不过就不写入」这条保护，又不会误杀正常文件。
  */
 export function syntaxOk(source) {
-  const masked = String(source).replace(/export\s+default\s*/, 'module.exports = ');
+  const masked = maskExportDefault(source);
   try {
     new vm.Script(masked, { filename: 'check.mjs' });
     return { ok: true };
@@ -363,7 +373,7 @@ export async function readObjectFile(store, repoPath) {
  * 所以用 vm 跑一遍是安全的 —— 比 import() 更适合函数运行时。
  */
 function evalDefault(src) {
-  const masked = src.replace(/export\s+default\s*/, 'module.exports = ');
+  const masked = maskExportDefault(src);
   const sandbox = { module: { exports: null }, console };
   vm.createContext(sandbox);
   try {

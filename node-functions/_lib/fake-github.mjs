@@ -206,6 +206,10 @@ export async function startFakeGitHub(files = {}) {
     files: () => Object.fromEntries([...store.entries()].map(([k, v]) => [k, v.toString('utf8')])),
     raw: (path) => store.get(path),
     has: (path) => store.has(path),
+    /** 往假仓库里塞/改一个文件（测试准备数据用，不产生提交记录） */
+    set: (path, content) => {
+      store.set(path, Buffer.isBuffer(content) ? content : Buffer.from(String(content), 'utf8'));
+    },
     commits: () => commits,
     close: () => new Promise((r) => server.close(r))
   };

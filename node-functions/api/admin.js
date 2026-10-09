@@ -506,9 +506,13 @@ async function handleHealth(store) {
 /**
  * 求值 `export default <字面量>`。
  * 这些数据文件里只有字面量（对象/数组/字符串/数字/布尔），所以用 Function 跑一遍是安全的。
+ *
+ * ⚠ 遮罩必须锚定行首：文件开头的注释里常写着「内容包在 export default { ... } 里」，
+ *   不带锚点的正则会替换到注释里那句，真正的导出语句反而没被替换 ——
+ *   于是解析报 "Unexpected token 'export'"。config.js 就踩过这个坑。
  */
 function evalDefault(src) {
-  const masked = String(src).replace(/export\s+default\s*/, 'module.exports = ');
+  const masked = String(src).replace(/^([ \t]*)export\s+default\s/gm, '$1module.exports = ');
   const sandbox = { exports: null };
   try {
     new Function('module', 'console', masked)(sandbox, console);
