@@ -1120,29 +1120,33 @@ html.u-opening .opening {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-/* 离场：**消散**而不是滑走。
-   ⚠ 时序是按"粒子飞出去"排的，不是按"纸消失"排的。
-     粒子从点击点炸开到淡完要 1.25s，所以：
-       · 0 ~ 70%（0.7s）：纸几乎是实心的 —— 这段时间是纯粒子表演，
-         白底上彩色粒子看得最清楚
-       · 70% ~ 100%（0.3s）：页面在背后淡入
-     之前是 55% 就开始掉透明度、总长 1.05s，粒子刚飞出去 0.5 秒
-     就被页面盖过去了 —— 用户反馈"点击后没有粒子消散的效果"就是这个。 */
+/* ⚠⚠ 离场：纸**保持完全不透明**，只把底下的字卡散掉。
+   ---------------------------------------------------------
+   这里曾经让纸自己淡出（1.45s），结果和脚本的行动顺序撞车：
+   脚本一点击就摘掉了 .u-opening（纸的显示开关），纸当场隐藏，
+   粒子跟着一起没了 —— 用户看到的就是"直接进主页、没有消散"。
+
+   现在分工明确：
+     · .opening[.is-leaving]  → 纸保持可见（只把按钮/副标题等散掉），
+                                当粒子爆炸的**舞台**
+     · 画布粒子              → 唯一负责"文字炸开"的表演
+     · 脚本的 finishEnter()  → 动画放完才撤纸 + 首屏入场 + 开滚动
+   opacity:1 写成内联优先级之外的最高一档（带 !important），
+   保证它在任何类组合下都不会因为基础样式的 visibility:hidden 而消失。 */
 .opening.is-leaving {
-  animation: openingPaperAway 1.45s cubic-bezier(.4, 0, .35, 1) both !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  animation: none !important;
+  pointer-events: none;
 }
-@keyframes openingPaperAway {
-  from { opacity: 1; transform: scale(1); }
-  70%  { opacity: .92; }
-  to   { opacity: 0; transform: scale(1.045); }
-}
-/* 字卡：点击后向上飘散并消失（比纸早走一点，读起来像"先化成粒子"） */
+/* 字卡（eyebrow / 标题占位 / 横线 / 副标题 / 页脚 / 按钮 / 提示）：
+   点击后先散掉，把画面让给粒子。标题本来就是 opacity:0，不受影响。 */
 .opening.is-leaving .opening-inner {
-  animation: openingCardAway .72s cubic-bezier(.3, 0, .4, 1) both;
+  animation: openingCardAway .5s cubic-bezier(.3, 0, .4, 1) both;
 }
 @keyframes openingCardAway {
   from { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); }
-  to   { opacity: 0; transform: translate3d(0, -34px, 0); filter: blur(9px); }
+  to   { opacity: 0; transform: translate3d(0, -18px, 0); filter: blur(6px); }
 }
 /* 折痕：纸两边的暗边，让"翻动"有厚度感。
    只用纯色渐变，不加 blur —— 便宜且没有额外合成层。 */

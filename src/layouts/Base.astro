@@ -125,15 +125,49 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
         if (reduce) return;
         document.documentElement.classList.add('js-motion');
 
-        /* 开场标记：只有"真正的首页硬加载 + 用户允许动效"才加。
-           ⚠ 这个类是所有开场样式（纸、字卡、首屏延迟）的总开关：
+        /* 开场标记：只有"真正的首页硬加载 + 用户允许动效 + 本次会话还没进过"
+           才会加。
+
+           ⚠ 会话记忆（sessionStorage）：
+             不能每次刷新都重播一遍开场 —— 用户的原话是"怎么还加载第一张"。
+             所以进入过一次就在本次标签页里记下，之后刷新 / 重新打开
+             这个站的首页都直接进主页。
+             换新标签页或关掉重开会重新播（那是"新的一次访问"）。
+             ⚠ 用 try/catch 包住：隐私模式 / 某些内嵌浏览器会禁用 storage，
+               读不到就当没进过 —— 最坏是多播一次开场，不影响打开。
+
+           ⚠ 这个类是所有开场样式（纸、粒子、首屏延迟）的总开关：
              它没被加上，纸的 CSS 就永远停在 opacity:0 + visibility:hidden，
-             而首屏元素也不会有任何延迟 —— 页面就是一个普通的静态首页。
-             换句话说，任何一环出问题，最坏结果都是"没有开场"。 */
+             首屏元素也不会有任何延迟 —— 页面就是一个普通的静态首页。 */
         var p = location.pathname;
         var isHome = p === '/' || p === '' || /\/index\.html$/.test(p);
-        if (isHome && !document.documentElement.dataset.openingDone) {
-          document.documentElement.classList.add('u-opening');
+        if (!isHome) return;
+
+        /* ⚠ 已经带上开场类了就别动 —— 这段脚本可能被执行多次
+           （Astro 换页 / 缓存恢复），重复执行时必须保持幂等，
+           否则会把"正在播的开场"改成"已进入"，纸当场消失。 */
+        var cl = document.documentElement.classList;
+        if (cl.contains('u-opening') || cl.contains('u-entered')) return;
+
+        /* 会话记忆：进过一次就不再重播开场。
+           ⚠ 这里必须用**客户端**存储：整个站是预渲染的
+             （astro.config 没开 SSR），<html> 在构建时就定死了，
+             服务器读不到请求头 —— cookie 方案试过，永远拿不到值。
+           cookie 和 sessionStorage 都查一遍，任何一个命中就算进过。 */
+        var entered = false;
+        try {
+          entered = (document.cookie.indexOf('irinsho_entered=1') !== -1) ||
+                    (sessionStorage.getItem('irinsho:entered') === '1');
+        } catch (e) {}
+
+        /* ?force=1 用来强制重播（自己调试开场时方便，不影响正常访问） */
+        if (/[?&]force=1/.test(location.search)) entered = false;
+
+        if (entered) {
+          // 本次会话已经进过：直接给"已进入"状态，开场整套跳过
+          cl.add('u-entered');
+        } else {
+          cl.add('u-opening');
         }
       } catch (e) { /* 忽略：没有开场也要能正常打开 */ }
     })();
@@ -393,6 +427,38 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
    *    滚动浮现改成 CSS 变量驱动，不需要每次换页重新注册。）
    * ======================================================= */
   function bootMotion() {
+    /* ⚠ 这里**不再自行决定**开场状态 —— 那是 head 里内联脚本的事
+       （见 <head> 里那段长注释）。之前这里也改 class，两处互踩，
+       实测出现过"开场还没播就被改成已进入、纸当场消失"。
+
+       这里只做一件必要的事：客户端换页会替换 <html> 的 class 属性，
+       所以换页到首页时补上 u-entered（不重播开场，文字立即可见），
+       并清掉可能残留的开场层与滚动锁。 */
+    try {
+      const root = document.documentElement;
+
+      /* 客户端换页会替换 <html> 的 class 属性，head 里那两件事都得补回来：
+           · js-motion —— 控制顶栏下滑、进度条等入场动画（少了它内页就没入场）
+           · u-entered  —— 换页到首页时标记"已进入"，不重播开场 */
+      if (window.matchMedia &&
+          !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        root.classList.add('js-motion');
+      }
+
+      const p = location.pathname;
+      const isHome = p === '/' || p === '' || /\/index\.html$/.test(p);
+      if (isHome && !root.classList.contains('u-opening')) root.classList.add('u-entered');
+      if (!isHome) root.classList.remove('u-entered', 'u-opening');
+      root.style.removeProperty('overflow');   // 别把开场的滚动锁留在新页面上
+    } catch (e) { /* 忽略 */ }
+
+    /* 开场没在播时，那张纸不该留在 DOM 里（换页会重新生成一份） */
+    try {
+      if (!document.documentElement.classList.contains('u-opening')) {
+        document.querySelectorAll('.opening').forEach((el) => el.remove());
+      }
+    } catch (e) { /* 忽略 */ }
+
     initMenu();
     startNavIndicator();
     startScrollProgress();

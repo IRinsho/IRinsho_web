@@ -70,6 +70,11 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
     let guard = 0;
     let particles = null;
 
+    /* 消散动画时长（毫秒）。⚠ 这个数必须和画布 draw() 里 dissolve 分支的
+       T 保持一致 —— 结算（撤纸 + 首屏入场）就是按它推迟的。
+       改一处记得改另一处。 */
+    const DISSOLVE_MS = 1450;
+
     /* ---------------- 粒子：聚成文字 → 呼吸 → 点击消散 ----------------
        ★ 关键改动：粒子位置是**真的从字形上采样出来的**。
          做法：拿一个离屏画布，用页面同款字体把标题画一遍，
@@ -109,6 +114,7 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
 
       let W = 0, H = 0, dpr = 1;
       let parts = [];
+      let sparks = [];             // 消散时的飞溅火花（见 dissolve）
       let raf = 0;
       let phase = 'gather';        // gather → hold → dissolve
       let t0 = performance.now();
@@ -372,7 +378,7 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
         }
 
         if (phase === 'dissolve') {
-          const T = 1450;               // 与纸的离场动画（1.45s）对齐，别被提前砍掉
+          const T = DISSOLVE_MS;        // 与 release 里的结算时间绑定
           const p = Math.min(1, el / T);
           ctx.clearRect(0, 0, W, H);
 
@@ -399,16 +405,40 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
           }
           ctx.globalAlpha = 1;
 
-          // ② 冲击波圆环
+          // ④ 飞溅火花：比字形粒子更快更远，负责"炸"的观感
+          for (const s of sparks) {
+            s.x += s.vx;
+            s.y += s.vy;
+            s.vy += .14;
+            s.vx *= .972;
+            s.vy *= .972;
+            const fade = p < .18 ? 1 : 1 - ease((p - .18) / .82);
+            s.a = Math.max(0, fade);
+            if (s.a <= .03) continue;
+            ctx.globalAlpha = Math.min(1, s.a);
+            ctx.fillStyle = s.color;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r * (1 + p * 1.2), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+
+          // ② 冲击波圆环（两圈：细的快的 + 粗的慢的，比一圈更有"爆"的感觉）
           if (wave.on) {
             wave.p += .05;
             if (wave.p >= 1) { wave.on = false; }
             else {
-              ctx.globalAlpha = Math.max(0, .5 * (1 - wave.p));
+              const e = ease(wave.p);
               ctx.strokeStyle = '#c8395f';
-              ctx.lineWidth = 2.5 * (1 - wave.p) + .5;
+              ctx.globalAlpha = Math.max(0, .6 * (1 - wave.p));
+              ctx.lineWidth = 3 * (1 - wave.p) + .5;
               ctx.beginPath();
-              ctx.arc(wave.x, wave.y, 8 + ease(wave.p) * 260, 0, Math.PI * 2);
+              ctx.arc(wave.x, wave.y, 6 + e * 320, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.globalAlpha = Math.max(0, .3 * (1 - wave.p));
+              ctx.lineWidth = 1.2;
+              ctx.beginPath();
+              ctx.arc(wave.x, wave.y, 6 + e * 200, 0, Math.PI * 2);
               ctx.stroke();
               ctx.globalAlpha = 1;
             }
@@ -442,12 +472,16 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
         if (!raf) raf = requestAnimationFrame(draw);
       }
 
-      /* ★ 消散 = 三个东西叠起来，缺一个都会"看不出消散"：
+      /* ★ 消散 = 四个东西叠起来，缺一个都会"看不出消散"：
            ① 爆点闪白（0.16s）—— 给眼睛一个"炸了"的信号
-           ② 冲击波圆环（从点击点扩到 260px 再淡出）
-           ③ 粒子沿"从点击点向外"的方向**加速**冲出去（不是匀速飘），
-              同时瞬间变亮、变大，再慢慢淡掉
-         第一版只有③的匀速版，用户反馈"点击后没有粒子消散的效果"。 */
+           ② 冲击波圆环（从点击点扩到 320px 再淡出）
+           ③ 粒子沿"从点击点向外"的方向**加速**冲出去
+           ④ 外加一圈"飞溅"火花：比字形粒子更快更远更亮
+
+         ⚠ 为什么要④：粒子都排在字形上，也就是排成**一条横线**。
+           只让它们沿"从点击点向外"飞，方向基本也在这条线上 ——
+           视觉上像"字被拉宽"，不像"炸开"。所以额外撒一圈各方向的火花，
+           再给字形粒子加一点垂直于连线方向的随机速度。 */
       function dissolve(x, y) {
         if (phase === 'dissolve') return;
         clickX = x; clickY = y;
@@ -461,12 +495,32 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
           const dx = q.tx - x;
           const dy = q.ty - y;
           const dist = Math.hypot(dx, dy) || 1;
+          const nx = dx / dist;
+          const ny = dy / dist;
           // 离爆点越近冲得越快（1.2 倍里再叠一层随机，避免整齐划一）
-          const boost = 1 + Math.max(0, 1 - dist / 420) * 2.6;
-          const f = (3.4 + Math.random() * 6.2) * boost;
-          q.vx = (dx / dist) * f + (Math.random() - .5) * 1.6;
-          q.vy = (dy / dist) * f - (1.4 + Math.random() * 3.2);   // 整体略微上飘
+          const boost = 1 + Math.max(0, 1 - dist / 420) * 2.8;
+          const f = (4.2 + Math.random() * 7.5) * boost;
+          // 垂直于连线方向的散开：让"一条线上的字"能真正炸成一个圆
+          const perp = (Math.random() - .5) * f * .9;
+          q.vx = nx * f - ny * perp;
+          q.vy = ny * f + nx * perp - (1.6 + Math.random() * 3.4);
           q.a = 1;
+        }
+
+        // ④ 飞溅火花：各方向都有，负责"炸"的观感
+        const n = small ? 46 : 84;
+        sparks = [];
+        for (let i = 0; i < n; i++) {
+          const a = (Math.PI * 2 * i) / n + Math.random() * .4;
+          const sp = 5 + Math.random() * 13;
+          sparks.push({
+            x, y,
+            vx: Math.cos(a) * sp,
+            vy: Math.sin(a) * sp - 1.5,
+            r: .9 + Math.random() * 1.8,
+            a: 1,
+            color: Math.random() < .5 ? '#c8395f' : (Math.random() < .5 ? '#241a20' : '#7bb6b2')
+          });
         }
 
         phase = 'dissolve';
@@ -493,7 +547,29 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
       };
     }
 
-    /* ---------------- 进入 ---------------- */
+    /* ---------------- 进入 ----------------
+       ⚠⚠ 这里曾经有个把整个效果毁掉的顺序错误，务必别再犯：
+
+         原写法一上来就 `root.classList.remove('u-opening')`，而纸的显示
+         （opacity / visibility）**全靠这个类撑着**（基础样式是隐藏的）。
+         所以点击那一瞬间纸就被隐藏了 —— 粒子其实还在画，但它跟着纸
+         一起消失，用户看到的就是"直接进主页"，完全没有消散。
+
+         正确顺序：先让粒子把字炸开（纸保持可见、当画布），
+         等动画放完再"结算"——撤纸、首屏入场、解开滚动。 */
+    function finishEnter() {
+      if (root.dataset.enteredFinished === '1') return;
+      root.dataset.enteredFinished = '1';
+      root.classList.remove('u-opening');       // 撤纸（此时它已经空了）
+      root.style.removeProperty('overflow');    // 解开滚动锁
+      /* ⚠ 这个类才是"首屏入场"的发令枪（见 style.css 里所有 html.u-entered 规则）。
+         放在最后加：纸没了的同一刻首屏才开始亮，顺序才对。 */
+      root.classList.add('u-entered');
+      if (paper.isConnected) paper.remove();
+      root.dataset.openingDone = '1';
+      particles = null;
+    }
+
     function release(ev) {
       if (closed) return;
       closed = true;
@@ -509,18 +585,29 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
         py = r.top + r.height / 2;
       }
 
-      root.classList.remove('u-opening');
-      root.style.removeProperty('overflow');    // 解开滚动锁
-      /* ⚠ 这个类才是"首屏入场"的发令枪（见 style.css 里所有 html.u-entered 规则）。
-         为什么不由 CSS 固定延迟来做：现在是手动进入，用户可能盯着字卡看很久，
-         固定延迟的话等他们点进来时首屏动画早播完了。 */
-      root.classList.add('u-entered');
+      /* 会话记忆：进入过一次就写 cookie（会话级，关掉浏览器就没了）。
+         ⚠ 这是"刷新不再重播开场"的**唯一**依据 —— 服务器读它来决定
+         <html> 上是 u-opening 还是不留类。比 sessionStorage 可靠：
+         服务器在首字节就能知道，不用等脚本跑。 */
+      try {
+        document.cookie = 'irinsho_entered=1; path=/; SameSite=Lax';
+        sessionStorage.setItem('irinsho:entered', '1');   // 兜底（cookie 被禁时）
+      } catch (e) { /* 隐私模式下可能失败，不影响本次进入 */ }
 
-      if (particles) particles.dissolve(px, py);    // 粒子炸开
       window.clearTimeout(guard);
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('visibilitychange', onHide);
-      paper.classList.add('is-leaving');            // 字卡散开 + 纸淡出
+
+      /* 纸与画布留在原地当"爆炸的舞台"。
+         is-leaving 只把底下的字卡（eyebrow/副标题/按钮…）散掉，
+         纸本身**保持完全不透明**，直到粒子放完（见 CSS）。 */
+      paper.classList.add('is-leaving');
+
+      if (particles) particles.dissolve(px, py);   // 文字炸成粒子
+
+      /* 结算：晚一点再撤纸。晚多久 = 消散动画的时长，
+         两者由这个常量绑定，改一处就够。 */
+      window.setTimeout(finishEnter, DISSOLVE_MS + 60);
     }
 
     function onKey(e) {
