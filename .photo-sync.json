@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1791518856230,
+  "updatedAt": 1791519327495,
   "files": {
     "119178066_p0.jpg": {
       "out": "media/images/119178066_p0.webp",
@@ -25,6 +25,18 @@
       "shrink": "省 88%",
       "from": "949 KB",
       "to": "117 KB"
+    },
+    "126475690_p0.webp": {
+      "out": "media/images/126475690_p0.webp",
+      "mode": "webp",
+      "mtimeMs": 1791518901781.16,
+      "size": 375794,
+      "outSize": 342938,
+      "shrink": "省 9%",
+      "from": "367 KB",
+      "to": "335 KB",
+      "width": 2000,
+      "height": 1125
     }
   }
 }
