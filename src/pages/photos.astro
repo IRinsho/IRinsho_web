@@ -144,15 +144,56 @@ const dimAttrs = (p) => (p.w > 0 && p.h > 0 ? { width: p.w, height: p.h } : {});
       open((current + d + list.length) % list.length);
     }
 
-    // 分类筛选
+    // 分类筛选（带编排式过渡：旧图缩小模糊退场 → 新图错峰放大入场）
+    const reduceMotion = window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     document.getElementById('filters').addEventListener('click', (e) => {
       const btn = e.target.closest('.filter');
       if (!btn) return;
       document.querySelectorAll('#filters .filter').forEach((b) => b.classList.toggle('active', b === btn));
       const album = btn.dataset.album;
-      document.querySelectorAll('.photo-card').forEach((el) => {
-        el.hidden = album !== '全部' && el.dataset.album !== album;
+      const cards = [...document.querySelectorAll('.photo-card')];
+
+      // 没有动效需求 / 系统要求减少动效 → 直接切，保持原来的行为
+      if (reduceMotion) {
+        cards.forEach((el) => { el.hidden = album !== '全部' && el.dataset.album !== album; });
+        close();
+        return;
+      }
+
+      const willShow = (el) => album === '全部' || el.dataset.album === album;
+      const toHide = cards.filter((el) => !el.hidden && !willShow(el));
+      const toShow = cards.filter((el) => el.hidden && willShow(el));
+
+      // 1) 退场：正在显示的旧图先缩一下再藏起来
+      toHide.forEach((el) => {
+        el.classList.remove('is-entering');
+        el.classList.add('is-leaving');
       });
+
+      // 2) 入场：等旧图让开位置，新图按顺序错峰进来
+      const STAGGER = 45;                                    // 每张间隔（毫秒）
+      const LEAD = toHide.length ? 190 : 0;                  // 有退场就先等一小会儿
+
+      window.setTimeout(() => {
+        toHide.forEach((el) => {
+          el.hidden = true;
+          el.classList.remove('is-leaving');
+        });
+
+        toShow.forEach((el, i) => {
+          el.hidden = false;
+          el.classList.remove('is-leaving');
+          el.style.setProperty('--stagger', Math.min(i * STAGGER, 520) + 'ms');
+          el.classList.add('is-entering');
+          el.addEventListener('animationend', () => {
+            el.classList.remove('is-entering');
+            el.style.removeProperty('--stagger');
+          }, { once: true });
+        });
+      }, LEAD);
+
       close();
     });
 

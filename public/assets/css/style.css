@@ -841,7 +841,9 @@ html.has-cursor * { cursor: none !important; }
 }
 .cur-dot.is-hot { width: 4px; height: 4px; }
 
-/* 外圈：平时是个细环，悬停在可点元素上时放大并染色 */
+/* 外圈：平时是个细环，悬停在可点元素上时放大并染色。
+   ⚠ 位置由 CSS 变量给（--cur-rx/--cur-ry 是"经过磁吸后的位置"），
+      不再由 JS 直接写 transform —— 这样下面的拉长/倾斜才能叠加进来。 */
 .cur-ring {
   width: 30px; height: 30px;
   border-radius: 50%;
@@ -849,6 +851,17 @@ html.has-cursor * { cursor: none !important; }
   background: rgba(224, 70, 111, .06);
   backdrop-filter: blur(1px);
   display: flex; align-items: center; justify-content: center;
+
+  transform:
+    translate3d(var(--cur-rx, -100px), var(--cur-ry, -100px), 0)
+    translate(-50%, -50%)
+    scale(
+      calc(1 + var(--cur-magnet, 0) * .42 + var(--cur-stretch, 0) * .06),
+      calc(1 + var(--cur-magnet, 0) * .42 + var(--cur-stretch, 0) * .46)
+    );
+  transition: width .22s ease, height .22s ease, opacity .25s ease,
+              background .22s ease, border-color .22s ease;
+  will-change: transform;
 }
 .cur-ring.is-hot {
   width: 46px; height: 46px;
@@ -1201,7 +1214,212 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 .gate-particles { transform: translate3d(calc(var(--mx, 0) * 26px), calc(var(--my, 0) * 26px), 0); }
 .gate-bg, .gate-inner, .gate-particles { transition: transform .5s cubic-bezier(.22, .61, .36, 1); }
 
-/* ① 漂浮粒子 */
+/* ① 引力星野（可交互 Canvas）：铺在背景和文字之间，不挡点击 */
+.gate-field {
+  position: absolute; inset: 0; z-index: 1;
+  width: 100%; height: 100%;
+  pointer-events: none;      /* 交互由 .gate 上的监听负责，不靠这一层收事件 */
+  opacity: 0;
+  /* 稍微提亮、加一点对比，让粒子在照片上也能看清 */
+  filter: brightness(1.15) contrast(1.06) saturate(1.05);
+  animation: gateFieldIn 1.6s ease .25s forwards;
+}
+@keyframes gateFieldIn { to { opacity: 1; } }
+/* 减少动态效果：整层不要 */
+@media (prefers-reduced-motion: reduce) {
+  .gate-field { display: none; }
+}
+
+/* =========================================================
+ *  可玩性动效（②③④⑤⑥⑦）
+ *  ---------------------------------------------------------
+ *  全部遵守两条底线：
+ *    · 脚本没跑 → 这些变量都是默认值，画面和以前完全一样
+ *    · prefers-reduced-motion → 整块关掉
+ * ======================================================= */
+
+/* ---------- ② 卡片 3D 倾斜 + 光晕跟随 ----------
+   倾斜角由 JS 写进 --tilt-x / --tilt-y，
+   光晕位置写进 --shine-x / --shine-y，--tilt-on 控制高光透明度。
+   没脚本时这些变量不存在 → calc 里 var() 有兜底 → 卡片保持平整。 */
+
+.post, .gallery-item, .video-card, .panel, .link-card, .photo-card {
+  transform-style: preserve-3d;
+  transform:
+    perspective(900px)
+    rotateX(var(--tilt-x, 0deg))
+    rotateY(var(--tilt-y, 0deg));
+  will-change: transform;
+  position: relative;
+}
+
+/* 光晕：一层跟着指针滑动的柔光，盖在卡面上不吃事件 */
+.post::after,
+.gallery-item::after,
+.video-card::after,
+.panel::after,
+.link-card::after,
+.photo-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--tilt-on, 0);
+  transition: opacity .35s ease;
+  background:
+    radial-gradient(
+      220px circle at var(--shine-x, 50%) var(--shine-y, 50%),
+      rgba(255, 255, 255, .16),
+      rgba(224, 70, 111, .10) 38%,
+      transparent 68%
+    );
+  mix-blend-mode: screen;
+  z-index: 3;
+}
+/* 有些卡片本来就有 ::after（例如 .panel 的铭牌），别打架 */
+.panel::after { border-radius: inherit; }
+
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .post, .gallery-item, .video-card, .panel, .link-card, .photo-card {
+    transform: none;
+    will-change: auto;
+  }
+  .post::after, .gallery-item::after, .video-card::after,
+  .panel::after, .link-card::after, .photo-card::after { display: none; }
+}
+
+/* ---------- ④ 点击涟漪 + 粒子爆发 ---------- */
+
+.fx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;          /* 盖在内容上，但在鼠标圈（9999）之下 */
+  overflow: hidden;
+}
+
+.fx-ripple {
+  position: absolute;
+  width: 14px; height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(224, 70, 111, .75);
+  box-shadow: 0 0 14px rgba(224, 70, 111, .45), inset 0 0 10px rgba(224, 70, 111, .25);
+  animation: fxRipple .62s cubic-bezier(.2, .7, .3, 1) forwards;
+}
+@keyframes fxRipple {
+  0%   { transform: scale(.35); opacity: .95; }
+  100% { transform: scale(5.2); opacity: 0; }
+}
+
+.fx-spark {
+  position: absolute;
+  width: 4px; height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .95);
+  box-shadow: 0 0 10px rgba(255, 255, 255, .7);
+  animation: fxSpark var(--dur, .8s) cubic-bezier(.15, .7, .3, 1) forwards;
+}
+.fx-spark.is-rose {
+  background: rgba(240, 120, 155, 1);
+  box-shadow: 0 0 12px rgba(224, 70, 111, .9);
+}
+@keyframes fxSpark {
+  0%   { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+  100% { transform: translate3d(var(--dx, 0), var(--dy, 0), 0) scale(.2); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-layer { display: none; }
+}
+
+/* ---------- ⑦ 光标滚动拉长 ----------
+   圈本身的位置与缩放已经写在上面那条 .cur-ring 里了（合并了磁吸 + 拉长），
+   这里只补一条滚动时的过渡，让拉长/回弹更顺。
+   没脚本时 --cur-stretch / --cur-magnet 都不存在 → 兜底为 0 → 还是一个普通圆环。 */
+
+.cur-ring {
+  transition: width .22s ease, height .22s ease, opacity .25s ease,
+              background .22s ease, border-color .22s ease, transform .1s linear;
+}
+
+/* ---------- ③ 滚动驱动的分层视差（CSS 原生滚动时间线） ----------
+   现代浏览器原生支持，不加 JS；不支持的浏览器就安静地什么都不做。
+   注意：这里是滚动**驱动**动画（animation-timeline），不是滚动监听。 */
+
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* 首屏：背景慢、文字中、粒子快 —— 三层不同速率才有纵深 */
+    .gate-bg {
+      animation: gateParallaxBg linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 100vh;
+    }
+    .gate-inner {
+      animation: gateParallaxText linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 100vh;
+    }
+    .gate-particles {
+      animation: gateParallaxDust linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 100vh;
+    }
+
+    /* 面板区：滚上来时轻微上浮 + 放大，滚过去再收回 */
+    .panel, .gallery-item, .post, .video-card {
+      animation: scrollLift linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 34%;
+    }
+  }
+}
+
+@keyframes gateParallaxBg {
+  from { translate: 0 0; }
+  to   { translate: 0 -6vh; }
+}
+@keyframes gateParallaxText {
+  from { translate: 0 0; }
+  to   { translate: 0 -16vh; }
+}
+@keyframes gateParallaxDust {
+  from { translate: 0 0; }
+  to   { translate: 0 -30vh; }
+}
+@keyframes scrollLift {
+  from { translate: 0 22px; scale: .975; }
+  to   { translate: 0 0;    scale: 1; }
+}
+
+/* ---------- ⑤ 相册筛选：编排式入场 ----------
+   ⚠ 类名是 .photo-card（相册页用的），不是 .gallery-item（那是旧类名）。
+   切换分类时：旧图缩小模糊退场，新图错峰放大入场（--stagger 由 JS 写）。
+   默认（没脚本）直接显示，不会白屏。 */
+
+.photo-card.is-entering {
+  animation: galleryIn .56s cubic-bezier(.2, .8, .25, 1) both;
+  animation-delay: var(--stagger, 0s);
+}
+@keyframes galleryIn {
+  0%   { opacity: 0; transform: scale(.9) translateY(14px); filter: blur(6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+}
+
+.photo-card.is-leaving {
+  animation: galleryOut .26s ease forwards;
+  pointer-events: none;
+}
+@keyframes galleryOut {
+  to { opacity: 0; transform: scale(.94); filter: blur(4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-card.is-entering,
+  .photo-card.is-leaving { animation: none; }
+}
 .gate-particles {
   position: absolute; inset: 0; z-index: 1;
   pointer-events: none;

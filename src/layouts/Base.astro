@@ -315,12 +315,62 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
     window.addEventListener('mousedown', () => ring.classList.add('is-down'), { passive: true });
     window.addEventListener('mouseup', () => ring.classList.remove('is-down'), { passive: true });
 
+    /* 磁吸：指针靠近可点元素时，圈被"吸"向元素中心一点，
+       分开时松回去 —— 手感上像元素对光标有引力。
+       吸力上限保守（最多 38%、只在 170px 内生效），免得光标不跟手。 */
+    let hotEl = null;
+    let magnet = 0;              // 当前吸力 0~1（带阻尼）
+
+    const MAGNET_R = 170;
+    const MAGNET_MAX = 0.38;
+
+    const originalOnMove = onMove;
+    const onMoveMagnet = (e) => {
+      originalOnMove(e);
+      hotEl = e.target && e.target.closest
+        ? e.target.closest('a, button, .post, .video-card, .photo-card, .panel, .chip, [role="button"]')
+        : null;
+    };
+    // 换掉原来的监听：既更新位置，也记住当前悬停的元素
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('pointerover', onMove);
+    document.addEventListener('pointermove', onMoveMagnet, { passive: true });
+    document.addEventListener('mousemove', onMoveMagnet, { passive: true });
+    document.addEventListener('pointerover', onMoveMagnet, { passive: true });
+
     // 圈的跟随用阻尼（lerp），点则完全贴住指针
     (function loop() {
       rx += (mx - rx) * 0.18;
       ry += (my - ry) * 0.18;
+
+      /* 目标吸力：指针在元素矩形内或离得近 → 往元素中心拉 */
+      let wantMagnet = 0;
+      let tx = rx;
+      let ty = ry;
+      if (hotEl && document.body.contains(hotEl)) {
+        const r = hotEl.getBoundingClientRect();
+        if (r.width && r.height) {
+          const cx = r.left + r.width / 2;
+          const cy = r.top + r.height / 2;
+          const d = Math.hypot(rx - cx, ry - cy);
+          if (d < MAGNET_R) {
+            wantMagnet = (1 - d / MAGNET_R) * MAGNET_MAX;
+            tx = rx + (cx - rx) * wantMagnet;
+            ty = ry + (cy - ry) * wantMagnet;
+          }
+        }
+      }
+      magnet += (wantMagnet - magnet) * 0.12;
+
+      /* 用 CSS 变量定位（而不是直接写 transform）：
+         这样 CSS 里的倾斜/拉伸可以叠加在同一个 transform 上，不会互相覆盖 */
+      document.documentElement.style.setProperty('--cur-x', mx.toFixed(2) + 'px');
+      document.documentElement.style.setProperty('--cur-y', my.toFixed(2) + 'px');
+      document.documentElement.style.setProperty('--cur-rx', tx.toFixed(2) + 'px');
+      document.documentElement.style.setProperty('--cur-ry', ty.toFixed(2) + 'px');
+      document.documentElement.style.setProperty('--cur-magnet', magnet.toFixed(3));
       dot.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
-      ring.style.transform = `translate3d(${rx}px, ${ry}px, 0) translate(-50%, -50%)`;
       requestAnimationFrame(loop);
     })();
   }
@@ -373,6 +423,227 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   }
 
   /* =========================================================
+   *  ⑤ 卡片 3D 倾斜 + 光晕跟随（可玩性）
+   *  ---------------------------------------------------------
+   *  鼠标在卡片上时：卡片朝指针方向轻微倾斜（透视 + 阻尼），
+   *  同时一束高光跟着指针在卡面滑动 —— 像卡片是金属做的。
+   *
+   *  约束：
+   *    · 只在「有精确指针」的设备上启用（触屏没有 hover，别浪费性能）
+   *    · 尊重 prefers-reduced-motion
+   *    · 卡片本身不设 transition，用 rAF 插值做阻尼（比 CSS 跟手）
+   *    · 离开时平滑回正，不留歪卡片
+   * ======================================================= */
+
+  /* 哪些算"卡片"：和滚动浮现用的是同一批选择器，保持一致 */
+  const CARD_SEL = '.post, .gallery-item, .video-card, .panel, .link-card, .photo-card';
+
+  function initCardTilt() {
+    try {
+      if (prefersReduced) return;
+      const fine = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+      if (!fine) return;                       // 触屏跳过
+
+      const cards = document.querySelectorAll(CARD_SEL);
+      if (!cards.length) return;
+
+      const MAX_TILT = 7;                      // 最大倾角（度），再大就晕
+      const LERP = 0.12;                       // 阻尼系数
+
+      cards.forEach((card) => {
+        if (card.dataset.tiltBound === '1') return;
+        card.dataset.tiltBound = '1';
+
+        let target = { rx: 0, ry: 0, mx: 50, my: 50, on: 0 };
+        let cur = { rx: 0, ry: 0, mx: 50, my: 50, on: 0 };
+        let raf = 0;
+        let idleFrames = 0;
+
+        function tick() {
+          // 插值逼近目标值
+          cur.rx += (target.rx - cur.rx) * LERP;
+          cur.ry += (target.ry - cur.ry) * LERP;
+          cur.mx += (target.mx - cur.mx) * LERP;
+          cur.my += (target.my - cur.my) * LERP;
+          cur.on += (target.on - cur.on) * LERP;
+
+          card.style.setProperty('--tilt-x', cur.rx.toFixed(3) + 'deg');
+          card.style.setProperty('--tilt-y', cur.ry.toFixed(3) + 'deg');
+          card.style.setProperty('--shine-x', cur.mx.toFixed(2) + '%');
+          card.style.setProperty('--shine-y', cur.my.toFixed(2) + '%');
+          card.style.setProperty('--tilt-on', cur.on.toFixed(3));
+
+          // 足够接近目标、且已经归位 → 停掉循环，别空转
+          const settled =
+            Math.abs(target.rx - cur.rx) < 0.01 &&
+            Math.abs(target.ry - cur.ry) < 0.01 &&
+            Math.abs(target.on - cur.on) < 0.004 &&
+            Math.abs(target.mx - cur.mx) < 0.2 &&
+            Math.abs(target.my - cur.my) < 0.2;
+
+          if (settled && ++idleFrames > 3) {
+            raf = 0;
+            // 完全归位后把内联变量清掉，回到纯 CSS 状态
+            if (target.on === 0) {
+              card.style.removeProperty('--tilt-x');
+              card.style.removeProperty('--tilt-y');
+              card.style.removeProperty('--tilt-on');
+            }
+            return;
+          }
+          idleFrames = 0;
+          raf = requestAnimationFrame(tick);
+        }
+
+        function kick() {
+          if (!raf) { idleFrames = 0; raf = requestAnimationFrame(tick); }
+        }
+
+        card.addEventListener('pointermove', (e) => {
+          const r = card.getBoundingClientRect();
+          if (!r.width || !r.height) return;
+          const px = (e.clientX - r.left) / r.width;    // 0~1
+          const py = (e.clientY - r.top) / r.height;
+
+          target.ry = (px - 0.5) * MAX_TILT * 2;        // 左右 → 绕 Y 轴
+          target.rx = (0.5 - py) * MAX_TILT * 2;        // 上下 → 绕 X 轴
+          target.mx = px * 100;
+          target.my = py * 100;
+          target.on = 1;
+          kick();
+        }, { passive: true });
+
+        card.addEventListener('pointerleave', () => {
+          target.rx = 0; target.ry = 0; target.on = 0;
+          kick();
+        }, { passive: true });
+      });
+    } catch (e) {
+      /* 倾斜效果出错不能连累别的动效 */
+    }
+  }
+
+  /* =========================================================
+   *  ⑥ 点击涟漪 + 粒子爆发（可玩性）
+   *  ---------------------------------------------------------
+   *  点任何可点元素：从点击点扩散一圈涟漪；
+   *  标记了 [data-burst] 的（点赞、友链心形）额外撒一把粒子。
+   *
+   *  用一次性 DOM 元素 + CSS 动画，播完自己删掉，不留垃圾。
+   * ======================================================= */
+
+  function initClickFx() {
+    try {
+      if (prefersReduced) return;
+
+      const CLICKABLE = 'a, button, .post, .gallery-item, .video-card, .panel, .filter-btn, .tag';
+      let layer = null;
+
+      function ensureLayer() {
+        if (layer && document.body.contains(layer)) return layer;
+        layer = document.createElement('div');
+        layer.className = 'fx-layer';
+        layer.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(layer);
+        return layer;
+      }
+
+      /* 同时听 pointerdown 和 mousedown：
+         · pointerdown 是现代浏览器的首选，触屏/触控笔也能收到
+         · 但某些环境（旧浏览器、自动化工具合成的鼠标事件）只有 mousedown，
+           只挂 pointerdown 的话点击特效就完全不出现。
+         用一个开关防止两者都触发时放两次。 */
+      let lastFx = 0;
+
+      function onClickFx(e) {
+        if (e.button != null && e.button !== 0) return;   // 只认左键
+        const now = Date.now();
+        // 去重：pointerdown 与 mousedown 常常前后脚都到，120ms 内只放一次
+        // （真人双击间隔通常 >150ms，所以不会误吞）
+        if (now - lastFx < 120) return;
+        lastFx = now;
+
+        const hit = e.target && e.target.closest && e.target.closest(CLICKABLE);
+        if (!hit) return;
+
+        const host = ensureLayer();
+        const cx = e.clientX;
+        const cy = e.clientY;
+
+        // 涟漪
+        const ring = document.createElement('span');
+        ring.className = 'fx-ripple';
+        ring.style.left = cx + 'px';
+        ring.style.top = cy + 'px';
+        host.appendChild(ring);
+        ring.addEventListener('animationend', () => ring.remove(), { once: true });
+
+        // 粒子爆发（只在明确标记的元素上，免得满屏乱飞）
+        if (hit.hasAttribute('data-burst') || hit.closest('[data-burst]')) {
+          burst(host, cx, cy);
+        }
+      }
+
+      document.addEventListener('pointerdown', onClickFx, { passive: true });
+      document.addEventListener('mousedown', onClickFx, { passive: true });
+
+      function burst(host, cx, cy) {
+        const n = 12;
+        for (let i = 0; i < n; i++) {
+          const p = document.createElement('i');
+          p.className = 'fx-spark' + (Math.random() < 0.5 ? ' is-rose' : '');
+          const a = (Math.PI * 2 * i) / n + Math.random() * 0.5;
+          const dist = 26 + Math.random() * 52;
+          p.style.left = cx + 'px';
+          p.style.top = cy + 'px';
+          p.style.setProperty('--dx', (Math.cos(a) * dist).toFixed(1) + 'px');
+          p.style.setProperty('--dy', (Math.sin(a) * dist - 14).toFixed(1) + 'px');
+          p.style.setProperty('--dur', (0.62 + Math.random() * 0.5).toFixed(2) + 's');
+          host.appendChild(p);
+          p.addEventListener('animationend', () => p.remove(), { once: true });
+        }
+      }
+    } catch (e) { /* 同上，互不连累 */ }
+  }
+
+  /* =========================================================
+   *  ⑦ 光标进阶：磁吸 + 滚动拉长
+   *  ---------------------------------------------------------
+   *  在原有"点 + 阻尼圈"的基础上补两件事：
+   *    · 磁吸：靠近可点元素时，圈被吸过去并放大
+   *    · 滚动时圈拉长成胶囊，停下再变回圆
+   *
+   *  单独一个 observer，不改 initCursor 内部逻辑 ——
+   *  这样万一这里出错，原来的光标照常工作。
+   * ======================================================= */
+
+  function initCursorExtras() {
+    try {
+      if (prefersReduced) return;
+      const fine = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+      if (!fine) return;
+
+      let lastY = window.scrollY;
+      let scrollStopTimer = 0;
+      let stretch = 0;
+
+      window.addEventListener('scroll', () => {
+        const dy = Math.abs(window.scrollY - lastY);
+        lastY = window.scrollY;
+        // 滚得越快拉得越长，上限收住别太夸张
+        stretch = Math.min(1, stretch + dy / 160);
+        document.documentElement.style.setProperty('--cur-stretch', stretch.toFixed(3));
+
+        clearTimeout(scrollStopTimer);
+        scrollStopTimer = setTimeout(() => {
+          stretch = 0;
+          document.documentElement.style.setProperty('--cur-stretch', '0');
+        }, 180);
+      }, { passive: true });
+    } catch (e) { /* 忽略 */ }
+  }
+
+  /* =========================================================
    *  ④ 换页后重启（关键！）
    *  ---------------------------------------------------------
    *  开了页面过渡（ClientRouter）后，Astro 换页时会把旧 DOM 整个换掉：
@@ -382,14 +653,17 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
    *    · 新页面的内容没有 .is-in → 会一直停在「隐藏」状态（白页）
    *
    *  astro:page-load 在「首次加载」和「每次换页完成」都会触发，
-   *  所以把三套动效都挂到它上面，每次换页重新初始化一遍。
-   *  三个初始化函数内部都有幂等保护，重复调用安全。
+   *  所以把几套动效都挂到它上面，每次换页重新初始化一遍。
+   *  所有初始化函数内部都有幂等保护，重复调用安全。
    * ======================================================= */
   function bootMotion() {
     initMenu();                 // 下拉菜单（幂等，重复调用安全）
     startReveal();
     if (!document.querySelector('.cur-ring')) initCursor();
     startNavIndicator();
+    initCardTilt();             // 新的卡片在换页后要重新绑定
+    initClickFx();
+    initCursorExtras();
   }
 
   // 换页刚开始（新 DOM 已换入、脚本还没跑）：如果鼠标圈被换掉了，

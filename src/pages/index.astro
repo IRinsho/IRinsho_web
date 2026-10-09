@@ -75,7 +75,18 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       <span class="gate-veil"></span>
     </div>
 
-    {/* ① 漂浮粒子：10 个上浮的光点（纯 CSS 关键帧，零素材） */}
+    {/*
+      ① 引力星野（可交互）
+      ---------------------------------------------------------
+      一层 Canvas 粒子网：鼠标像引力源，附近粒子被吸过来、连线变亮；
+      点一下给一次冲击波，粒子被推开再缓缓归位。
+
+      没脚本 / 开了「减少动态效果」时这一层保持空白 ——
+      首屏仍然是一张静态主视觉 + 完整文字，绝不会白屏。
+    */}
+    <canvas class="gate-field" id="gateField" aria-hidden="true"></canvas>
+
+    {/* ①b 漂浮粒子：10 个上浮的光点（纯 CSS 关键帧，零素材） */}
     <div class="gate-particles" aria-hidden="true">
       {[...Array(10)].map((_, i) => (
         <i
@@ -170,6 +181,8 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
   <div class="seam seam--footer" aria-hidden="true"></div>
 
   <script>
+    import { initGateField } from '../lib/gate-field.js';
+
     /* =========================================================
      *  首屏舞台：滚动进度 → CSS 变量
      *  · --gate-p 从 0 到 1：主视觉缓慢推近并淡出、终幕画面淡入揭晓
@@ -256,5 +269,9 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     } else {
       initGate();
     }
+
+    /* ① 引力星野：和上面那套互不干扰，单独一层 Canvas */
+    initGateField();
+    document.addEventListener('astro:page-load', initGateField);
   </script>
 </Base>
