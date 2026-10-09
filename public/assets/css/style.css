@@ -1091,28 +1091,30 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 }
 .gate-bg::after {
   content: '';
-  position: absolute; inset: 0;
+  position: absolute;
+  /* ⚠ 四周各留出一截（不是 inset:0）：幕布要能整块往上退出画面，
+     留出 30% 的余量，translate 到 -100% 时才会彻底离开。 */
+  inset: -30% 0 0 0;
   z-index: 5;                                   /* 在压暗层之上，幕布要是整块的 */
-  /* ⚠ 不再是"完全不透明的一块深色"。
-     实测（无头 Edge + CDP 抓前 1.5 秒的帧）发现：全不透明的幕布压住的
-     那 0.6 秒，在用户眼里就是"页面加载中 / 主视觉挂了"——有人就是这么
-     截图来问的。改成 .94 的不透明度：画面隐约透得出来，一眼就能看出
-     "这是有东西正在拉开"，而不是一块死色的加载占位。 */
+  /* ⚠ 底边羽化：这是这一版最关键的一处观感修正。
+     实测发现幕布"整体上移"时，下沿会在画面正中切出一条**硬边**
+     （不透明幕布 / 亮插画 的 1px 分界）—— 那看着就是"加载进度条走了一半"，
+     完全不像开幕。改成底部 40% 渐隐之后，幕布像是"从下方揭起来"的，
+     没有分界线，露出来的画面是渐渐多起来的。 */
   background: linear-gradient(180deg,
-    rgba(26, 30, 56, .94) 0%,
-    rgba(16, 18, 38, .94) 62%,
-    rgba(11, 13, 28, .94) 100%);
-  /* ⚠ 节奏改过三处，都是为了"一眼看得出这是在开场"：
-       · 起手从 .3s 提前到 .15s（原来先静半秒，像卡住）
-       · 保持不透明的比例从 60% 降到 42%（原来压了近 1 秒，像加载慢）
-       · 总时长 1.15s → 1.05s
-     合起来：压住约 0.6s → 提起 0.6s，总 1.2s 结束，干脆利落。 */
-  animation: gateCurtain 1.05s cubic-bezier(.7, 0, .22, 1) .15s both;
+    rgba(20, 24, 46, .97) 0%,
+    rgba(15, 18, 36, .97) 34%,
+    rgba(11, 13, 28, .96) 52%,
+    rgba(11, 13, 28, .72) 72%,
+    rgba(11, 13, 28, .34) 88%,
+    rgba(11, 13, 28, 0) 100%);
+  /* 节奏：压住约 0.5s（15% + 1000×15% = 300ms）→ 1.05s 内揭起 */
+  animation: gateCurtain 1.2s cubic-bezier(.55, 0, .2, 1) .15s both;
 }
 @keyframes gateCurtain {
   from { opacity: 1; translate: 0 0; }
-   42% { opacity: 1; }
-  to   { opacity: 0; translate: 0 -26%; }
+   15% { opacity: 1; }
+  to   { opacity: 0; translate: 0 -100%; }
 }
 
 /* 主视觉层：cover 铺满
@@ -1148,16 +1150,35 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 .gate-hero {
   background-image: var(--hero);
   opacity: max(.15, calc(1 - var(--gate-p, 0) * .9));
+  /* 开场时这张图是"亮的、清的"，压暗层落下之后才沉到静态的暗调。
+     下压由 .gate-veil / .gate-atmosphere 的入场完成，这里只把底子提一点。
+     ⚠ 不要再给这个元素加 opacity 动画（历史上就是这么把主视觉淡成 0 的）。 */
+  filter: brightness(1.06) saturate(1.04);
   will-change: opacity;
 }
 
 /* 压暗层：只压够文字可读的程度。之前压得太重（上 .62 / 下 .88），
-   深色主视觉会被压成一团糊 —— 现在上 .32 / 下 .68，画面能看清楚了 */
+   深色主视觉会被压成一团糊 —— 现在上 .32 / 下 .68，画面能看清楚了
+
+   ⚠ 这一层现在**带入场**，这是整个开场最关键的一处修正。
+   先说清楚之前的净效果（用无头 Edge 实测出来的）：
+     · t≈0.15s  幕布盖着，而幕布底下那张图的亮度是 100%
+     · t≈1.6s   幕布提起、压暗层和氛围层一起压上来 → 图掉到约 40%
+   也就是"先给你看一眼亮图，再压暗" —— 观感上根本不是开场。
+   现在改成：开场时压暗层几乎不存在（画面是亮的、清的），
+   等幕布提起之后（0.5s 起）再用 1.6s 慢慢落下来，
+   落定后就是原来那套安静的静态暗调。 */
 .gate-veil {
   position: absolute; inset: 0;
   background:
     linear-gradient(180deg, rgba(9, 11, 22, .32) 0%, rgba(9, 11, 22, .06) 42%, rgba(9, 11, 22, .68) 100%),
     radial-gradient(120% 80% at 50% 0%, transparent 46%, rgba(9, 11, 22, .3) 100%);
+  opacity: .18;
+  animation: gateVeilIn 1.6s cubic-bezier(.3, .1, .25, 1) .5s both;
+}
+@keyframes gateVeilIn {
+  from { opacity: .18; }
+  to   { opacity: 1; }
 }
 
 .gate-inner {
@@ -1308,6 +1329,8 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 .gate[data-opened] .gate-scroll,
 .gate[data-opened] .gate-bg,
 .gate[data-opened] .gate-bg::after,
+.gate[data-opened] .gate-veil,
+.gate[data-opened] .gate-atmosphere,
 .gate[data-opened] .gate-dust { animation: none !important; }
 /* =========================================================
  *  ③ 鼠标视差 + 滚动位移（同一层上只剩这两件事）
@@ -1416,11 +1439,19 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   /* ⚠ 数值比参考站轻得多。它那张底图是深色插画、压暗是为了统一画面；
      这里的主视觉是白底插画，照抄它的强度会把人物整个吃掉 ——
      第一版就是压太重，整屏糊成一片深蓝。
-     现在只保留"斜向一道冷光 + 很轻的暗角 + 底部稍微压暗"。 */
+     现在只保留"斜向一道冷光 + 很轻的暗角 + 底部稍微压暗"。
+   ⚠ 和 .gate-veil 一样带入场：开场从 0 开始，幕布提起之后再落下。
+     两层一起"淡进来"才是那种"画面在你眼前定下来"的开场感。 */
   background:
     linear-gradient(112deg, rgba(20, 25, 55, .10), rgba(20, 25, 55, 0) 46%, rgba(255, 190, 210, .05)),
     radial-gradient(at 50% 46%, transparent 52%, rgba(8, 10, 31, .07) 74%, rgba(8, 10, 31, .18) 100%),
     linear-gradient(rgba(7, 10, 31, .12), rgba(7, 10, 31, .04) 46%, rgba(7, 10, 31, .22));
+  opacity: 0;
+  animation: gateAtmosphereIn 1.6s cubic-bezier(.3, .1, .25, 1) .55s both;
+}
+@keyframes gateAtmosphereIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* 减少动态效果 / 窄屏：尘埃不要（省电也省视觉噪音），氛围层留着 */
