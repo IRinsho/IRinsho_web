@@ -5,7 +5,7 @@
  *  想改分类 → 放进 blog/ 下不同的子文件夹，或写 category: 字段
  *  想改内容 → 改 blog/ 里对应的 .md 文件，然后运行 npm run sync
  *
- *  生成时间：2026/10/9 17:13:53
+ *  生成时间：2026/10/9 19:19:45
  *  共 9 篇
  * ======================================================= */
 export default [
@@ -25,9 +25,9 @@ export default [
     category: "c语言学习",
     tags: ["C语言"],
     date: "2026-10-08",
-    summary: "",
+    summary: "使用 C 语言实现的“输入某一时刻，输出下一秒”",
     cover: "media/notes/p3.png",
-    content: "### 思路\n\n- 定义时间结构体，包含 `hour`、`minute`、`second`。\n    \n- 读取输入的时间（如 `12:34:56`）。\n    \n- 秒数加 1，然后依次处理进位：\n    \n    - 秒满 60 → 秒归 0，分钟加 1\n        \n    - 分钟满 60 → 分钟归 0，小时加 1\n        \n    - 小时满 24 → 小时归 0（进入下一天）\n        \n- 按 `HH:MM:SS` 格式输出，不足两位补前导 0。\n\n```\n#include <stdio.h>\n\n// 定义时间结构体\nstruct Time {\n    int hour;\n    int minute;\n    int second;\n};\n\nint main() {\n    struct Time t;\n\n    // 输入格式为 HH:MM:SS，例如 12:34:56\n    scanf(\"%d:%d:%d\", &t.hour, &t.minute, &t.second);\n\n    // 秒数加 1\n    t.second++;\n\n    // 处理进位\n    if (t.second == 60) {\n        t.second = 0;\n        t.minute++;\n        if (t.minute == 60) {\n            t.minute = 0;\n            t.hour++;\n            if (t.hour == 24) {\n                t.hour = 0;\n            }\n        }\n    }\n\n    // 输出下一秒的时间，不足两位补 0\n    printf(\"%02d:%02d:%02d\\n\", t.hour, t.minute, t.second);\n\n    return 0;\n}\n```\n### 输入输出示例\n\n**输入：**\n\n```\ntext\n\n12:34:56\n```\n\n**输出：**\n\n```\ntext\n\n12:34:57\n```\n\n**输入：**\n\n```\ntext\n\n23:59:59\n```\n\n**输出：**\n\n```\ntext\n\n00:00:00\n```\n\n### 说明\n\n- 如果题目要求输入用空格分隔（如 `12 34 56`），只需把 `scanf` 改为：\n    \n```\n    scanf(\"%d %d %d\", &t.hour, &t.minute, &t.second);\n```\n    \n- 如果输出不需要前导 0，可将 `%02d` 改为 `%d`。\n    \n- 该程序默认采用 24 小时制。"
+    content: "### 思路（AI仅供参考）\n\n- 定义时间结构体，包含 `hour`、`minute`、`second`。\n    \n- 读取输入的时间（如 `12:34:56`）。\n    \n- 秒数加 1，然后依次处理进位：\n    \n    - 秒满 60 → 秒归 0，分钟加 1\n        \n    - 分钟满 60 → 分钟归 0，小时加 1\n        \n    - 小时满 24 → 小时归 0（进入下一天）\n        \n- 按 `HH:MM:SS` 格式输出，不足两位补前导 0。\n\n```\n#include <stdio.h>\n\n// 定义时间结构体\nstruct Time {\n    int hour;\n    int minute;\n    int second;\n};\n\nint main() {\n    struct Time t;\n\n    // 输入格式为 HH:MM:SS，例如 12:34:56\n    scanf(\"%d:%d:%d\", &t.hour, &t.minute, &t.second);\n\n    // 秒数加 1\n    t.second++;\n\n    // 处理进位\n    if (t.second == 60) {\n        t.second = 0;\n        t.minute++;\n        if (t.minute == 60) {\n            t.minute = 0;\n            t.hour++;\n            if (t.hour == 24) {\n                t.hour = 0;\n            }\n        }\n    }\n\n    // 输出下一秒的时间，不足两位补 0\n    printf(\"%02d:%02d:%02d\\n\", t.hour, t.minute, t.second);\n\n    return 0;\n}\n```\n### 输入输出示例\n\n**输入：**\n\n```\ntext\n\n12:34:56\n```\n\n**输出：**\n\n```\ntext\n\n12:34:57\n```\n\n**输入：**\n\n```\ntext\n\n23:59:59\n```\n\n**输出：**\n\n```\ntext\n\n00:00:00\n```\n\n### 说明\n\n- 如果题目要求输入用空格分隔（如 `12 34 56`），只需把 `scanf` 改为：\n    \n```\n    scanf(\"%d %d %d\", &t.hour, &t.minute, &t.second);\n```\n    \n- 如果输出不需要前导 0，可将 `%02d` 改为 `%d`。\n    \n- 该程序默认采用 24 小时制。\n\n### 简写为以下代码依然可以运行（仅供参考）\n```\n#include <stdio.h>\nint main() {\n    int hour;\n    int minute;\n    int second;\n  scanf(\"%d:%d:%d\", &hour, &minute, &second);\n\n    second++;\n    if (second>=60) {\n        second=0;\n        minute++;\n    }\n     if (minute>=60) {\n         minute=0;\n         hour++;\n     }\n      if (hour>=24) {\n         hour=0;\n      }\n\nprintf(\"%d:%d:%d\", hour, minute, second);\n}\n```"
   },
   {
     id: "练习",

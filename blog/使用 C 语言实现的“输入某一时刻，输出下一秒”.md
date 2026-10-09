@@ -5,13 +5,13 @@ title: 输入某一时刻，输出下一秒
 date: 2026-10-08
 cover: p3.png
 category: c语言学习
-summary:
+summary: 使用 C 语言实现的“输入某一时刻，输出下一秒”
 slug:
 cssclasses:
 aliases:
 draft:
 ---
-### 思路
+### 思路（AI仅供参考）
 
 - 定义时间结构体，包含 `hour`、`minute`、`second`。
     
@@ -111,3 +111,30 @@ text
 - 如果输出不需要前导 0，可将 `%02d` 改为 `%d`。
     
 - 该程序默认采用 24 小时制。
+
+
+### 简写为以下代码依然可以运行（仅供参考）
+```
+#include <stdio.h>
+int main() {
+    int hour;
+    int minute;
+    int second;
+  scanf("%d:%d:%d", &hour, &minute, &second);
+
+    second++;
+    if (second>=60) {
+        second=0;
+        minute++;
+    }
+     if (minute>=60) {
+         minute=0;
+         hour++;
+     }
+      if (hour>=24) {
+         hour=0;
+      }
+
+printf("%d:%d:%d", hour, minute, second);
+}
+```
