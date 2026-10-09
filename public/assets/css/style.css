@@ -1105,32 +1105,42 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   pointer-events: none;
   will-change: transform, opacity;
 }
-/* 只有这一个开关能让纸出现 */
+/* 只有这一个开关能让纸出现。
+   ⚠ **不再有"滑入"动画**：之前是从右往左滑（translate 101% → 0），
+     中途会露出一帧"纸只盖住左边一条、字卡半透明、进入按钮还没到"的
+     状态（用户截图截到的正是这一帧），很难看。
+     现在纸直接铺满，进场的动势交给粒子层（从中心向外重组）。 */
 html.u-opening .opening {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;       /* 开场期间吃掉点击，避免误触底下的链接 */
-  /* 只做"滑入"这一段：滑到位就停住，等用户点。
-     滑出是下面 is-leaving 那条，由脚本加上去 —— 所以"什么时候进主页"
-     完全由用户决定，不再自动播完。 */
-  animation: openingPaperIn .72s cubic-bezier(.22, .86, .24, 1) both;
+  animation: openingPaperIn .42s ease-out both;
 }
 @keyframes openingPaperIn {
-  from { transform: translate3d(101%, 0, 0); }
-  to   { transform: translate3d(0, 0, 0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-/* 纸滑走：脚本收到"进入"之后加上 .is-leaving。
-   ⚠ 这条**绝对不能**依赖 html.u-opening —— 脚本在加 .is-leaving 的
-   同一时刻就把 u-opening 摘掉了（那是"纸该显示"的开关）。
-   早先写成 `html.u-opening .opening.is-leaving`，结果选择器当场失配、
-   动画被取消，纸原地卡住、只有背景滚动了。
-   现在只认 .is-leaving（这个类只有脚本会加），和 u-opening 解耦。 */
+/* 离场：**消散**而不是滑走。
+   ⚠ 时序是按"粒子飞出去"排的，不是按"纸消失"排的：
+     粒子从点击点炸开大约需要 0.95s，如果纸在 0.35s 就淡没了，
+     用户只会看到"页面一下子出现"，那几十毫秒的粒子根本读不到。
+     所以纸先保持基本不透明（55% 处还有 .88），让粒子飞出来，
+     最后 45% 才真正淡掉 —— 读起来是"字卡化成粒子散开，页面在背后露出来"。 */
 .opening.is-leaving {
-  animation: openingPaperOut .58s cubic-bezier(.6, 0, .3, 1) both !important;
+  animation: openingPaperAway 1.05s cubic-bezier(.4, 0, .35, 1) both !important;
 }
-@keyframes openingPaperOut {
-  from { transform: translate3d(0, 0, 0); }
-  to   { transform: translate3d(101%, 0, 0); }
+@keyframes openingPaperAway {
+  from { opacity: 1; transform: scale(1); }
+  55%  { opacity: .88; }
+  to   { opacity: 0; transform: scale(1.04); }
+}
+/* 字卡：点击后向上飘散并消失（比纸早走一点，读起来像"先化成粒子"） */
+.opening.is-leaving .opening-inner {
+  animation: openingCardAway .72s cubic-bezier(.3, 0, .4, 1) both;
+}
+@keyframes openingCardAway {
+  from { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); }
+  to   { opacity: 0; transform: translate3d(0, -34px, 0); filter: blur(9px); }
 }
 /* 折痕：纸两边的暗边，让"翻动"有厚度感。
    只用纯色渐变，不加 blur —— 便宜且没有额外合成层。 */
@@ -1160,20 +1170,33 @@ html.u-opening .opening {
   text-align: center;
   max-width: 900px;
 }
-/* 字卡元素也用 `both`：默认就停在"还没出现"，纸一盖上来正好是空的 */
+/* 字卡元素：由虚到实浮现，配合粒子"聚拢"的过程 */
 .opening-inner > * { opacity: 0; animation: openingIn .8s cubic-bezier(.2, .7, .2, 1) both; }
 @keyframes openingIn {
-  from { opacity: 0; transform: translate3d(0, 14px, 0); }
-  to   { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translate3d(0, 14px, 0); filter: blur(5px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
 }
-/* ⚠ 时间轴：纸 0.72s 滑到位，字卡随后一拍一拍落上来。
+/* 粒子层：铺满整张纸，在字卡之上（粒子飞过字面才好看），但不吃点击 */
+.opening-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.opening-inner { z-index: 3; }
+.opening-fold { z-index: 1; }
+
+/* ⚠ 时间轴：粒子 0.9s 聚拢完成，字卡跟着一拍一拍落位。
    按钮和提示的 delay 写在它们各自的规则里（见下），
-   因为那两个元素的规则在后面、会覆盖这里的简写。 */
-html.u-opening .opening-eyebrow { animation-delay: .42s; }
-html.u-opening .opening-title   { animation-delay: .56s; }
-html.u-opening .opening-rule    { animation-delay: .72s; }
-html.u-opening .opening-sub     { animation-delay: .82s; }
-html.u-opening .opening-foot    { animation-delay: .94s; }
+   因为那两个元素的规则在后面、会覆盖这里的简写。
+   总时长约 1.6s —— 再长就变成"等动画"而不是"进门"了。 */
+html.u-opening .opening-eyebrow { animation-delay: .26s; }
+html.u-opening .opening-title   { animation-delay: .38s; }
+html.u-opening .opening-rule    { animation-delay: .54s; }
+html.u-opening .opening-sub     { animation-delay: .64s; }
+html.u-opening .opening-foot    { animation-delay: .74s; }
 
 .opening-eyebrow {
   margin: 0;
@@ -1238,7 +1261,7 @@ html.u-opening .opening-foot    { animation-delay: .94s; }
   letter-spacing: .22em;
   cursor: pointer;
   /* 和字卡其它元素一样"落位后出现"，但再晚一拍 —— 它是这场开场的终点 */
-  animation-delay: 1.08s;
+  animation-delay: .84s;
   transition: background .28s ease, border-color .28s ease, color .28s ease,
               transform .28s cubic-bezier(.22, .61, .36, 1);
 }
@@ -1260,7 +1283,7 @@ html.u-opening .opening-foot    { animation-delay: .94s; }
   font-size: 11px;
   letter-spacing: .16em;
   color: rgba(36, 26, 32, .38);
-  animation-delay: 1.22s;
+  animation-delay: .98s;
 }
 /* 整张纸都是可点的：给个手型光标，别让人以为只有按钮能点 */
 html.u-opening .opening { cursor: pointer; }

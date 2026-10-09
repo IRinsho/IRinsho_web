@@ -1,25 +1,28 @@
 ---
 /* =========================================================
- *  落地页 / 开场：纸做的电影片头（杂志翻页 + 片头字卡）
+ *  落地页 / 开场：粒子重组的纸页（杂志翻页 + 片头字卡）
  *  ---------------------------------------------------------
- *  现在的流程是**手动进入**：
- *    纸从右侧翻入 → 字卡落位 → 停在"进入"按钮上 → 用户点击
- *    → 纸向右翻走 → 首屏在背后亮起来
- *  不再自动播完，所以"看到什么"由用户控制，不会错过开场。
+ *  流程：
+ *    纸直接铺满（**不滑入** —— 之前的"从右往左滑"会露出一帧
+ *      只盖住半边、字卡还半透明的中间状态，很难看）
+ *    → 粒子从画面中心向外重组，字卡跟着由虚到实浮现
+ *    → 停在「进入主页」按钮上
+ *    → 用户点击 → 字卡炸成粒子消散 + 纸淡出 → 首屏在背后亮起来
  *
  *  为什么用"纸"：这个站是深色底，深色物体在上面"动了等于没动"
- *  （实测主视觉和页面底色只差 5 个亮度值）。一张暖白的纸是强反差，
- *  不依赖底图好不好看。
+ *  （实测主视觉平均亮度只有 26/255，和页面底色 21 几乎一样）。
+ *  一张暖白的纸是强反差，不依赖底图好不好看。
  *
- *  ⚠ 三层安全设计（硬要求，改这里之前先读一遍）：
+ *  ⚠ 安全设计（硬要求，改这里之前先读一遍）：
  *    1. 纸的**基础样式就是 opacity:0 + visibility:hidden**。
- *       只有 <html> 上有 .u-opening 类（由 Base.astro 的内联脚本按
- *       "首页硬加载 + 允许动效"两个条件加上）时才会显示。
+ *       只有 <html> 上有 .u-opening 类（Base.astro 的内联脚本按
+ *       "首页硬加载 + 允许动效"两个条件加上）时才显示。
  *       脚本没跑 / 被降级 → 纸根本不存在、页面也能正常滚动。
- *    2. 本组件只在首页渲染（Base.astro 的 isHome prop 控制）。
- *    3. 四条强制拆除路径：进入按钮、点击任意处 / 滚轮 / 按键、
- *       以及"切到后台再回来" —— 任何一条命中都会把纸从 DOM 里删掉，
- *       绝不会出现"纸卡住、页面进不去"。
+ *    2. 画布只是**装饰**：粒子画不出来最坏就是"字卡直接出现"，
+ *       内容一个字都不会少。
+ *    3. 五条强制拆除路径：进入按钮、点纸面、键盘、滚轮/触摸、
+ *       切后台再回来 —— 任何一条命中都会把纸从 DOM 里删掉。
+ *    4. prefers-reduced-motion：纸不出现（画布也不启动）。
  * ======================================================= */
 
 const { name = '', subtitle = '', folio = '' } = Astro.props;
@@ -29,7 +32,10 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
   <div class="opening-fold opening-fold--left"></div>
   <div class="opening-fold opening-fold--right"></div>
 
-  <div class="opening-inner">
+  {/* 粒子层：进场时从中心向外重组出字卡，点击时炸开消散 */}
+  <canvas class="opening-canvas" id="paperCanvas"></canvas>
+
+  <div class="opening-inner" id="paperInner">
     <p class="opening-eyebrow">CHAPTER 00 / OPENING</p>
     <h1 class="opening-title">{name}</h1>
     <span class="opening-rule"></span>
@@ -45,13 +51,15 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
     const root = document.documentElement;
     const paper = document.getElementById('paperOpening');
     const enter = document.getElementById('paperEnter');
+    const canvas = document.getElementById('paperCanvas');
+    const inner = document.getElementById('paperInner');
 
     if (!paper) return;
 
     /* ⚠ 条件不满足（不是首页 / 用户要求减少动效 / 已经进过一次）
        → 纸直接摘掉，并且把"防止背后滚动"的锁一并解开。
-       这一步很重要：锁是 JS 加的，纸的显示是 CSS 控制的，
-       两边必须成对出现，否则会出现"纸没了但页面滚不动"。 */
+       锁是 JS 加的、纸的显示是 CSS 控制的，两边必须成对出现，
+       否则会出现"纸没了但页面滚不动"。 */
     if (!root.classList.contains('u-opening')) {
       paper.remove();
       root.style.removeProperty('overflow');
@@ -60,73 +68,258 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
 
     let closed = false;
     let guard = 0;
+    let particles = null;
 
-    function release() {
+    /* ---------------- 粒子：中心向外重组 / 点击处炸开消散 ----------------
+       ⚠ 刻意没有用 getImageData 采样字形。
+         那种写法要把 1px 的字描一遍再筛像素，首屏会卡一下 ——
+         而这段代码的底线是"不能拖慢页面"。所以改成：
+         粒子围绕字卡矩形分布、从中心向外炸开式重组，
+         字卡本身用 CSS 从模糊到清晰接住（两者叠起来就是"粒子聚成字"）。 */
+    function initParticles() {
+      if (!canvas || !canvas.getContext) return null;
+      const reduce = window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce) return null;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+
+      const small = window.innerWidth < 760;
+      const COUNT = small ? 90 : 170;
+      const HUES = ['#241a20', '#c8395f', '#ad3c60', '#7bb6b2', '#8b7681'];
+
+      let W = 0, H = 0, dpr = 1;
+      let parts = [];
+      let raf = 0;
+      let phase = 'gather';        // gather → hold → dissolve
+      let t0 = performance.now();
+      let cx = 0, cy = 0;          // 重组中心（= 字卡中心）
+      let clickX = 0, clickY = 0;
+
+      function resize() {
+        const r = paper.getBoundingClientRect();
+        W = Math.max(1, Math.floor(r.width));
+        H = Math.max(1, Math.floor(r.height));
+        dpr = Math.min(2, window.devicePixelRatio || 1);
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function seed() {
+        // 重组中心：优先对准字卡矩形中心，量不到就退回屏幕中心
+        const r = inner && inner.getBoundingClientRect
+          ? inner.getBoundingClientRect()
+          : { left: W * .3, top: H * .4, width: W * .4, height: H * .2 };
+        cx = r.left + r.width / 2;
+        cy = r.top + r.height / 2;
+
+        parts = [];
+        const spreadX = Math.max(r.width, 260) / 2;
+        const spreadY = Math.max(r.height, 140) / 2;
+
+        for (let i = 0; i < COUNT; i++) {
+          // 目标：落在字卡矩形内部（均匀分布）—— 视觉上就是"聚成那块字"
+          const tx = cx + (Math.random() - .5) * spreadX * 2.05;
+          const ty = cy + (Math.random() - .5) * spreadY * 2.05;
+          // 起点：从中心附近出发（所以是"重组"，不是"从边缘飞进来"）
+          const a = Math.random() * Math.PI * 2;
+          const d = 12 + Math.random() * 60;
+          parts.push({
+            tx, ty,
+            sx: cx + Math.cos(a) * d,
+            sy: cy + Math.sin(a) * d,
+            x: 0, y: 0,
+            vx: 0, vy: 0,
+            r: .8 + Math.random() * 1.9,
+            color: HUES[(Math.random() * HUES.length) | 0],
+            // 每颗粒子的进度错开一点，聚拢才有层次
+            d: Math.random() * .28,
+            a: .9
+          });
+        }
+      }
+
+      function ease(x) { return 1 - Math.pow(1 - x, 3); }
+
+      // 静止态：只在聚拢结束时画一次，不占 rAF
+      function paintRest() {
+        ctx.clearRect(0, 0, W, H);
+        ctx.globalAlpha = .5;
+        for (const q of parts) {
+          ctx.fillStyle = q.color;
+          ctx.beginPath();
+          ctx.arc(q.tx, q.ty, q.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function draw(now) {
+        raf = 0;
+        const el = now - t0;
+
+        if (phase === 'gather') {
+          const T = 900;    // 聚拢总时长：别拖太久，用户是来进主页的不是来看动画的
+          const p = Math.min(1, el / T);
+          ctx.clearRect(0, 0, W, H);
+          for (const q of parts) {
+            const k = ease(Math.max(0, Math.min(1, (p - q.d) / (1 - q.d))));
+            q.x = q.sx + (q.tx - q.sx) * k;
+            q.y = q.sy + (q.ty - q.sy) * k;
+            // 飞行途中更亮、落位后沉下来
+            q.a = .28 + .62 * (1 - Math.abs(k - .55) / .55);
+            ctx.globalAlpha = Math.max(0, Math.min(.95, q.a));
+            ctx.fillStyle = q.color;
+            ctx.beginPath();
+            ctx.arc(q.x, q.y, q.r * (1.5 - k * .5), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          if (p >= 1) { phase = 'hold'; paintRest(); return; }
+          raf = requestAnimationFrame(draw);
+          return;
+        }
+
+        if (phase === 'dissolve') {
+          const T = 950;
+          const p = Math.min(1, el / T);
+          ctx.clearRect(0, 0, W, H);
+          for (const q of parts) {
+            if (!q.vx && !q.vy) {
+              // 第一次进入消散：给一个从点击点向外的初速度
+              const dx = q.x - clickX;
+              const dy = q.y - clickY;
+              const d = Math.hypot(dx, dy) || 1;
+              const f = 2.6 + Math.random() * 5.4;
+              q.vx = (dx / d) * f + (Math.random() - .5) * 1.2;
+              q.vy = (dy / d) * f - (1 + Math.random() * 2.2);   // 略微向上飘
+            }
+            q.x += q.vx;
+            q.y += q.vy;
+            q.vy += .06;              // 很轻的重力，让散开有重量感
+            q.vx *= .992;
+            q.a = Math.max(0, .95 * (1 - ease(p)));
+            if (q.a <= .02) continue;
+            ctx.globalAlpha = q.a;
+            ctx.fillStyle = q.color;
+            ctx.beginPath();
+            ctx.arc(q.x, q.y, q.r * (1 + p * .8), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          if (p >= 1) { ctx.clearRect(0, 0, W, H); return; }
+          raf = requestAnimationFrame(draw);
+          return;
+        }
+      }
+
+      function start() {
+        resize();
+        seed();
+        phase = 'gather';
+        t0 = performance.now();
+        if (!raf) raf = requestAnimationFrame(draw);
+      }
+
+      function dissolve(x, y) {
+        if (phase === 'dissolve') return;
+        clickX = x; clickY = y;
+        for (const q of parts) {
+          if (!q.x && !q.y) { q.x = q.tx; q.y = q.ty; }   // 还停在初始位置的就挪到目标
+          q.vx = 0; q.vy = 0;
+        }
+        phase = 'dissolve';
+        t0 = performance.now();
+        if (!raf) raf = requestAnimationFrame(draw);
+      }
+
+      window.addEventListener('resize', () => {
+        resize(); seed();
+        if (phase === 'hold') paintRest();
+      }, { passive: true });
+
+      start();
+      return { dissolve };
+    }
+
+    /* ---------------- 进入 ---------------- */
+    function release(ev) {
       if (closed) return;
       closed = true;
+
+      // 点击点：粒子从这个位置炸开；键盘进入就用字卡中心
+      let px = window.innerWidth / 2;
+      let py = window.innerHeight / 2;
+      if (ev && typeof ev.clientX === 'number' && ev.clientX) {
+        px = ev.clientX; py = ev.clientY;
+      } else if (inner) {
+        const r = inner.getBoundingClientRect();
+        px = r.left + r.width / 2;
+        py = r.top + r.height / 2;
+      }
+
       root.classList.remove('u-opening');
-      root.style.removeProperty('overflow');   // 解开滚动锁
+      root.style.removeProperty('overflow');    // 解开滚动锁
       /* ⚠ 这个类才是"首屏入场"的发令枪（见 style.css 里所有 html.u-entered 规则）。
-         为什么不由 CSS 的固定延迟来做：现在是手动进入，用户可能盯着字卡看很久，
-         固定延迟的话等他们点进来时首屏动画早播完了。
-         先加类、再给纸上 .is-leaving —— 纸滑走的同时首屏开始亮起来。 */
+         为什么不由 CSS 固定延迟来做：现在是手动进入，用户可能盯着字卡看很久，
+         固定延迟的话等他们点进来时首屏动画早播完了。 */
       root.classList.add('u-entered');
+
+      if (particles) particles.dissolve(px, py);    // 粒子炸开
       window.clearTimeout(guard);
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('visibilitychange', onHide);
-      paper.classList.add('is-leaving');
+      paper.classList.add('is-leaving');            // 字卡散开 + 纸淡出
     }
 
-    /* 纸滑走的动画播完 → 真正从 DOM 里移除 */
-    paper.addEventListener('animationend', (e) => {
-      if (e.animationName === 'openingPaperOut') {
-        paper.remove();
-        root.dataset.openingDone = '1';
-      }
-    });
-
     function onKey(e) {
-      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar' || e.key === 'Escape') {
         e.preventDefault();
-        release();
-      } else if (e.key === 'Escape') {
         release();
       }
     }
 
     function onHide() {
       if (document.hidden && !closed) {
-        // 切到后台再回来：直接把纸收掉，避免用户回来时停在一半
         release();
-        window.setTimeout(() => { if (paper.isConnected) paper.remove(); }, 700);
+        window.setTimeout(() => { if (paper.isConnected) paper.remove(); }, 900);
       }
     }
 
-    // 入口①：显式按钮
+    /* ---------------- 入口 ---------------- */
     if (enter) enter.addEventListener('click', release);
-
-    // 入口②：点纸面任意处 —— 按钮之外的空白也应该能进
     paper.addEventListener('click', (e) => {
-      if (e.target.closest && e.target.closest('a')) return;   // 纸里没有链接，防御性写法
-      release();
+      if (e.target.closest && e.target.closest('a')) return;   // 防御性写法
+      release(e);
     });
-
-    // 入口③：键盘（Enter / 空格 / Esc）
     document.addEventListener('keydown', onKey);
-
-    // 入口④：滚轮 / 触摸滑动 —— 有人会先试着滚
     paper.addEventListener('wheel', release, { passive: true });
     paper.addEventListener('touchstart', release, { passive: true });
-
-    // 兜底：万一 animationend 没触发（动画被系统降级等），到点也把纸摘掉
-    guard = window.setTimeout(() => {
-      release();
-      window.setTimeout(() => { if (paper.isConnected) paper.remove(); }, 900);
-    }, 120000);   // 120s：不是"自动进入"，只是别让纸永远留在 DOM 里
-
     document.addEventListener('visibilitychange', onHide);
+
+    /* 纸淡出结束 → 从 DOM 里移除（动画被降级时靠兜底定时器） */
+    paper.addEventListener('animationend', (e) => {
+      if (e.animationName === 'openingPaperAway') {
+        paper.remove();
+        root.dataset.openingDone = '1';
+        particles = null;
+      }
+    });
+    guard = window.setTimeout(() => {
+      if (paper.isConnected) {
+        paper.remove();
+        root.dataset.openingDone = '1';
+      }
+    }, 120000);
 
     // 开场期间锁住背后页面的滚动（纸本身 fixed，不受影响）
     root.style.overflow = 'hidden';
+
+    // 粒子最后启动：先让布局稳定，量出来的字卡矩形才是准的
+    requestAnimationFrame(() => { particles = initParticles(); });
   })();
 </script>
