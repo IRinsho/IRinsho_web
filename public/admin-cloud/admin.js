@@ -666,13 +666,22 @@ async function viewPhotos(box) {
 
 function photoCard(p) {
   const title = (p.meta && p.meta.title) || p.name;
+  /* 图片地址由云端核对过，指向站点上真实存在的文件。
+     万一还没同步（站点上只有原图），显示一句提示，而不是一片空白。 */
+  const thumbStyle = p.url
+    ? `background-image:url('${esc(p.url)}')`
+    : 'background:var(--bg-input)';
+  const placeholder = p.url
+    ? ''
+    : '<span style="font-size:12px;color:var(--ink-faint);text-align:center;padding:10px;line-height:1.6">还没同步<br>在电脑上跑一次<br>npm run sync</span>';
   return `<div class="photo-card" data-rel="${esc(p.rel)}" style="cursor:pointer">
-    <div class="photo-thumb" style="background-image:url('${esc(p.url)}')"></div>
+    <div class="photo-thumb" style="${thumbStyle}">${placeholder}</div>
     <div class="photo-meta">
       <div class="photo-name" title="${esc(p.rel)}">${esc(title)}</div>
       <div class="photo-tags">
         <span class="badge">${esc(p.album)}</span>
         <span class="photo-size">${fmtSize(p.size)}</span>
+        ${p.needsSync ? '<span class="badge badge-warn">待同步</span>' : ''}
       </div>
       ${p.meta && p.meta.tags ? `<div class="photo-tags">${p.meta.tags.map((t) => `<span class="badge badge-info">${esc(t)}</span>`).join('')}</div>` : ''}
     </div>

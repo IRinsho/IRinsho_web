@@ -469,10 +469,32 @@ export async function saveTheme(store, vars) {
 
 /* ---------------- 相册（图片） ---------------- */
 
-/** 列出 img/ 下的图片（元信息从 photo-meta.js 合并） */
+/**
+ * 列出 img/ 下的图片（元信息从 photo-meta.js 合并）。
+ *
+ * ⚠ 图片地址必须指向**站点上真正存在的文件**：
+ *   `img/` 里放的是原图（119178066_p0.jpg，531 KB），
+ *   而 `npm run sync` 会把它们压缩成 WebP 放进 `public/media/images/`
+ *   （119178066_p0.webp，68 KB），站点上线后只有后者。
+ *   以前这里直接给 `/img/xxx.jpg` —— 线上根本没有那个目录，缩略图全白。
+ *   所以必须去 media/images/ 核对一遍真实文件名。
+ */
 export async function listPhotos(store) {
   const files = (await store.listDeep('img')).filter((f) =>
     /\.(jpe?g|png|webp|gif|avif|heic|heif|bmp)$/i.test(f.name));
+
+  // 站点上真正存在的图片（压缩后的）
+  let siteFiles = [];
+  try {
+    siteFiles = (await store.listDeep('public/media/images')).filter((f) => f.type !== 'dir');
+  } catch { /* 目录不存在也正常 */ }
+
+  const byName = new Map(siteFiles.map((f) => [f.name, f.path]));
+  const byStem = new Map();          // 去掉扩展名的同名文件（处理 jpg → webp 的改名）
+  for (const f of siteFiles) {
+    const stem = f.name.replace(/\.[^.]+$/, '');
+    if (!byStem.has(stem)) byStem.set(stem, f.path);
+  }
 
   let meta = {};
   try {
@@ -484,13 +506,23 @@ export async function listPhotos(store) {
     const rel = f.path.replace(/^img\//, '');
     const folder = rel.includes('/') ? rel.split('/').slice(0, -1).join('/') : '';
     const m = meta[rel] || null;
+
+    // 优先站点上那张：同名同扩展名优先，其次同名的其它格式
+    const sitePath = byName.get(f.name)
+      || byStem.get(f.name.replace(/\.[^.]+$/, ''))
+      || '';
+
     return {
       rel, repoPath: f.path,
       name: f.name,
       album: (m && m.album) || folder || '未分类',
       size: f.size,
       meta: m,
-      url: '/img/' + rel          // 站点上的图片路径（构建后会出现在 dist）
+      /* 界面显示用的地址：站点上有压缩版就用它（线上一定能显示） */
+      url: sitePath ? '/' + sitePath.replace(/^public\//, '') : '',
+      sitePath,
+      /* 还没同步过：界面可以提示「跑一次同步才会出现在相册里」 */
+      needsSync: !sitePath
     };
   }).sort((a, b) => a.rel.localeCompare(b.rel));
 }
