@@ -1121,18 +1121,20 @@ html.u-opening .opening {
   to   { opacity: 1; }
 }
 /* 离场：**消散**而不是滑走。
-   ⚠ 时序是按"粒子飞出去"排的，不是按"纸消失"排的：
-     粒子从点击点炸开大约需要 0.95s，如果纸在 0.35s 就淡没了，
-     用户只会看到"页面一下子出现"，那几十毫秒的粒子根本读不到。
-     所以纸先保持基本不透明（55% 处还有 .88），让粒子飞出来，
-     最后 45% 才真正淡掉 —— 读起来是"字卡化成粒子散开，页面在背后露出来"。 */
+   ⚠ 时序是按"粒子飞出去"排的，不是按"纸消失"排的。
+     粒子从点击点炸开到淡完要 1.25s，所以：
+       · 0 ~ 70%（0.7s）：纸几乎是实心的 —— 这段时间是纯粒子表演，
+         白底上彩色粒子看得最清楚
+       · 70% ~ 100%（0.3s）：页面在背后淡入
+     之前是 55% 就开始掉透明度、总长 1.05s，粒子刚飞出去 0.5 秒
+     就被页面盖过去了 —— 用户反馈"点击后没有粒子消散的效果"就是这个。 */
 .opening.is-leaving {
-  animation: openingPaperAway 1.05s cubic-bezier(.4, 0, .35, 1) both !important;
+  animation: openingPaperAway 1.45s cubic-bezier(.4, 0, .35, 1) both !important;
 }
 @keyframes openingPaperAway {
   from { opacity: 1; transform: scale(1); }
-  55%  { opacity: .88; }
-  to   { opacity: 0; transform: scale(1.04); }
+  70%  { opacity: .92; }
+  to   { opacity: 0; transform: scale(1.045); }
 }
 /* 字卡：点击后向上飘散并消失（比纸早走一点，读起来像"先化成粒子"） */
 .opening.is-leaving .opening-inner {
@@ -1484,6 +1486,22 @@ html.u-entered .gate-scroll { animation-delay: .64s; }
      主视觉那边严禁用 opacity 做开场（见 .gate-hero 上方的长注释）。 */
 .gate-title  { animation: gateTitleIn .92s cubic-bezier(.22, .61, .36, 1) both; }
 html.u-entered .gate-title { animation-delay: .22s; }
+
+/* =========================================================
+ *  标题：**只留位置，不画文字**（粒子版本，u-particle-title）
+ *  ---------------------------------------------------------
+ *  用户的要求是"把粒子变成文字" —— 所以文字本身必须让位：
+ *  如果还画着深色的衬线字，那看到的永远是"粒子飞向文字"，
+ *  而不是"粒子就是文字"。
+ *
+ *  做法：opacity 归零，但元素**仍在布局里** ——
+ *    · 标题的位置/宽度/字体度量还能量，粒子靠它采样字形
+ *    · 屏幕阅读器读到的仍是真标题（不是一堆点）
+ *    · 换行、居中、响应式全都照旧
+ *  粒子侧则提高不透明度与密度，让笔画实到能读出来（见组件里
+ *  的 alpha 曲线与 MAX_PARTS）。
+ * ======================================================= */
+html.u-particle-title .opening-title { opacity: 0 !important; }
 
 /* ⚠ 顺序要紧：标题排在 kicker 和 sub 之间（0.44s 起、1.5s 落） */
 .gate-kicker {

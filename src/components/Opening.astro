@@ -70,12 +70,16 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
     let guard = 0;
     let particles = null;
 
-    /* ---------------- 粒子：中心向外重组 / 点击处炸开消散 ----------------
-       ⚠ 刻意没有用 getImageData 采样字形。
-         那种写法要把 1px 的字描一遍再筛像素，首屏会卡一下 ——
-         而这段代码的底线是"不能拖慢页面"。所以改成：
-         粒子围绕字卡矩形分布、从中心向外炸开式重组，
-         字卡本身用 CSS 从模糊到清晰接住（两者叠起来就是"粒子聚成字"）。 */
+    /* ---------------- 粒子：聚成文字 → 呼吸 → 点击消散 ----------------
+       ★ 关键改动：粒子位置是**真的从字形上采样出来的**。
+         做法：拿一个离屏画布，用页面同款字体把标题画一遍，
+         再 getImageData 取所有有像素的坐标当粒子的目标点。
+         这样粒子聚起来就是"IRinsho"这几个字本身，而不是一圈围着
+         矩形乱飘的点（那是上一版，用户说"有点太呆了"）。
+
+       ⚠ 代价与控量：离屏画布按 dpr 缩放，采样步长 3px（窄屏 4px）——
+         一次 getImageData 而已，几十毫秒内完成，而且只在开屏时做一次。
+         粒子数按采样结果**均匀抽稀**到上限，避免笔画粗的地方糊成一团。 */
     function initParticles() {
       if (!canvas || !canvas.getContext) return null;
       const reduce = window.matchMedia &&
@@ -86,15 +90,29 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
       if (!ctx) return null;
 
       const small = window.innerWidth < 760;
-      const COUNT = small ? 90 : 170;
-      const HUES = ['#241a20', '#c8395f', '#ad3c60', '#7bb6b2', '#8b7681'];
+      /* ⚠ 目标点数量与采样步长：粒子现在**就是文字本身**，密度必须够，
+         否则笔画会被扯成一把散点（实测 3px 步长时就是这个下场）。
+         2px 步长在 1440px 下采样出约 2600 个候选点，全部用上 ——
+         纯 arc 填充，这个量级在桌面端是流畅的。 */
+      const MAX_PARTS = small ? 1200 : 2600;
+      const STEP = small ? 3 : 2;              // 采样步长（CSS 像素）
+      /* ⚠ 配色：粒子**是文字**，所以绝大多数必须是深墨色，否则笔画会被
+         彩点打碎、看着像噪点（实测彩色占比 2/7 时就明显读不出来）。
+         现在约 12% 的粒子带色（玫瑰粉/青各半），当点缀用。 */
+      const HUES = [];
+      for (let i = 0; i < 100; i++) {
+        if (i < 82) HUES.push('#241a20');        // 深墨（主体）
+        else if (i < 90) HUES.push('#3a2b33');   // 次深
+        else if (i < 95) HUES.push('#c8395f');   // 玫瑰粉点缀
+        else HUES.push('#7bb6b2');               // 青点缀
+      }
 
       let W = 0, H = 0, dpr = 1;
       let parts = [];
       let raf = 0;
       let phase = 'gather';        // gather → hold → dissolve
       let t0 = performance.now();
-      let cx = 0, cy = 0;          // 重组中心（= 字卡中心）
+      let cx = 0, cy = 0;          // 重组中心（= 标题中心）
       let clickX = 0, clickY = 0;
 
       function resize() {
@@ -106,64 +124,179 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
         canvas.height = Math.floor(H * dpr);
         canvas.style.width = W + 'px';
         canvas.style.height = H + 'px';
+        // 之后所有绘制都用 CSS 像素坐标，由这个变换负责放大
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
 
+      // 取标题元素上真正用于显示的字体（含字距），保证字形和页面一致
+      function fontOf(el) {
+        const cs = getComputedStyle(el);
+        const size = parseFloat(cs.fontSize) || 96;
+        const style = cs.fontStyle && cs.fontStyle !== 'normal' ? cs.fontStyle + ' ' : '';
+        const weight = cs.fontWeight || '400';
+        const weightNum = parseInt(weight, 10);
+        const w = isNaN(weightNum) ? weight : (weightNum >= 600 ? '700' : '400');
+        return style + w + ' ' + size + 'px ' + (cs.fontFamily || 'serif');
+      }
+
+      /* 采样字形 → 目标点数组（CSS 像素坐标） */
+      function sampleGlyphs() {
+        const titleEl = document.querySelector('.opening-title');
+        if (!titleEl || !titleEl.textContent.trim()) return null;
+
+        const r = titleEl.getBoundingClientRect();
+        if (!r.width || !r.height) return null;
+
+        const pad = 10;
+        const ox = r.left - pad;
+        const oy = r.top - pad;
+        const w = Math.ceil(r.width + pad * 2);
+        const h = Math.ceil(r.height + pad * 2);
+
+        const off = document.createElement('canvas');
+        off.width = Math.ceil(w * dpr);
+        off.height = Math.ceil(h * dpr);
+        const octx = off.getContext('2d');
+        if (!octx) return null;
+        octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        const font = fontOf(titleEl);
+        octx.font = font;
+        octx.fillStyle = '#000';
+        octx.textBaseline = 'alphabetic';
+
+        const text = titleEl.textContent.trim();
+        const m = octx.measureText(text);
+        const size = parseFloat(getComputedStyle(titleEl).fontSize) || 96;
+        const asc = m.actualBoundingBoxAscent || size * .75;
+        const desc = m.actualBoundingBoxDescent || size * .25;
+        // 文字在元素里的位置：letter-spacing 会在右侧多留一点，
+        // 用测量宽度把起点居中，和 CSS 的 text-indent 补偿对应
+        const startX = pad + Math.max(0, (w - pad * 2 - m.width) / 2);
+        const baseY = pad + (h - pad * 2 - (asc + desc)) / 2 + asc;
+        octx.fillText(text, startX, baseY);
+
+        let data;
+        try {
+          data = octx.getImageData(0, 0, off.width, off.height).data;
+        } catch (e) { return null; }        // 理论上不会发生（同源画布）
+
+        const pts = [];
+        const stepDev = Math.max(1, Math.round(STEP * dpr));
+        for (let y = 0; y < off.height; y += stepDev) {
+          for (let x = 0; x < off.width; x += stepDev) {
+            if (data[(y * off.width + x) * 4 + 3] > 90) {
+              // 转回 CSS 像素并加一点点抖动，避免出现整齐的网格感
+              pts.push([
+                ox + x / dpr + (Math.random() - .5) * 1.1,
+                oy + y / dpr + (Math.random() - .5) * 1.1
+              ]);
+            }
+          }
+        }
+        if (!pts.length) return null;
+
+        /* ★ 对齐：把采样点的包围盒中心，搬到标题元素矩形的中心。
+           为什么不用 measureText 的 ascent/descent：那套度量和实际字形框
+           有偏差（衬线字的上下留白不对称），照它算出来的粒子会整体偏下 ——
+           实测粒子框是 [504,316,430,116]，标题是 [454,306,533,108]，
+           肉眼就是"字和粒子错开一层"。
+           用采样点自己的包围盒来对齐，就不依赖任何字体度量了。 */
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const p of pts) {
+          if (p[0] < minX) minX = p[0];
+          if (p[0] > maxX) maxX = p[0];
+          if (p[1] < minY) minY = p[1];
+          if (p[1] > maxY) maxY = p[1];
+        }
+        const dx = (r.left + r.width / 2) - (minX + maxX) / 2;
+        const dy = (r.top + r.height / 2) - (minY + maxY) / 2;
+        for (const p of pts) { p[0] += dx; p[1] += dy; }
+
+        // 均匀抽稀：按固定间隔取，保证首尾与整体分布都不偏
+        if (pts.length > MAX_PARTS) {
+          const keep = [];
+          const stride = pts.length / MAX_PARTS;
+          for (let i = 0; i < MAX_PARTS; i++) keep.push(pts[Math.floor(i * stride)]);
+          return keep;
+        }
+        return pts;
+      }
+
       function seed() {
-        // 重组中心：优先对准字卡矩形中心，量不到就退回屏幕中心
-        const r = inner && inner.getBoundingClientRect
-          ? inner.getBoundingClientRect()
-          : { left: W * .3, top: H * .4, width: W * .4, height: H * .2 };
-        cx = r.left + r.width / 2;
-        cy = r.top + r.height / 2;
+        const targets = sampleGlyphs();
 
-        parts = [];
-        const spreadX = Math.max(r.width, 260) / 2;
-        const spreadY = Math.max(r.height, 140) / 2;
+        /* ⚠ 采到字形 → 给 <html> 打上标记：CSS 据此把真实标题的 opacity
+           归零。因为粒子现在**就是**文字，文字层还画着的话，看到的永远是
+           "粒子飞向文字"而不是"粒子变成文字"。
+           采不到字形时不加标记 —— 那样文字照常显示，最坏也只是没有粒子。 */
+        if (targets && targets.length) root.classList.add('u-particle-title');
+        else root.classList.remove('u-particle-title');
 
-        for (let i = 0; i < COUNT; i++) {
-          // 目标：落在字卡矩形内部（均匀分布）—— 视觉上就是"聚成那块字"
-          const tx = cx + (Math.random() - .5) * spreadX * 2.05;
-          const ty = cy + (Math.random() - .5) * spreadY * 2.05;
-          // 起点：从中心附近出发（所以是"重组"，不是"从边缘飞进来"）
+        // 采不到字形（字体没就绪 / 元素不可见）就退回"围绕标题矩形"的旧做法，
+        // 保证任何情况下都有东西可看，不会白屏
+        let pts = targets;
+        if (!pts) {
+          const r = inner ? inner.getBoundingClientRect()
+            : { left: W * .3, top: H * .4, width: W * .4, height: H * .2 };
+          pts = [];
+          const n = small ? 200 : 380;
+          for (let i = 0; i < n; i++) {
+            pts.push([
+              r.left + Math.random() * r.width,
+              r.top + Math.random() * r.height
+            ]);
+          }
+        }
+
+        // 重组中心 = 所有目标点的重心
+        let sx = 0, sy = 0;
+        for (const p of pts) { sx += p[0]; sy += p[1]; }
+        cx = sx / pts.length;
+        cy = sy / pts.length;
+
+        parts = pts.map((p) => {
           const a = Math.random() * Math.PI * 2;
-          const d = 12 + Math.random() * 60;
-          parts.push({
-            tx, ty,
+          const d = 10 + Math.random() * 70;
+          return {
+            tx: p[0], ty: p[1],
             sx: cx + Math.cos(a) * d,
             sy: cy + Math.sin(a) * d,
-            x: 0, y: 0,
-            vx: 0, vy: 0,
-            r: .8 + Math.random() * 1.9,
+            x: 0, y: 0, vx: 0, vy: 0,
+            /* 半径要盖过采样间距（2px）：1.05~2.35px 的实心点 + 光晕，
+               相邻点才会连成笔画。小了就成筛子。 */
+            r: 1.05 + Math.random() * 1.3,
             color: HUES[(Math.random() * HUES.length) | 0],
-            // 每颗粒子的进度错开一点，聚拢才有层次
-            d: Math.random() * .28,
-            a: .9
-          });
-        }
+            d: Math.random() * .3,          // 聚拢进度错开
+            a: .9,
+            /* 呼吸：三个独立相位 —— 位置抖动、大小、透明度各一条正弦，
+               互相不同步，所以整片字看上去是"活的"而不是整体缩放。
+               幅度都很小：这是"呼吸"，不是"飘散"。 */
+            ph: Math.random() * Math.PI * 2,
+            sp: .8 + Math.random() * 1.7,
+            wr: .3 + Math.random() * .8,    // 位置抖动幅度（px）
+            /* 离队循环：每颗粒子隔一段时间短暂飞出去再归位。
+               ⚠ 幅度必须远小于笔画宽度：2~6px。之前给到 4~14px，
+                 相对 3px 的点间距太大，笔画直接被扯成散点、字就读不出来。 */
+            ph2: Math.random(),             // 0~1，循环相位
+            sp2: .06 + Math.random() * .1,
+            amp: 2 + Math.random() * 4       // 离队距离（px）
+          };
+        });
       }
 
       function ease(x) { return 1 - Math.pow(1 - x, 3); }
 
-      // 静止态：只在聚拢结束时画一次，不占 rAF
-      function paintRest() {
-        ctx.clearRect(0, 0, W, H);
-        ctx.globalAlpha = .5;
-        for (const q of parts) {
-          ctx.fillStyle = q.color;
-          ctx.beginPath();
-          ctx.arc(q.tx, q.ty, q.r, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-      }
+      /* 爆点：点击位置炸开的一圈冲击波 + 一次闪白。
+         没有它的时候，粒子只是"开始往外飘"，完全不像爆炸。 */
+      const wave = { on: false, x: 0, y: 0, p: 0, flash: 0 };
 
       function draw(now) {
         raf = 0;
         const el = now - t0;
 
         if (phase === 'gather') {
-          const T = 900;    // 聚拢总时长：别拖太久，用户是来进主页的不是来看动画的
+          const T = 1000;   // 聚拢总时长：别拖太久，用户是来进主页的不是来看动画的
           const p = Math.min(1, el / T);
           ctx.clearRect(0, 0, W, H);
           for (const q of parts) {
@@ -179,39 +312,123 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
             ctx.fill();
           }
           ctx.globalAlpha = 1;
-          if (p >= 1) { phase = 'hold'; paintRest(); return; }
+          if (p >= 1) { phase = 'hold'; t0 = now; }
+          raf = requestAnimationFrame(draw);
+          return;
+        }
+
+        if (phase === 'hold') {
+          /* ★ 停滞态：字是"活的"。三种运动叠在一起，各自的相位都随机：
+               ① 呼吸：半径与透明度各走一条正弦（不同步）
+               ② 微抖：位置在自己的字形点上抖 0.5~2px
+               ③ 离队：每颗粒子按自己的节奏短暂飞出去再归位，
+                  归位相位随机 —— 所以任何一帧都有几颗飘在外面，
+                  但整体字形始终清清楚楚。
+             这三条一起，才是"有呼吸感、不僵硬"。 */
+          const t = el / 1000;
+          ctx.clearRect(0, 0, W, H);
+          for (const q of parts) {
+            const br = Math.sin(t * q.sp + q.ph);
+
+            // ③ 离队循环：0~1 的锯齿波，取其中一小段做成"飞出去再回来"
+            let cyc = (t * q.sp2 + q.ph2) % 1;
+            let out = 0;
+            if (cyc < .5) {
+              const k = cyc / .5;                 // 0→1
+              out = Math.sin(k * Math.PI);        // 出去再回来的钟形
+            }
+            const oa = q.ph * 1.7;                // 离队方向也各自不同
+            const ox = Math.cos(oa) * q.amp * out;
+            const oy = Math.sin(oa) * q.amp * out;
+
+            // ② 微抖
+            const jx = Math.cos(t * .9 * q.sp + q.ph) * q.wr;
+            const jy = Math.sin(t * 1.1 * q.sp + q.ph) * q.wr;
+
+            const x = q.tx + ox + jx;
+            const y = q.ty + oy + jy;
+            const rad = q.r * (1 + br * .12);
+
+            /* ⚠ 不透明度按"文字"来定，不按"装饰"来定。
+               原先 0.52 上下浮动（.10~.85）是当星尘用的，笔画读不出来；
+               现在下限 .78、上限 1，点才是字的墨。
+               离队时只轻微减淡（-.1），不再像之前那样掉到 .5 —— 那会让
+               正在"呼吸"的那几笔消失，字看着就是缺的。 */
+            const al = Math.max(.78, Math.min(1, .94 + br * .06 - out * .1));
+            ctx.globalAlpha = al;
+            ctx.fillStyle = q.color;
+            ctx.beginPath();
+            ctx.arc(x, y, Math.max(.6, rad), 0, Math.PI * 2);
+            ctx.fill();
+            // 光晕：让相邻点的边缘连起来 —— 这是"一堆点"能看成"笔画"的关键
+            ctx.globalAlpha = al * .3;
+            ctx.beginPath();
+            ctx.arc(x, y, Math.max(.8, rad * 1.75), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
           raf = requestAnimationFrame(draw);
           return;
         }
 
         if (phase === 'dissolve') {
-          const T = 950;
+          const T = 1450;               // 与纸的离场动画（1.45s）对齐，别被提前砍掉
           const p = Math.min(1, el / T);
           ctx.clearRect(0, 0, W, H);
+
+          // ③ 粒子：加速冲出去 + 先变亮变大再淡掉
           for (const q of parts) {
-            if (!q.vx && !q.vy) {
-              // 第一次进入消散：给一个从点击点向外的初速度
-              const dx = q.x - clickX;
-              const dy = q.y - clickY;
-              const d = Math.hypot(dx, dy) || 1;
-              const f = 2.6 + Math.random() * 5.4;
-              q.vx = (dx / d) * f + (Math.random() - .5) * 1.2;
-              q.vy = (dy / d) * f - (1 + Math.random() * 2.2);   // 略微向上飘
-            }
             q.x += q.vx;
             q.y += q.vy;
-            q.vy += .06;              // 很轻的重力，让散开有重量感
-            q.vx *= .992;
-            q.a = Math.max(0, .95 * (1 - ease(p)));
+            q.vy += .085;               // 很轻的重力，让散开有重量感
+            q.vx *= .988;
+            q.vy *= .988;
+
+            /* 透明度曲线：前 25% 保持接近全亮（"炸"的那一下要看得见），
+               之后才淡出。第一版是线性淡出，粒子刚飞出去就透明了。 */
+            const fade = p < .25 ? 1 : 1 - ease((p - .25) / .75);
+            q.a = Math.max(0, fade);
             if (q.a <= .02) continue;
-            ctx.globalAlpha = q.a;
+
+            ctx.globalAlpha = Math.min(1, q.a);
             ctx.fillStyle = q.color;
+            const rad = q.r * (1 + p * 1.4);       // 越飞越大
             ctx.beginPath();
-            ctx.arc(q.x, q.y, q.r * (1 + p * .8), 0, Math.PI * 2);
+            ctx.arc(q.x, q.y, rad, 0, Math.PI * 2);
             ctx.fill();
           }
           ctx.globalAlpha = 1;
-          if (p >= 1) { ctx.clearRect(0, 0, W, H); return; }
+
+          // ② 冲击波圆环
+          if (wave.on) {
+            wave.p += .05;
+            if (wave.p >= 1) { wave.on = false; }
+            else {
+              ctx.globalAlpha = Math.max(0, .5 * (1 - wave.p));
+              ctx.strokeStyle = '#c8395f';
+              ctx.lineWidth = 2.5 * (1 - wave.p) + .5;
+              ctx.beginPath();
+              ctx.arc(wave.x, wave.y, 8 + ease(wave.p) * 260, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+            }
+          }
+
+          // ① 爆点闪白：第一帧最亮，0.16s 内消散
+          if (wave.flash > 0) {
+            wave.flash -= .045;
+            if (wave.flash > 0) {
+              const g = ctx.createRadialGradient(wave.x, wave.y, 0, wave.x, wave.y, 46);
+              g.addColorStop(0, 'rgba(255,255,255,' + (.85 * wave.flash) + ')');
+              g.addColorStop(1, 'rgba(255,255,255,0)');
+              ctx.fillStyle = g;
+              ctx.beginPath();
+              ctx.arc(wave.x, wave.y, 46, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+
+          if (p >= 1 && !wave.on && wave.flash <= 0) { ctx.clearRect(0, 0, W, H); return; }
           raf = requestAnimationFrame(draw);
           return;
         }
@@ -225,13 +442,33 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
         if (!raf) raf = requestAnimationFrame(draw);
       }
 
+      /* ★ 消散 = 三个东西叠起来，缺一个都会"看不出消散"：
+           ① 爆点闪白（0.16s）—— 给眼睛一个"炸了"的信号
+           ② 冲击波圆环（从点击点扩到 260px 再淡出）
+           ③ 粒子沿"从点击点向外"的方向**加速**冲出去（不是匀速飘），
+              同时瞬间变亮、变大，再慢慢淡掉
+         第一版只有③的匀速版，用户反馈"点击后没有粒子消散的效果"。 */
       function dissolve(x, y) {
         if (phase === 'dissolve') return;
         clickX = x; clickY = y;
+        wave.on = true; wave.x = x; wave.y = y; wave.p = 0; wave.flash = 1;
+
         for (const q of parts) {
-          if (!q.x && !q.y) { q.x = q.tx; q.y = q.ty; }   // 还停在初始位置的就挪到目标
-          q.vx = 0; q.vy = 0;
+          /* 粒子当前可能还在呼吸漂移的偏移位置上，
+             所以先按"落位点"把它摆回来，再统一给一个向外的速度。 */
+          q.x = q.tx; q.y = q.ty;
+
+          const dx = q.tx - x;
+          const dy = q.ty - y;
+          const dist = Math.hypot(dx, dy) || 1;
+          // 离爆点越近冲得越快（1.2 倍里再叠一层随机，避免整齐划一）
+          const boost = 1 + Math.max(0, 1 - dist / 420) * 2.6;
+          const f = (3.4 + Math.random() * 6.2) * boost;
+          q.vx = (dx / dist) * f + (Math.random() - .5) * 1.6;
+          q.vy = (dy / dist) * f - (1.4 + Math.random() * 3.2);   // 整体略微上飘
+          q.a = 1;
         }
+
         phase = 'dissolve';
         t0 = performance.now();
         if (!raf) raf = requestAnimationFrame(draw);
@@ -239,11 +476,21 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
 
       window.addEventListener('resize', () => {
         resize(); seed();
-        if (phase === 'hold') paintRest();
+        if (phase === 'hold') t0 = performance.now();
       }, { passive: true });
 
       start();
-      return { dissolve };
+      /* 调试出口：只读地暴露粒子统计，便于用无头浏览器核对
+         "到底生成了多少粒子、都多大、透明度多少"。
+         它不参与任何渲染逻辑，删掉也不影响效果。 */
+      return {
+        dissolve,
+        debug: () => ({
+          count: parts.length,
+          phase,
+          sample: parts.slice(0, 6).map((q) => ({ x: Math.round(q.tx), y: Math.round(q.ty), r: +q.r.toFixed(2), c: q.color }))
+        })
+      };
     }
 
     /* ---------------- 进入 ---------------- */
@@ -319,7 +566,12 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
     // 开场期间锁住背后页面的滚动（纸本身 fixed，不受影响）
     root.style.overflow = 'hidden';
 
-    // 粒子最后启动：先让布局稳定，量出来的字卡矩形才是准的
-    requestAnimationFrame(() => { particles = initParticles(); });
+    // 粒子最后启动：先让布局稳定，量出来的标题矩形才是准的
+    requestAnimationFrame(() => {
+      particles = initParticles();
+      /* 调试钩子：只读，方便无头浏览器核对粒子统计。
+         window.__paperParts?.debug() —— 删掉不影响任何行为。 */
+      try { window.__paperParts = particles; } catch (e) {}
+    });
   })();
 </script>
