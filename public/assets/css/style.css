@@ -826,45 +826,47 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 /* =========================================================
  *  滚动进度（替代原来的 IntersectionObserver 浮现）
  *  ---------------------------------------------------------
- *  参考站 yuimi-chaya.github.io（Kisara 主题）在它四个首页 CSS 里
- *  `IntersectionObserver` / `is-visible` / `is-in` 全部是 **0 次**，
- *  它只有一套：**滚动进度 → CSS 变量/时间线 → 形态**。
+ *  用户要求"主页也像 ME 页那样滑动渐显"。所以这里换成 ME 页同一套：
+ *  元素进入视口后播一段**定时**动画（0.76s），错开 80ms 一拍 ——
+ *  而不是原来那种"滚动进度直接映射"的时间线动画。
+ *  两者观感差别很大：
+ *    · 时间线驱动（原来的 scrollSettle）＝ 内容随滚动位置被"擦"出来，
+ *      滚多快就多快，停住就停在半路
+ *    · 定时驱动（ME 页那套）＝ 内容自己浮上来，滚快滚慢都好看
+ *  用户要的是后者，而 ME 页正是后者，所以直接沿用同一组数值。
  *
- *  所以这里不再"每块内容自己决定什么时候浮出来"，改成由滚动位置
- *  统一驱动：内容进入视口时轻微上浮 + 放大（位移很小，6~14px），
- *  靠的是浏览器原生的滚动驱动动画（animation-timeline）。
- *
- *  ⚠ 用 `view()` 时间线 + `animation-fill-mode: none`，理由有两个：
- *    1. range 之外元素完全按自己的样式显示 —— 内容永远可见，
- *       不会像原来的 html.reveal 那样"默认 opacity:0 等 JS 来救"。
- *       脚本挂了、浏览器不支持，页面就是一张静态但完整的页面。
- *    2. fill:none 表示动画不占用 hover 时的 transform（卡片悬停
- *       上浮仍然正常）。位移走 translate 这个独立通道，
- *       transform 留给悬停/其它效果，两者互不覆盖。
- *  ⚠ 不支持的浏览器（老 Safari/Firefox）安静地什么都不做 ——
- *    没有浮现，内容照常。
+ *  ⚠ 开关是 <html class="u-reveal">，由脚本在"确认能跑"之后才加：
+ *    · 没加 → 元素完全按自己的样式显示（默认可见）
+ *    · 加了 → 元素先用 backwards 填充停在"未浮现"，滚到再加 .is-in
+ *    这样脚本挂了、被禁用、或系统开了减少动效，页面都是一张完整的静态页，
+ *    绝不会出现"内容藏着不出来"。
+ *  ⚠ fill-mode 只用 backwards，绝不用 forwards/both ——
+ *    动画结束后元素回到自己声明的样式，悬停的 transform 才不会被永久压制。
  * ======================================================= */
-@keyframes scrollSettle {
-  from { translate: 0 14px; scale: .988; }
-  to   { translate: 0 0;    scale: 1; }
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(22px) scale(.985); filter: blur(3px); }
+  to   { opacity: 1; transform: none; filter: none; }
 }
 
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .post-bar,
-    .post,
-    .video-card,
-    .photo-card,
-    .markdown > *,
-    .finale {
-      animation: scrollSettle .1s linear;
-      animation-timeline: view();
-      animation-range: entry 0% cover 32%;
-      animation-fill-mode: none;
-    }
-    /* 首屏里的大块（舞台之后的面板区）位移收得更小，
-       它们离首屏最近，动得多反而抢开场 */
-    .panel { animation-name: none; }
+@media (prefers-reduced-motion: no-preference) {
+  html.u-reveal .panel,
+  html.u-reveal .chapters .chapter,
+  html.u-reveal .friend-entry,
+  html.u-reveal .finale {
+    /* ⚠ 这里**不用** animation-play-state: paused 来"开场期间先冻结"。
+       原因：paused 会把动画停在第一帧，而动画**已经开始了**；
+       等开场结束把类摘掉，动画不会重新开始，元素就永远停在"半透明"。
+       改用 .is-in 类驱动：脚本滚到（或开场结束时）才加上去。 */
+    opacity: 0;
+    animation: riseIn .76s cubic-bezier(.22, .61, .36, 1) backwards;
+  }
+  html.u-reveal .panel.is-in,
+  html.u-reveal .chapters .chapter.is-in,
+  html.u-reveal .friend-entry.is-in,
+  html.u-reveal .finale.is-in {
+    opacity: 1;
+    /* --rise-delay 由脚本按顺序写进去，错开 80ms 一拍 */
+    animation-delay: var(--rise-delay, 0s);
   }
 }
 
@@ -1108,13 +1110,27 @@ html.u-opening .opening {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;       /* 开场期间吃掉点击，避免误触底下的链接 */
-  animation: openingPaper 2.05s cubic-bezier(.62, .04, .24, 1) both;
+  /* 只做"滑入"这一段：滑到位就停住，等用户点。
+     滑出是下面 is-leaving 那条，由脚本加上去 —— 所以"什么时候进主页"
+     完全由用户决定，不再自动播完。 */
+  animation: openingPaperIn .72s cubic-bezier(.22, .86, .24, 1) both;
 }
-@keyframes openingPaper {
-  0%   { transform: translate3d(101%, 0, 0); }
-  27%  { transform: translate3d(0, 0, 0); }      /* 0.55s 就位 */
-  76%  { transform: translate3d(0, 0, 0); }      /* 停到 1.55s，字卡念完 */
-  100% { transform: translate3d(101%, 0, 0); }   /* 滑出 */
+@keyframes openingPaperIn {
+  from { transform: translate3d(101%, 0, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
+/* 纸滑走：脚本收到"进入"之后加上 .is-leaving。
+   ⚠ 这条**绝对不能**依赖 html.u-opening —— 脚本在加 .is-leaving 的
+   同一时刻就把 u-opening 摘掉了（那是"纸该显示"的开关）。
+   早先写成 `html.u-opening .opening.is-leaving`，结果选择器当场失配、
+   动画被取消，纸原地卡住、只有背景滚动了。
+   现在只认 .is-leaving（这个类只有脚本会加），和 u-opening 解耦。 */
+.opening.is-leaving {
+  animation: openingPaperOut .58s cubic-bezier(.6, 0, .3, 1) both !important;
+}
+@keyframes openingPaperOut {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(101%, 0, 0); }
 }
 /* 折痕：纸两边的暗边，让"翻动"有厚度感。
    只用纯色渐变，不加 blur —— 便宜且没有额外合成层。 */
@@ -1150,11 +1166,14 @@ html.u-opening .opening {
   from { opacity: 0; transform: translate3d(0, 14px, 0); }
   to   { opacity: 1; transform: none; }
 }
-html.u-opening .opening-eyebrow { animation-delay: .62s; }
-html.u-opening .opening-title   { animation-delay: .78s; }
-html.u-opening .opening-rule    { animation-delay: .96s; }
-html.u-opening .opening-sub     { animation-delay: 1.06s; }
-html.u-opening .opening-foot    { animation-delay: 1.18s; }
+/* ⚠ 时间轴：纸 0.72s 滑到位，字卡随后一拍一拍落上来。
+   按钮和提示的 delay 写在它们各自的规则里（见下），
+   因为那两个元素的规则在后面、会覆盖这里的简写。 */
+html.u-opening .opening-eyebrow { animation-delay: .42s; }
+html.u-opening .opening-title   { animation-delay: .56s; }
+html.u-opening .opening-rule    { animation-delay: .72s; }
+html.u-opening .opening-sub     { animation-delay: .82s; }
+html.u-opening .opening-foot    { animation-delay: .94s; }
 
 .opening-eyebrow {
   margin: 0;
@@ -1203,6 +1222,50 @@ html.u-opening .opening-foot    { animation-delay: 1.18s; }
   text-transform: uppercase;
 }
 
+/* ---------- 「进入主页」按钮 ----------
+   整张纸都可点，但**必须有一个看得见的落点**：
+   触屏用户、键盘用户、以及"不知道该干嘛"的人都靠它。
+   Enter / 空格 / Esc 也都能触发（见组件脚本）。 */
+.opening-enter {
+  margin-top: 22px;
+  padding: 11px 30px;
+  border: 1px solid rgba(36, 26, 32, .28);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: #241a20;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: .22em;
+  cursor: pointer;
+  /* 和字卡其它元素一样"落位后出现"，但再晚一拍 —— 它是这场开场的终点 */
+  animation-delay: 1.08s;
+  transition: background .28s ease, border-color .28s ease, color .28s ease,
+              transform .28s cubic-bezier(.22, .61, .36, 1);
+}
+@media (hover: hover) {
+  .opening-enter:hover {
+    background: #241a20;
+    border-color: #241a20;
+    color: #f7f3ee;
+    transform: translateY(-2px);
+  }
+}
+.opening-enter:focus-visible {
+  outline: 2px solid var(--rose-deep);
+  outline-offset: 4px;
+}
+/* 按钮下面那行小字：告诉用户"不用非得点按钮" */
+.opening-hint {
+  margin: 14px 0 0;
+  font-size: 11px;
+  letter-spacing: .16em;
+  color: rgba(36, 26, 32, .38);
+  animation-delay: 1.22s;
+}
+/* 整张纸都是可点的：给个手型光标，别让人以为只有按钮能点 */
+html.u-opening .opening { cursor: pointer; }
+html.u-opening .opening-enter { cursor: pointer; }
+
 /* 减少动态效果 / 窄屏：纸完全不出现 */
 @media (prefers-reduced-motion: reduce) {
   html.u-opening .opening { display: none !important; }
@@ -1210,6 +1273,7 @@ html.u-opening .opening-foot    { animation-delay: 1.18s; }
 @media (max-width: 600px) {
   .opening-title { font-size: clamp(40px, 15vw, 64px); letter-spacing: .1em; text-indent: .1em; }
   .opening-inner { gap: 10px; }
+  .opening-enter { margin-top: 16px; padding: 10px 24px; }
 }
 
 /* =========================================================
@@ -1255,9 +1319,9 @@ html.u-opening .opening-foot    { animation-delay: 1.18s; }
  *     而且"遮住内容"的东西一旦出错就是整屏空白。
  *  ⚠ .gate-bg 上不放 transform —— 指针视差挪到 .gate-hero 和 .gate-dust。
  * ======================================================= */
-.gate-bg { animation: gateBgIn 1.9s cubic-bezier(.16, .84, .3, 1) both; }
+/* 背景推近也由"点进入"触发（写在下面 gateBgIn 的 keyframes 处）。 */
 @keyframes gateBgIn {
-  /* 1.12 → 1：纸滑出时画面轻微推近收尾。
+  /* 1.12 → 1：纸滑走时画面轻微推近收尾。
      之前是 1.22，那是"深色幕布"时代为了让画面自己有点动势；
      现在动势由纸负责，背景只要一点点跟随就够了，幅度大了反而晕。 */
   from { scale: 1.12; }
@@ -1284,9 +1348,12 @@ html.u-opening .opening-foot    { animation-delay: 1.18s; }
   opacity: max(.15, calc(1 - var(--gate-p, 0) * .9));
   will-change: opacity;
 }
-/* 只有开场真的在播时，画面才需要"由虚到实"这一下 */
-html.u-opening .gate-hero {
-  animation: gateFocusIn 1.1s cubic-bezier(.2, .62, .25, 1) 1.5s both;
+/* ⚠ 首屏的入场要等用户**点完进入**才开始（html.u-entered）。
+   为什么不能像以前那样用固定延迟：现在是"手动进入"，
+   用户可能盯着字卡看很久 —— 固定延迟的话，等他们点进来，
+   首屏动画早播完了，什么都看不到。所以改成由点击触发。 */
+html.u-entered .gate-hero {
+  animation: gateFocusIn .95s cubic-bezier(.2, .62, .25, 1) both;
 }
 @keyframes gateFocusIn {
   from { filter: blur(11px) brightness(1.10) saturate(1.05); }
@@ -1360,10 +1427,10 @@ html.u-opening .gate-hero {
    缓动统一 cubic-bezier(.2, .7, .2, 1)：起手快、收尾稳。
 
    ⚠ 时间轴分两种：
-     · 有开场（html.u-opening）：纸 1.55s 开始滑出，文字等它开始动再出场
-         1.58s kicker → 1.70s 大标题 → 2.00s 副标题 → 2.12s 滚动指示
-     · 没有开场（内页 / 减少动效 / 脚本没跑）：延迟全部不要，立刻正常显示
-   这样"开场"和"没有开场"是两套独立的时间轴，互不干扰。 */
+     · 手动进入（html.u-entered，由点击触发）：纸滑走的**同时**首屏开始入场
+         kicker 0.10s → 大标题 0.22s → 副标题 0.52s → 滚动指示 0.64s
+     · 没有开场（内页 / 减少动效 / 脚本没跑）：没有延迟，立刻正常显示
+   这样"有开场"和"没开场"是两套独立的时间轴，互不干扰。 */
 @keyframes gateKickerIn {
   from { opacity: 0; transform: translate3d(0, 8px, 0); }
   to   { opacity: 1; transform: none; }
@@ -1376,9 +1443,9 @@ html.u-opening .gate-hero {
 .gate-kicker { animation: gateKickerIn .62s cubic-bezier(.2, .7, .2, 1) both; }
 .gate-sub    { animation: gateTextIn .72s cubic-bezier(.2, .7, .2, 1) both; }
 .gate-scroll { animation: gateTextIn .72s cubic-bezier(.2, .7, .2, 1) both; }
-html.u-opening .gate-kicker { animation-delay: 1.58s; }
-html.u-opening .gate-sub    { animation-delay: 2.0s; }
-html.u-opening .gate-scroll { animation-delay: 2.12s; }
+html.u-entered .gate-kicker { animation-delay: .10s; }
+html.u-entered .gate-sub    { animation-delay: .52s; }
+html.u-entered .gate-scroll { animation-delay: .64s; }
 /* ⚠ 文字层级要压在氛围层（z-index:3）之上。
    参考站里 .kisara-gate-atmosphere 是盖在标题上的（它靠更重的压暗来
    统一画面），但这里的主视觉是插画、文字是白色大标题 ——
@@ -1393,7 +1460,7 @@ html.u-opening .gate-scroll { animation-delay: 2.12s; }
    ⚠ 注意区别：这里动的是**标题文字**，不是主视觉画面。
      主视觉那边严禁用 opacity 做开场（见 .gate-hero 上方的长注释）。 */
 .gate-title  { animation: gateTitleIn .92s cubic-bezier(.22, .61, .36, 1) both; }
-html.u-opening .gate-title { animation-delay: 1.7s; }
+html.u-entered .gate-title { animation-delay: .22s; }
 
 /* ⚠ 顺序要紧：标题排在 kicker 和 sub 之间（0.44s 起、1.5s 落） */
 .gate-kicker {
@@ -1511,6 +1578,12 @@ html.u-opening .gate-title { animation-delay: 1.7s; }
  * ======================================================= */
 .gate-bg {
   translate: 0 var(--gate-ty, 0px);
+}
+/* ⚠ 背景推近必须写在**这条基础规则之后**。
+   基础规则也用了 `.gate-bg` 这个选择器、而且在文件里出现得更早，
+   如果入场动画写回上面那段，就会被这条覆盖掉（历史上就这么丢过一次入场）。 */
+html.u-entered .gate-bg {
+  animation: gateBgIn 1.6s cubic-bezier(.16, .84, .3, 1) both;
 }
 .gate-hero {
   transform: translate3d(calc(var(--mx, 0) * 9px), calc(var(--my, 0) * 9px), 0);

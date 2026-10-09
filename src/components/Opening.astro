@@ -1,27 +1,31 @@
 ---
 /* =========================================================
- *  开场：纸做的电影片头（杂志翻页 + 片头字卡）
+ *  落地页 / 开场：纸做的电影片头（杂志翻页 + 片头字卡）
  *  ---------------------------------------------------------
- *  为什么是这个方案：深色站点上，唯一一眼看得见的开场是**浅色物体在动**。
- *  前几轮用深色幕布 / 画面虚化，都栽在同一件事上 —— 开场自己不带光，
- *  而主视觉被压暗后平均亮度只有 26/255（和页面底色 21 几乎一样）。
- *  一页纸是强反差，不依赖底图好不好看。
+ *  现在的流程是**手动进入**：
+ *    纸从右侧翻入 → 字卡落位 → 停在"进入"按钮上 → 用户点击
+ *    → 纸向右翻走 → 首屏在背后亮起来
+ *  不再自动播完，所以"看到什么"由用户控制，不会错过开场。
  *
- *  ⚠ 三层安全设计（这是硬要求）：
+ *  为什么用"纸"：这个站是深色底，深色物体在上面"动了等于没动"
+ *  （实测主视觉和页面底色只差 5 个亮度值）。一张暖白的纸是强反差，
+ *  不依赖底图好不好看。
+ *
+ *  ⚠ 三层安全设计（硬要求，改这里之前先读一遍）：
  *    1. 纸的**基础样式就是 opacity:0 + visibility:hidden**。
  *       只有 <html> 上有 .u-opening 类（由 Base.astro 的内联脚本按
- *       "首页 + 允许动效"两个条件加上）时才会显示。
- *       脚本没跑 / 被降级 → 纸根本不存在 → 页面照常打开。
- *    2. 本组件只在首页渲染（Base.astro 的 prop 控制）。
- *    3. 三条强制关闭路径：animationend、setTimeout 硬上限、
- *       以及滚动 / 点击 / 按键 —— 想跳过随时能跳过，不做强制片头。
+ *       "首页硬加载 + 允许动效"两个条件加上）时才会显示。
+ *       脚本没跑 / 被降级 → 纸根本不存在、页面也能正常滚动。
+ *    2. 本组件只在首页渲染（Base.astro 的 isHome prop 控制）。
+ *    3. 四条强制拆除路径：进入按钮、点击任意处 / 滚轮 / 按键、
+ *       以及"切到后台再回来" —— 任何一条命中都会把纸从 DOM 里删掉，
+ *       绝不会出现"纸卡住、页面进不去"。
  * ======================================================= */
 
 const { name = '', subtitle = '', folio = '' } = Astro.props;
 ---
 
 <div class="opening" id="paperOpening" aria-hidden="true">
-  {/* 折痕阴影：纸两侧各一道，模拟纸被掀起时的暗边 */}
   <div class="opening-fold opening-fold--left"></div>
   <div class="opening-fold opening-fold--right"></div>
 
@@ -31,56 +35,98 @@ const { name = '', subtitle = '', folio = '' } = Astro.props;
     <span class="opening-rule"></span>
     {subtitle && <p class="opening-sub">{subtitle}</p>}
     {folio && <p class="opening-foot">{folio}</p>}
+    <button type="button" class="opening-enter" id="paperEnter">进入主页</button>
+    <p class="opening-hint">点击任意处进入</p>
   </div>
 </div>
 
 <script>
   (function () {
-    /* ⚠ 这个模块只在"真正的首页硬加载"时才有意义。
-       客户端路由换页回来时，浏览器不重新执行模块 —— 所以不会重复播。
-       仍然加一道 dataset 守卫，防止别的地方重复引入。 */
     const root = document.documentElement;
     const paper = document.getElementById('paperOpening');
+    const enter = document.getElementById('paperEnter');
 
     if (!paper) return;
+
+    /* ⚠ 条件不满足（不是首页 / 用户要求减少动效 / 已经进过一次）
+       → 纸直接摘掉，并且把"防止背后滚动"的锁一并解开。
+       这一步很重要：锁是 JS 加的，纸的显示是 CSS 控制的，
+       两边必须成对出现，否则会出现"纸没了但页面滚不动"。 */
     if (!root.classList.contains('u-opening')) {
-      // 条件不满足（不是首页 / 用户要求减少动效）：纸留着当摆设没意义，直接摘掉
       paper.remove();
+      root.style.removeProperty('overflow');
       return;
     }
-    if (root.dataset.openingDone === '1') { paper.remove(); return; }
 
-    const DUR = 2150;   // 与 CSS 里的 animation 总时长对齐（2.05s + 余量）
     let closed = false;
+    let guard = 0;
 
-    function dismiss() {
+    function release() {
       if (closed) return;
       closed = true;
-      root.dataset.openingDone = '1';
       root.classList.remove('u-opening');
-      paper.remove();
-      document.removeEventListener('scroll', dismiss);
-      document.removeEventListener('pointerdown', dismiss);
-      document.removeEventListener('keydown', dismiss);
-      window.clearTimeout(timer);
+      root.style.removeProperty('overflow');   // 解开滚动锁
+      /* ⚠ 这个类才是"首屏入场"的发令枪（见 style.css 里所有 html.u-entered 规则）。
+         为什么不由 CSS 的固定延迟来做：现在是手动进入，用户可能盯着字卡看很久，
+         固定延迟的话等他们点进来时首屏动画早播完了。
+         先加类、再给纸上 .is-leaving —— 纸滑走的同时首屏开始亮起来。 */
+      root.classList.add('u-entered');
+      window.clearTimeout(guard);
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('visibilitychange', onHide);
+      paper.classList.add('is-leaving');
     }
 
-    // 出口①：让 JS 兜个底，CSS 动画自己跑完（正常路径）
+    /* 纸滑走的动画播完 → 真正从 DOM 里移除 */
     paper.addEventListener('animationend', (e) => {
-      if (e.animationName === 'openingPaperOut') dismiss();
+      if (e.animationName === 'openingPaperOut') {
+        paper.remove();
+        root.dataset.openingDone = '1';
+      }
     });
 
-    // 出口②：硬上限。动画被系统降级 / 标签页切走导致 rAF 停摆时兜住
-    const timer = window.setTimeout(dismiss, DUR + 1200);
+    function onKey(e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        release();
+      } else if (e.key === 'Escape') {
+        release();
+      }
+    }
 
-    // 出口③：想跳过就跳过
-    document.addEventListener('scroll', dismiss, { passive: true, once: true });
-    document.addEventListener('pointerdown', dismiss, { passive: true, once: true });
-    document.addEventListener('keydown', dismiss, { once: true });
+    function onHide() {
+      if (document.hidden && !closed) {
+        // 切到后台再回来：直接把纸收掉，避免用户回来时停在一半
+        release();
+        window.setTimeout(() => { if (paper.isConnected) paper.remove(); }, 700);
+      }
+    }
 
-    // 页面隐藏（切标签页）时也直接拆掉，避免回来时停在一半
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) dismiss();
+    // 入口①：显式按钮
+    if (enter) enter.addEventListener('click', release);
+
+    // 入口②：点纸面任意处 —— 按钮之外的空白也应该能进
+    paper.addEventListener('click', (e) => {
+      if (e.target.closest && e.target.closest('a')) return;   // 纸里没有链接，防御性写法
+      release();
     });
+
+    // 入口③：键盘（Enter / 空格 / Esc）
+    document.addEventListener('keydown', onKey);
+
+    // 入口④：滚轮 / 触摸滑动 —— 有人会先试着滚
+    paper.addEventListener('wheel', release, { passive: true });
+    paper.addEventListener('touchstart', release, { passive: true });
+
+    // 兜底：万一 animationend 没触发（动画被系统降级等），到点也把纸摘掉
+    guard = window.setTimeout(() => {
+      release();
+      window.setTimeout(() => { if (paper.isConnected) paper.remove(); }, 900);
+    }, 120000);   // 120s：不是"自动进入"，只是别让纸永远留在 DOM 里
+
+    document.addEventListener('visibilitychange', onHide);
+
+    // 开场期间锁住背后页面的滚动（纸本身 fixed，不受影响）
+    root.style.overflow = 'hidden';
   })();
 </script>

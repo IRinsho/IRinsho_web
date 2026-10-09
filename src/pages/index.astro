@@ -360,6 +360,88 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       onScroll('init');
     }
 
+    /* =========================================================
+     *  滚动渐显（用户要求：主页也做成 ME 页那种滑动渐显）
+     *  ---------------------------------------------------------
+     *  · 数值和 ME 页的 meRiseIn 完全一致：0.76s、上浮 22px、
+     *    scale .985、blur 3px，错开 80ms 一拍（缓动也一样）
+     *  · 差别只在触发方式：ME 页是一次性排在加载后；主页内容长，
+     *    所以按"滚到才浮现"
+     *  · 开关是 <html class="u-reveal">：只有脚本真的跑起来了才加。
+     *    没加 → 元素按自己的样式显示（默认可见），页面永远是完整的
+     *  · 每块只浮现一次（加过 .is-in 就取消观察），回头再滚不会重播
+     * ======================================================= */
+    function initRiseIn() {
+      try {
+        if (window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        const root = document.documentElement;
+        // 换页/重复调用安全：没有目标就直接返回，不浪费 observer
+        const SEL = '.panel, .chapters .chapter, .friend-entry, .finale';
+        const targets = [...document.querySelectorAll(SEL)];
+        if (!targets.length) return;
+
+        root.classList.add('u-reveal');
+        targets.forEach((el) => el.style.removeProperty('--rise-delay'));
+
+        /* 给同一批里相邻的几块错开 80ms（只在"滚到"的那一刻算，
+           所以不会出现"第一屏的延迟被第 20 块拖长"的问题） */
+        function show(el, i) {
+          if (el.classList.contains('is-in')) return;
+          el.style.setProperty('--rise-delay', ((i % 4) * .08).toFixed(2) + 's');
+          el.classList.add('is-in');
+        }
+
+        function showAll() {
+          targets.forEach((el, i) => show(el, i));
+        }
+
+        if (!('IntersectionObserver' in window)) { showAll(); return; }
+
+        const io = new IntersectionObserver((entries) => {
+          let n = 0;
+          for (const en of entries) {
+            if (!en.isIntersecting) continue;
+            show(en.target, n++);
+            io.unobserve(en.target);
+          }
+        }, { rootMargin: '0px 0px -10% 0px', threshold: .08 });
+
+        targets.forEach((el) => io.observe(el));
+
+        /* ⚠ 开场（纸）还盖着的时候，背后的元素不该自己演一遍 ——
+           否则用户点进来时，第一屏的内容已经"浮现完了"。
+           所以：开场期间先不观察；等 u-opening 被摘掉（用户点了进入）
+           再开始观察，那样"点击"和第一屏的浮现是连着的。
+
+           ⚠ 这里用轮询而不是 MutationObserver：
+             整页内容的可见性都挂在这个判断上，一旦漏掉类的变化，
+             所有面板就永远停在 opacity:0 —— 那是最糟的失败方式。
+             每 250ms 看一眼，代价可以忽略，但绝不会漏。 */
+        if (root.classList.contains('u-opening')) {
+          targets.forEach((el) => io.unobserve(el));
+          let tries = 0;
+          const wait = window.setInterval(() => {
+            tries++;
+            if (!root.classList.contains('u-opening') || tries > 40) {
+              window.clearInterval(wait);
+              targets.forEach((el) => {
+                if (!el.classList.contains('is-in')) io.observe(el);
+              });
+            }
+          }, 250);
+        }
+
+        // 换页回来时重新扫一遍（新页面是新的 DOM）
+        document.addEventListener('astro:page-load', () => {
+          const more = [...document.querySelectorAll(SEL)]
+            .filter((el) => !el.classList.contains('is-in'));
+          more.forEach((el) => io.observe(el));
+        });
+      } catch (e) { /* 渐显只是锦上添花，出错不影响内容 */ }
+    }
+
     /* 首次加载 + 每次换页返回都要重新初始化
        （之前只在首次加载跑，换页回来主视觉和终幕就都不显示了） */
     document.addEventListener('astro:page-load', initGate);
@@ -367,6 +449,14 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       document.addEventListener('DOMContentLoaded', initGate);
     } else {
       initGate();
+    }
+
+    /* 滚动渐显：和上面那套互不干扰，任何一块出错都不连累另一块 */
+    document.addEventListener('astro:page-load', initRiseIn);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initRiseIn);
+    } else {
+      initRiseIn();
     }
   </script>
 </Base>
