@@ -1,0 +1,349 @@
+---
+import Base from '../layouts/Base.astro';
+import config from '../data/config.js';
+import videos from '../data/videos.js';
+import autoCovers from '../data/covers.generated.js';
+import { photos } from '../lib/photos.js';
+import { asset } from '../lib/url.js';
+import { pad2 } from '../lib/format.js';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+// poster 文件可能已经不存在（例如之前抓错被删掉），这种情况当没填
+function posterExists(p) {
+  const v = String(p || '').trim();
+  if (!v) return false;
+  if (/^https?:\/\//i.test(v)) return true;
+  try {
+    return existsSync(join(process.cwd(), 'public', v.replace(/\\/g, '/').replace(/^(\.?\/)+/, '')));
+  } catch (e) { return true; }
+}
+
+// video 那一格的候选封面：抓来的抖音封面 > 手填 poster > 头像
+const videoArt = (() => {
+  const v = videos[0] || {};
+  const key = String(v.embed || v.douyin || '').trim();
+  const auto = v.cover === false ? {} : (autoCovers[key] || {});
+  return auto.poster || (posterExists(v.poster) ? v.poster : '') || config.avatar || '';
+})();
+
+// 每格挑一张图做底；没有图就用渐变色兜底
+// 取不到对应图片时按顺序往后找，保证每一格都有东西可看，
+// 不会出现空白的深色方块（头像、封面路径写错时以前就是这样）
+function firstOf(list) {
+  return list.find((x) => x && String(x).trim()) || '';
+}
+
+function panelArt(key) {
+  const pool = [config.avatar, videoArt, ...photos.map((p) => p.src)];
+
+  if (key === 'videos') return firstOf([videoArt, config.avatar]) || firstOf(pool);
+  if (key === 'me') return firstOf([config.avatar, videoArt]) || firstOf(pool);
+
+  const idx = { home: 0, photos: 1, notes: 2 }[key];
+  const picked = firstOf([photos[idx == null ? 0 : idx] && photos[idx == null ? 0 : idx].src]);
+  return picked || firstOf(pool) || '';
+}
+
+const PANELS = [
+  { no: '01', name: 'HOME', sub: '首页章节', href: '/', key: 'home', cls: 'panel-home' },
+  { no: '02', name: 'GALLERY', sub: '相册库存', href: '/photos/', key: 'photos', cls: '' },
+  { no: '03', name: 'VIDEO', sub: '影像信号', href: '/videos/', key: 'videos', cls: '' },
+  { no: '04', name: 'BLOG', sub: '笔记残片', href: '/notes/', key: 'notes', cls: '' },
+  { no: '05', name: 'ME', sub: '个人档案', href: '/me/', key: 'me', cls: '' }
+].map((p) => ({ ...p, art: panelArt(p.key) }));
+
+const chapters = config.chapters || [];
+const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? '' : '.';
+---
+<Base title={`${config.name} · 个人档案`} description={config.homeMotto}>
+  {/*
+    首屏舞台（Gate）：主视觉铺满，往下滚时缓慢推近 + 淡出。
+    用一个 CSS 变量控制：--gate-p（0~1 的滚动进度）由页面脚本写入，
+    所有位移/缩放/淡出都在 CSS 里算 —— 这样即使脚本挂了，
+    页面也只是一张静态主视觉，绝不会白屏。
+    （终幕图以前是这一层里交叉揭晓的，现在改成下面独立的 .finale 一段，
+      所以这里不再需要 --finale 变量。）
+  */}
+  <section
+    class="gate"
+    id="homeGate"
+    style={`--hero:url(${asset('media/images/home-hero.jpg')})`}
+  >
+    <div class="gate-bg" aria-hidden="true">
+      <span class="gate-layer gate-hero"></span>
+      <span class="gate-veil"></span>
+    </div>
+
+    {/*
+      ① 引力星野（可交互）
+      ---------------------------------------------------------
+      一层 Canvas 粒子网：鼠标像引力源，附近粒子被吸过来、连线变亮；
+      点一下给一次冲击波，粒子被推开再缓缓归位。
+
+      没脚本 / 开了「减少动态效果」时这一层保持空白 ——
+      首屏仍然是一张静态主视觉 + 完整文字，绝不会白屏。
+    */}
+    <canvas class="gate-field" id="gateField" aria-hidden="true"></canvas>
+
+    {/* ①b 漂浮粒子：10 个上浮的光点（纯 CSS 关键帧，零素材）
+        ⚠ 外面这层 .gate-dust 是必要的：.gate-particles 承接鼠标视差（transform），
+          .gate-dust 承接滚动位移（translate）。挤在一个元素上的话会互相顶掉。 */}
+    <div class="gate-particles" aria-hidden="true">
+      <div class="gate-dust">
+        {[...Array(10)].map((_, i) => (
+          <i
+            style={`left:${(i * 9.7 + 4).toFixed(1)}%;--dx:${(i % 2 ? -1 : 1) * (10 + i * 2)}px;--dy:${52 + (i % 5) * 9}vh;--dur:${19 + (i % 6) * 3}s;--delay:${(i * 1.7).toFixed(1)}s`}
+          />
+        ))}
+      </div>
+    </div>
+
+    <div class="gate-inner">
+      <p class="gate-kicker">CHAPTER 00 / OPENING</p>
+      <h1 class="gate-title">{config.homeTitle || config.name}</h1>
+      <p class="gate-sub">{config.homeMotto}</p>
+      <span class="gate-scroll" aria-hidden="true"><i></i></span>
+    </div>
+  </section>
+
+  {/* 接缝条：首屏 → 面板区（斜切色带，纯 CSS，零素材） */}
+  <div class="seam seam--gate" aria-hidden="true"></div>
+
+  {/* 顶部滚动进度轨 */}
+  <div class="gate-rail" id="gateRail" aria-hidden="true"><i></i></div>
+
+  <div class="panels">
+    {PANELS.map((p) => (
+      <a class={'panel ' + p.cls} href={asset(p.href)}>
+        {/*
+          底图用 <img> 而不是 CSS background-image：
+          <img> 是浏览器最稳的加载方式（顶栏头像就是这么显示的）。
+          onerror 兜底 —— 文件缺了就把这一层收掉，露出下面的渐变，不留破图。
+        */}
+        {p.art && (
+          <img
+            class="panel-art"
+            src={asset(p.art)}
+            alt=""
+            decoding="async"
+            onerror="this.classList.add('is-broken')"
+          />
+        )}
+        <span class="panel-plate">
+          <span class="p-num">{p.no}</span>
+          <span class="p-name">{p.name}<i>↗</i></span>
+          <span class="p-sub">{p.sub}</span>
+        </span>
+      </a>
+    ))}
+  </div>
+
+  <nav class="chapters">
+    <span class="chapters-label">首页章节</span>
+    <span class="chapters-count">{pad2(chapters.length)}</span>
+    {chapters.map((c) => (
+      <a class="chapter" href={asset(c.href)}><b>{c.no}</b>{c.label}</a>
+    ))}
+  </nav>
+
+  {/*
+    友链入口：不在顶栏，而是首页里这一条（参考你给的那张图）。
+    左边一个带边框的心形方块，中间 eyebrow + 大字，右边一个 ↗。
+  */}
+  <a class="friend-entry" href={asset('links/')}>
+    <span class="friend-icon" aria-hidden="true">♡</span>
+    <span class="friend-text">
+      <span class="friend-eyebrow">FRIEND LINKS / OPEN ROUTE</span>
+      <span class="friend-title">进入友链</span>
+    </span>
+    <span class="friend-arrow" aria-hidden="true">↗</span>
+  </a>
+
+  {/*
+    终幕画面单独作为一段显示 —— 原来它只在「滚动到首屏中段」时才揭晓，
+    结果这张图很可能一直看不到，太别扭。现在它是一段正式内容：
+    面板区之后、页脚之前，一定会被看到。
+  */}
+  <section class="finale" aria-label="终幕">
+    <img
+      class="finale-art"
+      src={asset('media/images/home-finale.jpg')}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onerror="this.classList.add('is-broken')"
+    />
+    <span class="finale-veil" aria-hidden="true"></span>
+    <span class="finale-cap">FINALE / 终幕</span>
+  </section>
+
+  {/* 接缝条：面板区 → 页脚（换一套角度，免得两条一模一样） */}
+  <div class="seam seam--footer" aria-hidden="true"></div>
+
+  <script>
+    import { initGateField } from '../lib/gate-field.js';
+
+    /* =========================================================
+     *  首屏舞台：滚动进度 → CSS 变量
+     *  ---------------------------------------------------------
+     *  · --gate-p     0~1：主视觉淡出用的进度
+     *  · --gate-ty    竖向位移（px）：写在外层 .gate-bg / .gate-dust 上
+     *  · --mx / --my  指针位置（-0.5~0.5）：分层视差用
+     *
+     *  ⚠ 这一版把"发飘/发糊"的三个根因都拆掉了：
+     *    1. 以前 --gate-p 每帧都在变，CSS 那边却给 .gate-hero 挂了
+     *       `transition: opacity .7s` —— 每帧重新起一次永远走不完的过渡，
+     *       于是它永远在"追"滚动位置。现在位移改由这里插值（lerp）后
+     *       再写进去：连续、有阻尼、可直接预期。
+     *    2. 以前缩放写在 .gate-hero 上（scale(1 + p*.08)），
+     *       1253×830 的大图每帧重新栅格化 → 画面发软。现在只做
+     *       translate3d 位移（纯合成，不动画质），而且幅度收了一半。
+     *    3. 以前滚动时整页内容的浮现过渡还在跑（0.68s 追滚动位置）。
+     *       现在滚动期间 <html> 上会有 data-scrolling（由 Base.astro 的
+     *       startScrollFlag 统一打），CSS 那边把过渡时长归零 ——
+     *       静止进场的手感保留，滚动期间干脆利落。
+     * ======================================================= */
+    function initGate() {
+      const reduce = window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const gate = document.getElementById('homeGate');
+      const rail = document.getElementById('gateRail');
+
+      // ⚠ 防重复绑定：换页返回时 Astro 会把这段脚本再跑一遍
+      if (!gate || gate.dataset.gateBound === '1') return;
+      gate.dataset.gateBound = '1';
+
+      if (reduce) {
+        gate.style.setProperty('--gate-p', '0');
+        gate.style.setProperty('--gate-ty', '0px');
+        gate.style.setProperty('--gate-ty-dust', '0px');
+        if (rail) rail.style.display = 'none';
+        return;
+      }
+
+      const DAMP = 0.16;       // 滚动插值系数：越大越跟手
+      const LERP = 0.12;       // 指针插值系数
+      const TY_BG = 44;        // 滚动到底时背景上移多少 px
+      const TY_DUST = 92;      // 粒子层（分层更明显）
+
+      const scroll = { p: 0, cur: 0 };
+      const ptr = { x: 0, y: 0, cx: 0, cy: 0 };
+      let sraf = 0;
+      let praf = 0;
+      let ticking = false;
+      let idleTimer = 0;
+
+      function writeTy() {
+        gate.style.setProperty('--gate-ty', (-scroll.cur * TY_BG).toFixed(2) + 'px');
+        gate.style.setProperty('--gate-ty-dust', (-scroll.cur * TY_DUST).toFixed(2) + 'px');
+      }
+
+      function readScroll() {
+        const h = gate.offsetHeight || 1;
+        scroll.p = Math.min(1, Math.max(0, window.scrollY / (h * 0.85)));
+      }
+
+      /* 插值尾巴：一直追到足够接近目标才停，不做无意义的空转 */
+      function tail() {
+        const d = scroll.p - scroll.cur;
+        if (Math.abs(d) < 0.0015) {
+          scroll.cur = scroll.p;
+          sraf = 0;
+        } else {
+          scroll.cur += d * DAMP;
+          sraf = requestAnimationFrame(tail);
+        }
+        gate.style.setProperty('--gate-p', scroll.cur.toFixed(4));
+        writeTy();
+      }
+
+      /* 指针视差：pointermove 只记坐标，真正写变量在 rAF 里做 */
+      function loop() {
+        ptr.cx += (ptr.x - ptr.cx) * LERP;
+        ptr.cy += (ptr.y - ptr.cy) * LERP;
+        gate.style.setProperty('--mx', ptr.cx.toFixed(4));
+        gate.style.setProperty('--my', ptr.cy.toFixed(4));
+        if (Math.abs(ptr.x - ptr.cx) < 0.0006 && Math.abs(ptr.y - ptr.cy) < 0.0006) {
+          ptr.cx = ptr.x;
+          ptr.cy = ptr.y;
+          praf = 0;
+          return;
+        }
+        praf = requestAnimationFrame(loop);
+      }
+
+      window.addEventListener('pointermove', (e) => {
+        const r = gate.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > window.innerHeight) return;   // 不在视野里就不算
+        ptr.x = e.clientX / window.innerWidth - 0.5;
+        ptr.y = e.clientY / window.innerHeight - 0.5;
+        if (!praf) praf = requestAnimationFrame(loop);
+      }, { passive: true });
+
+      /* ⚠ onScroll 有两种调用来源：
+         · 事件（scroll / resize）→ 参数是 Event 对象
+         · 初始化时手工调用 → 必须显式传 'init'
+         所以判断写成 === 'init'，不能写成"参数假值"。 */
+      function onScroll(init) {
+        /* ⚠ 开场（幕布 / 文字 / 缩放）是 `both` 填充的一次性动画，
+           从第 0 帧就占着 opacity 不放。用户手快、在开场还没演完时
+           就往下滚，滚动写进来的透明度就会被动画终值压住 ——
+           看起来像"首屏淡不掉"。所以第一次真实滚动就把开场**永久**
+           结束掉：给 .gate 打 data-opened（CSS 那边 animation: none）。
+           ⚠ 一次性、不摘掉：写成"滚动时禁用、停下恢复"的话，规则一失效
+             浏览器会把动画当新动画重套一遍，回到顶部首屏会 fade 回去
+             再淡出来。data-scrolling 只用来给别的规则做参考。
+           ⚠ 初始化那一次不算"滚动" —— 否则开场第一帧就被自己掐掉，
+             用户永远看不到开幕（上一版"没有开场"就有这一半原因）。 */
+        if (init !== 'init') {
+          gate.dataset.opened = '1';
+          gate.dataset.scrolling = '1';
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            delete gate.dataset.scrolling;
+          }, 180);
+        }
+
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+          ticking = false;
+          readScroll();
+
+          // 顶部进度轨：整页滚动进度（含页面总高度）
+          if (rail) {
+            const doc = document.documentElement;
+            const total = Math.max(1, doc.scrollHeight - window.innerHeight);
+            rail.style.setProperty('--rail', (window.scrollY / total).toFixed(4));
+          }
+
+          if (!sraf) sraf = requestAnimationFrame(tail);
+        });
+      }
+
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll, { passive: true });
+
+      // 初始状态：立刻落到当前滚动位置（刷新时停在页面中间也不会跳一下）
+      readScroll();
+      scroll.cur = scroll.p;
+      gate.style.setProperty('--gate-p', scroll.cur.toFixed(4));
+      writeTy();
+      onScroll('init');
+    }
+
+    /* 首次加载 + 每次换页返回都要重新初始化
+       （之前只在首次加载跑，换页回来主视觉和终幕就都不显示了） */
+    document.addEventListener('astro:page-load', initGate);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initGate);
+    } else {
+      initGate();
+    }
+
+    /* ① 引力星野：和上面那套互不干扰，单独一层 Canvas */
+    initGateField();
+    document.addEventListener('astro:page-load', initGateField);
+  </script>
+</Base>

@@ -194,248 +194,75 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   }
 
   /* =========================================================
-   *  ① 滚动浮现动效（IntersectionObserver 驱动）
+   *  ① 滚动进度（替代原来的 IntersectionObserver 浮现）
    *  ---------------------------------------------------------
-   *  为什么不用纯 CSS animation：
-   *    纯 CSS 的入场动画只在「页面加载那一刻」播一次，加载完就没了，
-   *    而且一旦被浏览器缓存 / 系统开了「减少动态效果」就完全看不到。
-   *    这里改成：默认全部可见（JS 挂了也不会白屏），
-   *    只有脚本正常运行时才加 .reveal，然后**滚到哪块、哪块才浮现** ——
-   *    一页长笔记滑下去会不断有内容浮出来，看得见、也更耐看。
+   *  参考站 yuimi-chaya.github.io（Kisara 主题）在四个首页 CSS 里
+   *  `IntersectionObserver` / `is-visible` / `is-in` 全部是 **0 次**。
+   *  它只有一套东西：**滚动进度 → CSS 变量 → 形态**（页面底部就写着
+   *  "SCROLL = FRAME / STOP = HOLD"）。所有引用都是 var(--kisara-*)。
+   *
+   *  所以这里不再给每个卡片挂 observer、加 .is-in、错峰 55ms ——
+   *  那套的问题：每块内容各自决定"我什么时候浮出来"，
+   *  一页长笔记往下滑会不停地有东西在动，视觉上很吵；
+   *  而且每次换页都要重新注册一批 observer。
+   *
+   *  现在只算两个数，写进 <html>：
+   *    --scroll-y     已经滚过多少 px（连续）
+   *    --scroll-progress  0~1（整页进度，顶栏那条进度轨也用它）
+   *  形态交给 CSS（见 style.css「滚动进度」那一段）。
+   *  默认页面完全可见 —— 这段脚本只负责写变量，挂了也不影响可读性。
    * ======================================================= */
   const prefersReduced = window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* ⚠ 两块动效互相隔离：任何一块出错都不许连累另一块。
-     之前它们写在一个作用域里，前面一抛错，后面的鼠标就完全不执行 ——
-     表现出来就是「首屏没有鼠标圈，换一次页才生效」。 */
-  function startReveal() {
+  function startScrollProgress() {
     try {
       if (prefersReduced) return;
-      document.documentElement.classList.add('reveal');
+      const root = document.documentElement;
+      if (root.dataset.scrollProgress === '1') return;   // 幂等
+      root.dataset.scrollProgress = '1';
 
-      /* ⚠ .gate-inner > *（首屏舞台里的字）**故意不在这个清单里**：
-         它们由 style.css 里 .gate-kicker / .gate-title / .gate-sub /
-         .gate-scroll 自己的一段 CSS 入场动画负责。
-         挂在 IO 上的话要等回调，首屏已经画完了才"啪"地淡入一次 ——
-         看起来像闪一下，不像开场。 */
-      const targets = document.querySelectorAll(
-        '.markdown > *, .post-bar, .post, .gallery-item, .video-card, .panel, .finale'
-      );
+      let ticking = false;
 
-      if ('IntersectionObserver' in window && targets.length) {
-        const io = new IntersectionObserver((entries) => {
-          for (const en of entries) {
-            if (!en.isIntersecting) continue;
-            en.target.classList.add('is-in');
-            io.unobserve(en.target);
-          }
-        }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
-
-        targets.forEach((el, i) => {
-          el.style.setProperty('--reveal-delay', (i % 8) * 55 + 'ms');
-          io.observe(el);
-        });
-      } else {
-        targets.forEach((el) => el.classList.add('is-in'));
+      function write() {
+        ticking = false;
+        const y = window.scrollY || 0;
+        const total = Math.max(1, root.scrollHeight - window.innerHeight);
+        root.style.setProperty('--scroll-y', y.toFixed(1) + 'px');
+        root.style.setProperty('--scroll-progress', Math.min(1, y / total).toFixed(4));
       }
-    } catch (e) {
-      console.warn('[浮现动效初始化失败]', e);
-      document.querySelectorAll('.markdown > *, .post, .panel').forEach((el) => el.classList.add('is-in'));
-    }
+
+      window.addEventListener('scroll', () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(write);
+      }, { passive: true });
+      window.addEventListener('resize', write, { passive: true });
+
+      write();
+    } catch (e) { /* 只是优化，出错不影响页面 */ }
   }
 
   /* =========================================================
-   *  ② 自定义鼠标（一个跟随的点 + 一个带阻尼的圈）
+   *  ② 自定义鼠标：**已删除**
    *  ---------------------------------------------------------
-   *  · 只在「有真实鼠标」的设备上启用（触屏手机不动它）
-   *  · 只有脚本跑起来、点/圈都建好了，才隐藏系统光标
-   *    （否则脚本一挂用户就没光标了，那是灾难）
-   *  · 悬停在链接/按钮/卡片上时：圈会放大、变色，出现提示
-   *  · ⚠ 开了页面过渡后这个脚本会在每次换页时重新执行，
-   *    所以要先检查元素是否已经存在，避免叠加出好几个圈
+   *  参考站 yuimi-chaya.github.io（Kisara 主题）的做法是彻底不要：
+   *  在它四个首页 CSS 里 `cursor: none` 出现 0 次。
+   *
+   *  删掉的理由（也是用户的原话"不跟手、看着廉价"）：
+   *    · 它把系统光标换成一个 26px 的圈，圈永远比指针慢一点点 ——
+   *      操作系统的光标是零延迟的，任何自定义光标都赢不了
+   *    · 圈会跟着指针在链接、卡片上放大/变色/显示 OPEN，
+   *      等于满屏都在提示"这里可以点"，抢掉了内容本身的注意力
+   *    · 一圈毛玻璃(backdrop-filter) + 磁吸偏移，每帧都要重算
+   *  现在系统光标回来了：指针在哪就是哪，最跟手。
+   *  （CSS 里的 .cur-* / html.has-cursor 规则也一并删掉了，
+   *    所以即使有旧缓存里的 DOM 残留也不会隐藏光标。）
    * ======================================================= */
-  try {
-    if (!document.querySelector('.cur-ring')) initCursor();
-  } catch (e) {
-    console.warn('[鼠标动效初始化失败]', e);
-    document.documentElement.classList.remove('has-cursor');   // 别让用户没有光标
-  }
-
-  function initCursor() {
-    const finePointer = window.matchMedia &&
-      window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-
-    if (!finePointer || prefersReduced) return;
-
-    const dot = document.createElement('div');
-    dot.className = 'cur-dot';
-    const ring = document.createElement('div');
-    ring.className = 'cur-ring';
-    const label = document.createElement('span');
-    label.className = 'cur-label';
-    ring.appendChild(label);
-    document.body.append(dot, ring);
-
-    // 光标就绪 → 才隐藏系统光标
-    document.documentElement.classList.add('has-cursor');
-
-    let mx = window.innerWidth / 2;
-    let my = window.innerHeight / 2;
-    let rx = mx;
-    let ry = my;
-    let visible = false;
-    // 上一次算出来的热区状态：只有真的变了才碰 classList / textContent。
-    // （以前每次 pointermove 都无条件写一遍，指针划过相册网格时等于
-    //   每帧触发一批样式失效 —— 也是"不跟手"的一部分。）
-    let lastHot = null;
-    let lastCard = null;
-    let lastLabel = '';
-
-    /* ⚠ 只挂 pointermove 一个：pointer 事件在所有现代浏览器里都覆盖
-       鼠标 / 触控板 / 触控笔，pointermove 也包含 hover 的移动。
-       以前同时挂 pointermove + mousemove + pointerover，
-       同一帧同一个动作会被处理三遍。 */
-    const onMove = (e) => {
-      mx = e.clientX;
-      my = e.clientY;
-      if (!visible) {
-        visible = true;
-        dot.classList.add('is-on');
-        ring.classList.add('is-on');
-      }
-
-      const el = e.target;
-      const inField = !!(el && el.closest &&
-        el.closest('input, textarea, [contenteditable="true"]'));
-      const hot = (!inField && el && el.closest)
-        ? el.closest('a, button, .post, .video-card, .gallery-item, .photo-card, .chip, [role="button"]')
-        : null;
-      const isCard = !!(hot && hot.matches('.post, .video-card, .gallery-item, .photo-card'));
-
-      // 输入框上方：系统 I 形光标还回去了，圈也收小让路
-      if (inField !== lastHot) {
-        ring.classList.toggle('is-text', inField);
-        lastHot = inField;
-      }
-      ring.classList.toggle('is-hot', !!hot);
-      if (isCard !== lastCard) {
-        ring.classList.toggle('is-card', isCard);
-        lastCard = isCard;
-      }
-      dot.classList.toggle('is-hot', !!hot);
-
-      const text = (hot && hot.dataset && hot.dataset.cursorLabel) || (isCard ? 'OPEN' : '');
-      if (text !== lastLabel) {
-        label.textContent = text;
-        lastLabel = text;
-      }
-    };
-
-    document.addEventListener('pointermove', onMove, { passive: true });
-
-    document.addEventListener('mouseleave', () => {
-      visible = false;
-      dot.classList.remove('is-on');
-      ring.classList.remove('is-on');
-    });
-
-    /* 磁吸：指针靠近可点元素时，圈被"吸"向元素中心一点，
-       分开时松回去 —— 手感上像元素对光标有引力。
-       ⚠ 数值往"跟手"方向收过：作用半径 170 → 78，吸力上限 38% → 14%。
-       原来的 170px 意味着指针离链接还很远、圈就已经开始往元素中心漂，
-       屏幕上到处都能感到"光标不听话"。现在只有真正贴到元素上才有一点点吸附。 */
-    let hotEl = null;
-    let magnet = 0;              // 当前吸力 0~1（带阻尼）
-
-    const MAGNET_R = 78;
-    const MAGNET_MAX = 0.14;
-
-    const originalOnMove = onMove;
-    const onMoveMagnet = (e) => {
-      originalOnMove(e);
-      hotEl = e.target && e.target.closest
-        ? e.target.closest('a, button, .post, .video-card, .photo-card, .panel, .chip, [role="button"]')
-        : null;
-    };
-    // 换掉原来的监听：既更新位置，也记住当前悬停的元素
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('pointerover', onMove);
-    document.addEventListener('pointermove', onMoveMagnet, { passive: true });
-
-    /* 圈的跟随：位置**直接用指针坐标**（不插值），只有"磁吸偏移"带阻尼。
-       ⚠ 这一点是"跟手"的关键。
-       以前整圈位置都走 lerp(0.18)：每帧只走 18% 的差距，
-       一帧 60Hz 下要 5~9 帧才贴上去 —— 手感上就是**明显慢半拍**，
-       而且是"圆环在追光标"的廉价感。
-       现在环心 = 指针位置 + 阻尼过的磁吸偏移(magnet)：
-       光标一动它立刻就在那儿，磁吸只负责那一点点"被吸过去"的弹性。 */
-    let tpx = 0;                 // 环心实际位置（= 指针 + 磁吸偏移）
-    let tpy = 0;
-    let rafId = 0;
-    let lastRx = NaN;            // 上一次真正写进 CSS 的值
-    let lastRy = NaN;
-    let lastMag = NaN;
-
-    function frame() {
-      /* 目标吸力：指针离元素中心够近 → 往元素中心拉一点 */
-      let wantMagnet = 0;
-      let cx = 0;
-      let cy = 0;
-      if (hotEl && document.body.contains(hotEl)) {
-        const r = hotEl.getBoundingClientRect();   // 只在真有悬停元素时量一次
-        if (r.width && r.height) {
-          cx = r.left + r.width / 2;
-          cy = r.top + r.height / 2;
-          const d = Math.hypot(mx - cx, my - cy);
-          if (d < MAGNET_R) wantMagnet = (1 - d / MAGNET_R) * MAGNET_MAX;
-        }
-      }
-      magnet += (wantMagnet - magnet) * 0.14;
-      if (wantMagnet === 0 && magnet < 0.0006) magnet = 0;
-
-      tpx = mx + (cx - mx) * magnet;
-      tpy = my + (cy - my) * magnet;
-
-      /* 用 CSS 变量定位（而不是直接写 transform）：
-         这样 CSS 里的缩放可以叠加在同一个 transform 上，不会互相覆盖。
-         ⚠ 两个改动：
-          · 不再每帧无条件写 —— 值没变就不碰样式（省掉一批无意义的样式失效）
-          · --cur-x / --cur-y 以前也写，但 CSS 里从来没消费过，删掉 */
-      if (tpx !== lastRx) {
-        document.documentElement.style.setProperty('--cur-rx', tpx.toFixed(2) + 'px');
-        lastRx = tpx;
-      }
-      if (tpy !== lastRy) {
-        document.documentElement.style.setProperty('--cur-ry', tpy.toFixed(2) + 'px');
-        lastRy = tpy;
-      }
-      if (magnet !== lastMag) {
-        document.documentElement.style.setProperty('--cur-magnet', magnet.toFixed(3));
-        lastMag = magnet;
-      }
-      // 小点完全贴住指针（它才是"指针在哪"的答案，一点拖尾都不给）
-      dot.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
-
-      /* 指针不动、磁吸也归位了 → 停下（别在没人动的时候空转 rAF）。
-         下一次 pointermove 会通过 kick() 把它叫起来。 */
-      if (wantMagnet === 0 && magnet === 0) { rafId = 0; return; }
-      rafId = requestAnimationFrame(frame);
-    }
-
-    function kick() {
-      if (!rafId) rafId = requestAnimationFrame(frame);
-    }
-
-    document.addEventListener('pointermove', kick, { passive: true });
-    kick();
-  }
 
   /* =========================================================
    *  ③ 导航栏动效
    *  · 鼠标在导航上时，一条玫红指示条会跟着光标滑动
-   *    （比单纯给每个链接加下划线更活）
    *  · 点击后立刻把指示条挪到目标位置，换页不闪
    * ======================================================= */
   function startNavIndicator() {
@@ -480,203 +307,22 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   }
 
   /* =========================================================
-   *  ⑤ 卡片 3D 倾斜 + 光晕跟随（可玩性）
+   *  ⑤ 卡片 3D 倾斜 + 光晕跟随：**已删除**
+   *  ⑥ 点击涟漪 + 粒子爆发：**已删除**
    *  ---------------------------------------------------------
-   *  鼠标在卡片上时：卡片朝指针方向轻微倾斜（透视 + 阻尼），
-   *  同时一束高光跟着指针在卡面滑动 —— 像卡片是金属做的。
+   *  参考站 yuimi-chaya.github.io（Kisara 主题）在四个首页 CSS 里：
+   *    · `perspective(` / `rotateX(` → 0 次（没有卡片 3D 倾斜）
+   *    · 点击涟漪 / 粒子爆发 → 完全没有
+   *  它卡片唯一的悬停反馈是 `transition: border-color .16s ease-out`。
    *
-   *  约束：
-   *    · 只在「有精确指针」的设备上启用（触屏没有 hover，别浪费性能）
-   *    · 尊重 prefers-reduced-motion
-   *    · 卡片本身不设 transition，用 rAF 插值做阻尼（比 CSS 跟手）
-   *    · 离开时平滑回正，不留歪卡片
+   *  删掉的理由：
+   *    · 3D 倾斜 + 光晕让每张卡片都在"自己动"，一屏五张卡就是五份注意力；
+   *      而且倾斜会和 html.reveal 的浮现位移抢同一个 transform
+   *    · 点击涟漪在每次点链接/导航时都炸一圈玫红，跟页面切换抢戏；
+   *      粒子爆发只在带 data-burst 的元素上，属于"会玩"不是"好看"
+   *  现在卡片的悬停反馈改成纯 CSS 的轻微上浮 + 描边变色（见 style.css
+   *  的「卡片悬停」那一段），静止时整页是静的。
    * ======================================================= */
-
-  /* 哪些算"卡片"：和滚动浮现用的是同一批选择器，保持一致 */
-  const CARD_SEL = '.post, .gallery-item, .video-card, .panel, .link-card, .photo-card';
-
-  function initCardTilt() {
-    try {
-      if (prefersReduced) return;
-      const fine = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-      if (!fine) return;                       // 触屏跳过
-
-      const cards = document.querySelectorAll(CARD_SEL);
-      if (!cards.length) return;
-
-      const MAX_TILT = 7;                      // 最大倾角（度），再大就晕
-      const LERP = 0.12;                       // 阻尼系数
-
-      cards.forEach((card) => {
-        if (card.dataset.tiltBound === '1') return;
-        card.dataset.tiltBound = '1';
-
-        let target = { rx: 0, ry: 0, mx: 50, my: 50, on: 0 };
-        let cur = { rx: 0, ry: 0, mx: 50, my: 50, on: 0 };
-        let raf = 0;
-        let idleFrames = 0;
-        let rect = null;                        // 缓存的卡片矩形（见下面 pointerenter）
-
-        function tick() {
-          // 插值逼近目标值
-          cur.rx += (target.rx - cur.rx) * LERP;
-          cur.ry += (target.ry - cur.ry) * LERP;
-          cur.mx += (target.mx - cur.mx) * LERP;
-          cur.my += (target.my - cur.my) * LERP;
-          cur.on += (target.on - cur.on) * LERP;
-
-          card.style.setProperty('--tilt-x', cur.rx.toFixed(3) + 'deg');
-          card.style.setProperty('--tilt-y', cur.ry.toFixed(3) + 'deg');
-          card.style.setProperty('--shine-x', cur.mx.toFixed(2) + '%');
-          card.style.setProperty('--shine-y', cur.my.toFixed(2) + '%');
-          card.style.setProperty('--tilt-on', cur.on.toFixed(3));
-
-          // 足够接近目标、且已经归位 → 停掉循环，别空转
-          const settled =
-            Math.abs(target.rx - cur.rx) < 0.01 &&
-            Math.abs(target.ry - cur.ry) < 0.01 &&
-            Math.abs(target.on - cur.on) < 0.004 &&
-            Math.abs(target.mx - cur.mx) < 0.2 &&
-            Math.abs(target.my - cur.my) < 0.2;
-
-          if (settled && ++idleFrames > 3) {
-            raf = 0;
-            // 完全归位后把内联变量清掉，回到纯 CSS 状态
-            if (target.on === 0) {
-              card.style.removeProperty('--tilt-x');
-              card.style.removeProperty('--tilt-y');
-              card.style.removeProperty('--tilt-on');
-            }
-            return;
-          }
-          idleFrames = 0;
-          raf = requestAnimationFrame(tick);
-        }
-
-        function kick() {
-          if (!raf) { idleFrames = 0; raf = requestAnimationFrame(tick); }
-        }
-
-        /* ⚠ 矩形只在进卡片时量一次：
-           以前每次 pointermove 都 getBoundingClientRect()，
-           指针划过相册网格时等于每帧强制布局（no-op 掉一批合成）。
-           矩形在指针停留期间只会因为页面滚动 / 窗口变化而变，那两种
-           情况下面各挂了失效处理，够了。 */
-        card.addEventListener('pointerenter', () => { rect = null; }, { passive: true });
-        window.addEventListener('scroll', () => { rect = null; }, { passive: true });
-        window.addEventListener('resize', () => { rect = null; }, { passive: true });
-
-        card.addEventListener('pointermove', (e) => {
-          if (!rect) rect = card.getBoundingClientRect();
-          if (!rect.width || !rect.height) return;
-          const px = (e.clientX - rect.left) / rect.width;    // 0~1
-          const py = (e.clientY - rect.top) / rect.height;
-
-          target.ry = (px - 0.5) * MAX_TILT * 2;        // 左右 → 绕 Y 轴
-          target.rx = (0.5 - py) * MAX_TILT * 2;        // 上下 → 绕 X 轴
-          target.mx = px * 100;
-          target.my = py * 100;
-          target.on = 1;
-          kick();
-        }, { passive: true });
-
-        card.addEventListener('pointerleave', () => {
-          target.rx = 0; target.ry = 0; target.on = 0;
-          kick();
-        }, { passive: true });
-      });
-    } catch (e) {
-      /* 倾斜效果出错不能连累别的动效 */
-    }
-  }
-
-  /* =========================================================
-   *  ⑥ 点击涟漪 + 粒子爆发（可玩性）
-   *  ---------------------------------------------------------
-   *  点任何可点元素：从点击点扩散一圈涟漪；
-   *  标记了 [data-burst] 的（点赞、友链心形）额外撒一把粒子。
-   *
-   *  用一次性 DOM 元素 + CSS 动画，播完自己删掉，不留垃圾。
-   * ======================================================= */
-
-  function initClickFx() {
-    try {
-      if (prefersReduced) return;
-
-      /* ⚠ 只认"真的是个控件"的东西。
-         以前清单里还带 .post / .video-card / .panel —— 于是点一下任何
-         卡片空白处都会在卡片上炸开一圈玫红涟漪，跟卡片自己的悬停上浮
-         抢戏，看着很吵。现在卡片只给光标反馈（OPEN），不再放涟漪。 */
-      const CLICKABLE = 'a, button, .filter-btn, .tag, [role="button"]';
-      let layer = null;
-
-      function ensureLayer() {
-        if (layer && document.body.contains(layer)) return layer;
-        layer = document.createElement('div');
-        layer.className = 'fx-layer';
-        layer.setAttribute('aria-hidden', 'true');
-        document.body.appendChild(layer);
-        return layer;
-      }
-
-      /* 同时听 pointerdown 和 mousedown：
-         · pointerdown 是现代浏览器的首选，触屏/触控笔也能收到
-         · 但某些环境（旧浏览器、自动化工具合成的鼠标事件）只有 mousedown，
-           只挂 pointerdown 的话点击特效就完全不出现。
-         用一个开关防止两者都触发时放两次。 */
-      let lastFx = 0;
-
-      function onClickFx(e) {
-        if (e.button != null && e.button !== 0) return;   // 只认左键
-        const now = Date.now();
-        // 去重：pointerdown 与 mousedown 常常前后脚都到，60ms 内只放一次。
-        // （窗口从 120ms 收到 60ms：这两个事件本来就是同一瞬间到达的，
-        //   120ms 会把用户真实的快速连点也吞掉。）
-        if (now - lastFx < 60) return;
-        lastFx = now;
-
-        const hit = e.target && e.target.closest && e.target.closest(CLICKABLE);
-        if (!hit) return;
-
-        const host = ensureLayer();
-        const cx = e.clientX;
-        const cy = e.clientY;
-
-        // 涟漪
-        const ring = document.createElement('span');
-        ring.className = 'fx-ripple';
-        ring.style.left = cx + 'px';
-        ring.style.top = cy + 'px';
-        host.appendChild(ring);
-        ring.addEventListener('animationend', () => ring.remove(), { once: true });
-
-        // 粒子爆发（只在明确标记的元素上，免得满屏乱飞）
-        if (hit.hasAttribute('data-burst') || hit.closest('[data-burst]')) {
-          burst(host, cx, cy);
-        }
-      }
-
-      document.addEventListener('pointerdown', onClickFx, { passive: true });
-      document.addEventListener('mousedown', onClickFx, { passive: true });
-
-      function burst(host, cx, cy) {
-        const n = 12;
-        for (let i = 0; i < n; i++) {
-          const p = document.createElement('i');
-          p.className = 'fx-spark' + (Math.random() < 0.5 ? ' is-rose' : '');
-          const a = (Math.PI * 2 * i) / n + Math.random() * 0.5;
-          const dist = 26 + Math.random() * 52;
-          p.style.left = cx + 'px';
-          p.style.top = cy + 'px';
-          p.style.setProperty('--dx', (Math.cos(a) * dist).toFixed(1) + 'px');
-          p.style.setProperty('--dy', (Math.sin(a) * dist - 14).toFixed(1) + 'px');
-          p.style.setProperty('--dur', (0.62 + Math.random() * 0.5).toFixed(2) + 's');
-          host.appendChild(p);
-          p.addEventListener('animationend', () => p.remove(), { once: true });
-        }
-      }
-    } catch (e) { /* 同上，互不连累 */ }
-  }
 
   /* =========================================================
    *  ⑦ 滚动状态标记（全站一处，供 CSS 使用）
@@ -714,35 +360,26 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   }
 
   /* =========================================================
-   *  ④ 换页后重启（关键！）
+   *  ④ 换页后重启
    *  ---------------------------------------------------------
-   *  开了页面过渡（ClientRouter）后，Astro 换页时会把旧 DOM 整个换掉：
-   *    · 鼠标圈 / 光点被删掉了 → 不重建就「切页后鼠标失效」
-   *    · html 上的 .has-cursor 还留着 → 系统光标也隐藏了
-   *      ⇒ 结果是**完全看不到光标**，这比动效失效更糟
-   *    · 新页面的内容没有 .is-in → 会一直停在「隐藏」状态（白页）
-   *
+   *  开了页面过渡（ClientRouter）后，Astro 换页时会把旧 DOM 整个换掉。
    *  astro:page-load 在「首次加载」和「每次换页完成」都会触发，
-   *  所以把几套动效都挂到它上面，每次换页重新初始化一遍。
+   *  所以把需要跟着换页走的东西挂到它上面。
    *  所有初始化函数内部都有幂等保护，重复调用安全。
+   *
+   *  ⚠ 现在这里只剩三件事，都是"全站一次性"的：
+   *    initMenu          窄屏下拉菜单（绑在被换掉的 DOM 上）
+   *    startNavIndicator 顶栏指示条宽度要按新页面重新量
+   *    startScrollProgress / startScrollFlag  幂等，重复调用直接返回
+   *  （光标、卡片倾斜、点击特效都已经按参考站的做法删掉了；
+   *    滚动浮现改成 CSS 变量驱动，不需要每次换页重新注册。）
    * ======================================================= */
   function bootMotion() {
-    initMenu();                 // 下拉菜单（幂等，重复调用安全）
-    startReveal();
-    startScrollFlag();          // 滚动期间关掉"慢过渡"（全站一处）
-    if (!document.querySelector('.cur-ring')) initCursor();
+    initMenu();
     startNavIndicator();
-    initCardTilt();             // 新的卡片在换页后要重新绑定
-    initClickFx();
+    startScrollProgress();
+    startScrollFlag();
   }
-
-  // 换页刚开始（新 DOM 已换入、脚本还没跑）：如果鼠标圈被换掉了，
-  // 立刻恢复系统光标，绝不留下「一个光标都没有」的状态
-  document.addEventListener('astro:after-swap', () => {
-    if (!document.querySelector('.cur-ring')) {
-      document.documentElement.classList.remove('has-cursor');
-    }
-  });
 
   document.addEventListener('astro:page-load', bootMotion);
 

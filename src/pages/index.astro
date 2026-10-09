@@ -76,15 +76,31 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     </div>
 
     {/*
-      ① 引力星野（可交互）
+      ① 环境粒子（对齐参考站 .kisara-ambient-particles）
       ---------------------------------------------------------
-      一层 Canvas 粒子网：鼠标像引力源，附近粒子被吸过来、连线变亮；
-      点一下给一次冲击波，粒子被推开再缓缓归位。
+      原来这里是一层可交互的 Canvas 引力星野：鼠标是引力源、连线会变亮、
+      点一下有冲击波。参考站的做法完全相反 —— 它只要一层"空气里的尘埃"：
+        1×1 ~ 3px 的小方块，hsl(h 35% 88%)，极慢向上漂，永远不跟人交互。
+      它 CSS 里那条规则很短，但效果是"画面是活的，又不喊你去看"。
 
-      没脚本 / 开了「减少动态效果」时这一层保持空白 ——
-      首屏仍然是一张静态主视觉 + 完整文字，绝不会白屏。
+      所以这里删掉 Canvas 那一层（它每帧要算 132 个粒子两两之间 8600 次
+      距离、还带 shadowBlur 辉光，是首屏最贵的一块），换成纯 CSS 的尘埃。
+      没有脚本也不影响：这些方块就是几个绝对定位的 <i>。
     */}
-    <canvas class="gate-field" id="gateField" aria-hidden="true"></canvas>
+    <div class="gate-ambient" aria-hidden="true">
+      {[...Array(14)].map((_, i) => (
+        <i
+          style={
+            `--x:${(i * 7.3 + 3.1).toFixed(1)}%;` +
+            `--y:${((i * 137.5) % 100).toFixed(1)}%;` +
+            `--s:${(i % 3) + 1}px;` +
+            `--dur:${(34 + (i % 7) * 9).toFixed(0)}s;` +
+            `--delay:${(-(i * 4.7)).toFixed(1)}s;` +
+            `--hue:${i % 4 === 0 ? 348 : 226}`
+          }
+        />
+      ))}
+    </div>
 
     {/* ①b 漂浮粒子：10 个上浮的光点（纯 CSS 关键帧，零素材）
         ⚠ 外面这层 .gate-dust 是必要的：.gate-particles 承接鼠标视差（transform），
@@ -98,6 +114,12 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
         ))}
       </div>
     </div>
+
+    {/* ② 氛围层（对齐参考站 .kisara-gate-atmosphere + .kisara-memory-blackout）
+        三层渐变：斜向的冷光、中心透明的暗角、上下的压暗。
+        它让整块主视觉从"一张图"变成"一个场景"——这是参考站最便宜也最有效
+        的一招：不动画，只叠光。 */}
+    <span class="gate-atmosphere" aria-hidden="true"></span>
 
     <div class="gate-inner">
       <p class="gate-kicker">CHAPTER 00 / OPENING</p>
@@ -182,7 +204,12 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
   <div class="seam seam--footer" aria-hidden="true"></div>
 
   <script>
-    import { initGateField } from '../lib/gate-field.js';
+    /* ⚠ 这里原来 import 了 ../lib/gate-field.js 的 initGateField()，
+       用来驱动一层可交互的 Canvas 引力星野（鼠标引力 + 点击冲击波）。
+       现在已经换成纯 CSS 的环境粒子 .gate-ambient 与氛围层 .gate-atmosphere
+       （对齐参考站的做法：画面是活的，但不跟人交互）。
+       src/lib/gate-field.js 暂时留着不删 —— 想找回来只要把
+       canvas 元素和这两行 import / initGateField() 一起恢复。 */
 
     /* =========================================================
      *  首屏舞台：滚动进度 → CSS 变量
@@ -341,9 +368,5 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     } else {
       initGate();
     }
-
-    /* ① 引力星野：和上面那套互不干扰，单独一层 Canvas */
-    initGateField();
-    document.addEventListener('astro:page-load', initGateField);
   </script>
 </Base>

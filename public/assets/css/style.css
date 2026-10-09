@@ -782,165 +782,82 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
  *    但脚本的浮现目标 + 鼠标热区里都留着它，所以这里也跟着留。
  *  ⚠ .gate-inner > *（首屏舞台里的字）**故意不在这里**：
  *    它们的入场由下面 .gate-kicker / .gate-title / .gate-sub / .gate-scroll
- *    自己的一段 CSS 动画负责（纯 CSS，不依赖 IntersectionObserver）。
- *    以前挂在 IO 上，要等 observers 注册完、下一帧回调才加 .is-in，
- *    首屏已经画出来了才"啪"地淡入一次 —— 看起来像闪一下而不是开场。
+ *    自己的一段 CSS 动画负责（纯 CSS，不依赖任何 JS）。
  * ======================================================= */
-html.reveal .markdown > *,
-html.reveal .post-bar,
-html.reveal .post,
-html.reveal .gallery-item,
-html.reveal .video-card,
-html.reveal .panel,
-html.reveal .finale {
-  opacity: 0;
-  transform: translateY(22px) scale(.985);
-  filter: blur(3px);
-  transition:
-    opacity .68s cubic-bezier(.22, .61, .36, 1),
-    transform .68s cubic-bezier(.22, .61, .36, 1),
-    filter .68s cubic-bezier(.22, .61, .36, 1);
-  transition-delay: var(--reveal-delay, 0ms);
-  will-change: opacity, transform;
-}
-html.reveal .markdown > *.is-in,
-html.reveal .post-bar.is-in,
-html.reveal .post.is-in,
-html.reveal .gallery-item.is-in,
-html.reveal .video-card.is-in,
-html.reveal .panel.is-in,
-html.reveal .finale.is-in {
-  opacity: 1;
-  transform: none;
-  filter: none;
+
+/* =========================================================
+ *  滚动进度（替代原来的 IntersectionObserver 浮现）
+ *  ---------------------------------------------------------
+ *  参考站 yuimi-chaya.github.io（Kisara 主题）在它四个首页 CSS 里
+ *  `IntersectionObserver` / `is-visible` / `is-in` 全部是 **0 次**，
+ *  它只有一套：**滚动进度 → CSS 变量/时间线 → 形态**。
+ *
+ *  所以这里不再"每块内容自己决定什么时候浮出来"，改成由滚动位置
+ *  统一驱动：内容进入视口时轻微上浮 + 放大（位移很小，6~14px），
+ *  靠的是浏览器原生的滚动驱动动画（animation-timeline）。
+ *
+ *  ⚠ 用 `view()` 时间线 + `animation-fill-mode: none`，理由有两个：
+ *    1. range 之外元素完全按自己的样式显示 —— 内容永远可见，
+ *       不会像原来的 html.reveal 那样"默认 opacity:0 等 JS 来救"。
+ *       脚本挂了、浏览器不支持，页面就是一张静态但完整的页面。
+ *    2. fill:none 表示动画不占用 hover 时的 transform（卡片悬停
+ *       上浮仍然正常）。位移走 translate 这个独立通道，
+ *       transform 留给悬停/其它效果，两者互不覆盖。
+ *  ⚠ 不支持的浏览器（老 Safari/Firefox）安静地什么都不做 ——
+ *    没有浮现，内容照常。
+ * ======================================================= */
+@keyframes scrollSettle {
+  from { translate: 0 14px; scale: .988; }
+  to   { translate: 0 0;    scale: 1; }
 }
 
-/* ⚠ 滚动时关掉浮现的过渡：
-   淡入本身是好的，坏的是"正在滚的时候还在慢悠悠淡入"——
-   过渡拖着 0.68s 去追一个一直在变的滚动位置，就是那种"发飘"。
-   滚动期间让 .is-in 一步到位（滚动时这点位移本来也看不清），
-   停下之后恢复过渡，慢速滚动 / 首次进场那种"浮上来"的手感仍然在。
-   --reveal-delay 也一起归零，否则跟手了却还要按序号等 55ms×n。 */
-html.reveal[data-scrolling] .markdown > *,
-html.reveal[data-scrolling] .post-bar,
-html.reveal[data-scrolling] .post,
-html.reveal[data-scrolling] .gallery-item,
-html.reveal[data-scrolling] .video-card,
-html.reveal[data-scrolling] .panel,
-html.reveal[data-scrolling] .finale {
-  transition-duration: 0ms;
-  transition-delay: 0ms;
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .post-bar,
+    .post,
+    .video-card,
+    .photo-card,
+    .markdown > *,
+    .finale {
+      animation: scrollSettle .1s linear;
+      animation-timeline: view();
+      animation-range: entry 0% cover 32%;
+      animation-fill-mode: none;
+    }
+    /* 首屏里的大块（舞台之后的面板区）位移收得更小，
+       它们离首屏最近，动得多反而抢开场 */
+    .panel { animation-name: none; }
+  }
 }
 
 /* =========================================================
- *  自定义鼠标：一个贴住指针的点 + 一个带阻尼的圈
- *  只有脚本建好元素后才加 .has-cursor（隐藏系统光标），
- *  保证脚本失败时用户仍然有正常光标
+ *  自定义鼠标：**已整体删除**
+ *  ---------------------------------------------------------
+ *  参考站 yuimi-chaya.github.io（Kisara 主题）在四个首页 CSS 里
+ *  `cursor: none` 出现 **0 次** —— 它一直用系统光标。
+ *
+ *  删掉的理由（也是用户的原话"不跟手、看着廉价"）：
+ *    · 系统光标是零延迟的，任何自定义光标都赢不了它 —— 手感上永远差一点
+ *    · 圈会在链接/卡片上放大变色、显示 OPEN，等于满屏都在喊"这里可以点"，
+ *      把内容本身的注意力抢走了
+ *    · backdrop-filter + 磁吸偏移 + 每帧写 CSS 变量，白烧一批合成
+ *
+ *  原来这里的规则是：html.has-cursor{ cursor:none }（全局隐藏系统光标）、
+ *  .cur-dot / .cur-ring / .cur-label 三件套、以及触屏与 reduced-motion
+ *  的降级。现在**一条都不留** —— 连带旧缓存里可能残留的 DOM 也不会
+ *  再隐藏光标（那是最坏的情况：一个光标都没有）。
  * ======================================================= */
-html.has-cursor,
-html.has-cursor * { cursor: none !important; }
-/* ⚠ 输入框例外：自定义光标是"拖尾的圈"，在文本框里它既看不出插入点在哪，
-   也没法用 I 形光标选词。这里把系统光标还回去（圈本身也同时缩小、变淡，
-   见下面的 .cur-ring.is-text）。 */
-html.has-cursor input,
-html.has-cursor textarea,
-html.has-cursor [contenteditable='true'] { cursor: auto !important; }
-html.has-cursor input[type='text'],
-html.has-cursor input[type='search'],
-html.has-cursor input[type='email'],
-html.has-cursor input[type='url'],
-html.has-cursor input[type='password'],
-html.has-cursor textarea { cursor: text !important; }
 
-.cur-dot,
-.cur-ring {
-  position: fixed;
-  left: 0; top: 0;
-  z-index: 9999;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity .25s ease, width .22s ease, height .22s ease,
-              background .22s ease, border-color .22s ease;
-}
-.cur-dot.is-on, .cur-ring.is-on { opacity: 1; }
-
-/* 中心的小点：完全贴住指针（每帧写 transform，一点拖尾都不给） */
-.cur-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--rose);
-  box-shadow: 0 0 10px rgba(224, 70, 111, .85);
-}
-.cur-dot.is-hot { width: 4px; height: 4px; }
-
-/* 外圈：平时是个细环，悬停在可点元素上时放大并染色。
-   ⚠ 位置由 CSS 变量给（--cur-rx/--cur-ry 是"经过磁吸后的位置"），
-      不再由 JS 直接写 transform。
-   ⚠ 这里的几个数值都是往"轻、跟手、不抢戏"的方向调过的：
-      · 去掉 backdrop-filter: blur(1px) —— 一圈毛玻璃在小圆环上既看不出
-        高级感，又让浏览器每帧多做一次背景采样（不跟手的来源之一）
-      · --cur-magnet 的放大系数 .42 → .28（磁吸本身也调小了，见 Base.astro）
-      · 不再吃 --cur-stretch（滚动拉长整个去掉了：滚页面时圈被抻成胶囊
-        看着像 bug，不是设计） */
-.cur-ring {
-  width: 26px; height: 26px;
-  border-radius: 50%;
-  border: 1px solid rgba(224, 70, 111, .5);
-  background: rgba(224, 70, 111, .05);
-  display: flex; align-items: center; justify-content: center;
-
-  transform:
-    translate3d(var(--cur-rx, -100px), var(--cur-ry, -100px), 0)
-    translate(-50%, -50%)
-    scale(calc(1 + var(--cur-magnet, 0) * .28));
-  will-change: transform;
-}
-.cur-ring.is-hot {
-  width: 40px; height: 40px;
-  border-color: rgba(224, 70, 111, .8);
-  background: rgba(224, 70, 111, .1);
-}
-/* 卡片热区：只比链接大一点。原来是 68px + 16% 底色 + 中间一个 OPEN，
-   在相册的网格上等于每划过一个格子就糊上一块粉 —— 太吵。 */
-.cur-ring.is-card {
-  width: 52px; height: 52px;
-  background: rgba(224, 70, 111, .12);
-  border-color: var(--rose);
-}
-/* 输入框上方：收小、变淡，把注意力让给系统光标 */
-.cur-ring.is-text {
-  width: 16px; height: 16px;
-  border-color: rgba(224, 70, 111, .28);
-  background: transparent;
-}
-
-/* 圈里的小字（例如卡片上的 OPEN） */
-.cur-label {
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: .12em;
-  color: var(--rose);
-  opacity: 0;
-  transition: opacity .2s ease;
-  white-space: nowrap;
-}
-.cur-ring.is-card .cur-label { opacity: 1; }
-
-/* 触屏设备：上面那套完全不生效（脚本也不会跑） */
-@media (hover: none), (pointer: coarse) {
-  .cur-dot, .cur-ring { display: none; }
-}
-
-/* 系统开了「减少动态效果」→ 全部关掉 */
+/* 系统开了「减少动态效果」→ 关掉所有入场/循环动画，位移归零 */
 @media (prefers-reduced-motion: reduce) {
   .markdown > *, .post-bar, .post, .gallery-item, .video-card, .panel {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
+    translate: none !important;
+    scale: none !important;
     filter: none !important;
   }
-  .cur-dot, .cur-ring { display: none !important; }
-  html.has-cursor, html.has-cursor * { cursor: auto !important; }
 }
 
 /* 悬停反馈：图片轻微放大 + 阴影，链接变色 */
@@ -1255,6 +1172,12 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 .gate-kicker { animation: gateKickerIn .82s cubic-bezier(.2, .7, .2, 1) .55s both; }
 .gate-sub    { animation: gateTextIn .92s cubic-bezier(.2, .7, .2, 1) 1.05s both; }
 .gate-scroll { animation: gateTextIn .92s cubic-bezier(.2, .7, .2, 1) 1.20s both; }
+/* ⚠ 文字层级要压在氛围层（z-index:3）之上。
+   参考站里 .kisara-gate-atmosphere 是盖在标题上的（它靠更重的压暗来
+   统一画面），但这里的主视觉是插画、文字是白色大标题 ——
+   氛围层压上去会把标题也蒙一层，白字发灰。
+   所以层次是：主视觉 → 尘埃/氛围（作用于画面）→ 文字（最上层）。 */
+.gate-inner { z-index: 4; }
 /* 标题：淡入上浮 + clip-path 圆形揭晓合成**一条**动画。
    ⚠ 以前是两个来源：opacity/位移来自 Base.astro 的 IntersectionObserver
    （要等回调，晚一帧才加 .is-in），clip-path 来自 .is-in 触发的 gateEnchant。
@@ -1365,7 +1288,6 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 .gate[data-opened] .gate-bg,
 .gate[data-opened] .gate-bg::after,
 .gate[data-opened] .gate-dust { animation: none !important; }
-
 /* =========================================================
  *  ③ 鼠标视差 + 滚动位移（同一层上只剩这两件事）
  *  ---------------------------------------------------------
@@ -1409,140 +1331,132 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   .gate-hero, .gate-inner, .gate-particles, .gate-dust { transform: none; }
 }
 
-/* ① 引力星野（可交互 Canvas）：铺在背景和文字之间，不挡点击 */
-.gate-field {
+/* =========================================================
+ *  ① 环境粒子 + ② 氛围层
+ *  ---------------------------------------------------------
+ *  这一段是照参考站（yuimi-chaya.github.io / Kisara 主题）的两条规则
+ *  做的，也是它"画面是活的、但不吵"的全部秘密：
+ *
+ *    .kisara-ambient-particles i{
+ *      width:var(--kisara-particle-size); height:var(--kisara-particle-size);
+ *      opacity:0; background:hsl(var(--kisara-particle-hue) 35% 88%);
+ *      animation:kisara-ambient-particle-drift var(--kisara-particle-duration) linear infinite;
+ *      border-radius:1px;
+ *    }
+ *    .kisara-gate-atmosphere{
+ *      background:
+ *        linear-gradient(112deg,#14193738,#1419370a 42%,#ffbed21a),
+ *        radial-gradient(at 50% 46%,#0000 38%,#080a1f1a 68%,#080a1f52 100%),
+ *        linear-gradient(#070a1f47,#070a1f2b 44%,#070a1f6b);
+ *    }
+ *
+ *  要点：
+ *    · 粒子是 1~3px 的**小方块**（border-radius:1px，不是圆点），
+ *      低饱和、极慢、永远不跟鼠标互动 —— 只是空气里的尘埃
+ *    · 氛围层完全不动画，只叠三种渐变：斜向冷光 + 中心暗角 + 上下压暗。
+ *      它把"一张图"变成"一个场景"，而且零成本
+ *  ⚠ 这里替掉了原来那层可交互的 Canvas 引力星野（132 个粒子两两连线、
+ *    带 shadowBlur 辉光、每帧 8600 次距离计算）—— 那是首屏最贵的一块，
+ *    而且"鼠标一过就连线发亮"属于会玩，不属于好看。
+ * ======================================================= */
+.gate-ambient {
   position: absolute; inset: 0; z-index: 1;
-  width: 100%; height: 100%;
-  pointer-events: none;      /* 交互由 .gate 上的监听负责，不靠这一层收事件 */
+  pointer-events: none;
+  overflow: hidden;
+  /* 幕布/文字都落定之后再让它淡淡出现 */
   opacity: 0;
-  /* 稍微提亮、加一点对比，让粒子在照片上也能看清 */
-  filter: brightness(1.15) contrast(1.06) saturate(1.05);
-  animation: gateFieldIn 1.6s ease .25s forwards;
+  animation: gateAmbientIn 2s ease .9s forwards;
 }
-@keyframes gateFieldIn { to { opacity: 1; } }
-/* 减少动态效果：整层不要 */
-@media (prefers-reduced-motion: reduce) {
-  .gate-field { display: none; }
+@keyframes gateAmbientIn { to { opacity: 1; } }
+
+.gate-ambient i {
+  position: absolute;
+  left: var(--x, 50%);
+  top: var(--y, 50%);
+  width: var(--s, 2px);
+  height: var(--s, 2px);
+  border-radius: 1px;                     /* 小方块，不是圆点 */
+  background: hsl(var(--hue, 226) 35% 88%);
+  opacity: 0;
+  /* linear + 负延迟：每个方块一进场就已经在漂，不会"同时起步" */
+  animation: gateAmbientDrift var(--dur, 40s) linear var(--delay, 0s) infinite;
+  will-change: transform, opacity;
+}
+@keyframes gateAmbientDrift {
+  0%   { opacity: 0;    transform: translate3d(0, 12px, 0); }
+  18%  { opacity: .55; }
+  72%  { opacity: .32; }
+  100% { opacity: 0;    transform: translate3d(14px, -78px, 0); }
+}
+
+.gate-atmosphere {
+  position: absolute; inset: 0; z-index: 3;
+  pointer-events: none;
+  background:
+    linear-gradient(112deg, rgba(20, 25, 55, .22), rgba(20, 25, 55, .04) 42%, rgba(255, 190, 210, .10)),
+    radial-gradient(at 50% 46%, transparent 38%, rgba(8, 10, 31, .10) 68%, rgba(8, 10, 31, .32) 100%),
+    linear-gradient(rgba(7, 10, 31, .28), rgba(7, 10, 31, .17) 44%, rgba(7, 10, 31, .42));
+}
+
+/* 减少动态效果 / 窄屏：尘埃不要（省电也省视觉噪音），氛围层留着 */
+@media (prefers-reduced-motion: reduce), (max-width: 760px) {
+  .gate-ambient { display: none; }
 }
 
 /* =========================================================
- *  可玩性动效（②③④⑤⑥⑦）
+ *  可玩性动效：**已整体删除**
  *  ---------------------------------------------------------
- *  全部遵守两条底线：
- *    · 脚本没跑 → 这些变量都是默认值，画面和以前完全一样
- *    · prefers-reduced-motion → 整块关掉
+ *  这一段原来放着四套"会玩"的效果：卡片 3D 倾斜、卡面光晕跟随、
+ *  点击涟漪、粒子爆发。参考站 yuimi-chaya.github.io（Kisara 主题）
+ *  在四个首页 CSS 里一次都没用：
+ *    · `perspective(` / `rotateX(` → 0 次
+ *    · 点击涟漪 / 粒子爆发 → 完全没有
+ *  它卡片唯一的悬停反馈是 `transition: border-color .16s ease-out`。
+ *
+ *  删掉的理由：
+ *    · 3D 倾斜 + 光晕让每张卡片都在自己动，一屏五张卡就是五份注意力；
+ *      而且倾斜写的是 transform，和滚动浮现/悬停位移挤在同一个属性上
+ *    · 涟漪在每次点导航/链接时都炸一圈玫红，和页面切换过渡抢戏
+ *    · 自定义光标（.cur-*）也一并删了，见上面那一段
+ *  卡片的悬停反馈现在只剩"轻微上浮 + 描边变色"，见下面「卡片悬停」。
  * ======================================================= */
 
-/* ---------- ② 卡片 3D 倾斜 + 光晕跟随 ----------
-   倾斜角由 JS 写进 --tilt-x / --tilt-y，
-   光晕位置写进 --shine-x / --shine-y，--tilt-on 控制高光透明度。
-   没脚本时这些变量不存在 → calc 里 var() 有兜底 → 卡片保持平整。 */
-
-.post, .gallery-item, .video-card, .panel, .link-card, .photo-card {
-  transform-style: preserve-3d;
-  transform:
-    perspective(900px)
-    rotateX(var(--tilt-x, 0deg))
-    rotateY(var(--tilt-y, 0deg));
-  will-change: transform;
+/* ---------- 卡片悬停：轻微上浮 + 描边变色（对齐参考站的克制写法） ----------
+   参考站是 `transition: border-color .16s ease-out`；这里保留一点点位移，
+   因为纯变色在深色底上不够明确。位移用 translate（不是 transform），
+   这样它和滚动驱动动画的 translate 是同一个通道、写法一致，
+   而 transform 这个属性彻底空出来给别的东西用。 */
+.post,
+.gallery-item,
+.video-card,
+.panel,
+.link-card,
+.photo-card {
   position: relative;
+  transition: translate .28s cubic-bezier(.22, .61, .36, 1),
+              border-color .22s ease-out,
+              box-shadow .28s ease;
 }
-
-/* 光晕：一层跟着指针滑动的柔光，盖在卡面上不吃事件 */
-.post::after,
-.gallery-item::after,
-.video-card::after,
-.panel::after,
-.link-card::after,
-.photo-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: var(--tilt-on, 0);
-  transition: opacity .35s ease;
-  background:
-    radial-gradient(
-      220px circle at var(--shine-x, 50%) var(--shine-y, 50%),
-      rgba(255, 255, 255, .16),
-      rgba(224, 70, 111, .10) 38%,
-      transparent 68%
-    );
-  mix-blend-mode: screen;
-  z-index: 3;
-}
-/* 有些卡片本来就有 ::after（例如 .panel 的铭牌），别打架 */
-.panel::after { border-radius: inherit; }
-
-@media (hover: none), (prefers-reduced-motion: reduce) {
-  .post, .gallery-item, .video-card, .panel, .link-card, .photo-card {
-    transform: none;
-    will-change: auto;
+@media (hover: hover) {
+  .post:hover,
+  .gallery-item:hover,
+  .video-card:hover,
+  .panel:hover,
+  .link-card:hover,
+  .photo-card:hover {
+    translate: 0 -3px;
+    border-color: var(--rose-dim);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .32);
   }
-  .post::after, .gallery-item::after, .video-card::after,
-  .panel::after, .link-card::after, .photo-card::after { display: none; }
 }
-
-/* ---------- ④ 点击涟漪 + 粒子爆发 ---------- */
-
-.fx-layer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9998;          /* 盖在内容上，但在鼠标圈（9999）之下 */
-  overflow: hidden;
-}
-
-.fx-ripple {
-  position: absolute;
-  width: 14px; height: 14px;
-  margin: -7px 0 0 -7px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(224, 70, 111, .75);
-  box-shadow: 0 0 14px rgba(224, 70, 111, .45), inset 0 0 10px rgba(224, 70, 111, .25);
-  animation: fxRipple .62s cubic-bezier(.2, .7, .3, 1) forwards;
-}
-@keyframes fxRipple {
-  0%   { transform: scale(.35); opacity: .95; }
-  100% { transform: scale(5.2); opacity: 0; }
-}
-
-.fx-spark {
-  position: absolute;
-  width: 4px; height: 4px;
-  margin: -2px 0 0 -2px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, .95);
-  box-shadow: 0 0 10px rgba(255, 255, 255, .7);
-  animation: fxSpark var(--dur, .8s) cubic-bezier(.15, .7, .3, 1) forwards;
-}
-.fx-spark.is-rose {
-  background: rgba(240, 120, 155, 1);
-  box-shadow: 0 0 12px rgba(224, 70, 111, .9);
-}
-@keyframes fxSpark {
-  0%   { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
-  100% { transform: translate3d(var(--dx, 0), var(--dy, 0), 0) scale(.2); opacity: 0; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .fx-layer { display: none; }
+  .post, .gallery-item, .video-card, .panel, .link-card, .photo-card {
+    transition: none !important;
+    translate: none !important;
+  }
 }
 
-/* ---------- ⑦ 光标：过渡只留"形状"那几项 ----------
-   ⚠ 这里**绝对不能**再写 transform 的过渡。
-   圈的位置是 JS 每帧写进 --cur-rx/--cur-ry 再走 transform 的，
-   叠一条 transform .1s 的 CSS 过渡 = 每帧重新起步一次永远走不完的过渡，
-   结果就是圈整体慢半拍、还一顿一顿的（"不跟手 + 看着廉价"的主因）。
-   阻尼感由 JS 的插值系数负责，CSS 这边只管宽度/颜色/透明度。 */
-
-.cur-ring {
-  transition: width .22s ease, height .22s ease, opacity .25s ease,
-              background .22s ease, border-color .22s ease;
-}
-
-/* ---------- ③ 滚动驱动动画：只剩接缝条(seam) ----------
+/* ---------- 滚动驱动动画：只剩接缝条(seam) ----------
    首屏那三层（背景/文字/粒子）以前也挂在这里，问题是：
    `animation: gateParallaxBg linear both` 是一句**简写**，
    它会把上面 .gate-bg 那条入场动画（gateBgIn）整条覆盖掉 ——
@@ -1656,7 +1570,6 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 }
 /* 减少动效：标题直接显示完整（不做圆形揭晓） */
 @media (prefers-reduced-motion: reduce) {
-  html.reveal .gate-title.is-in, html.js-motion .gate-title.is-in { animation: none !important; }
   .gate-title { animation: none !important; clip-path: none !important; }
   .gate-particles, .gate-flash, .gate-sweep { display: none !important; }
   .gate-bg, .gate-inner, .gate-particles, .gate-dust { transform: none !important; }
@@ -1673,8 +1586,14 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
  *  · clip-path 只用来切形状，**不做 transition**（只动 transform/opacity）
  * ======================================================= */
 .seam {
-  --band-a: rgba(224, 70, 111, .52);
-  --band-b: rgba(123, 182, 178, .38);
+  /* ⚠ 配色照参考站（Kisara 主题 / home-transitions.css）抄的实色：
+       .kisara-home-transition:before{ background:#ad3c60 }  玫红
+       .kisara-home-transition:after { background:#7bb6b2 }  青
+     原来这两条是 52% / 38% 的半透明色，叠在深色底上会"发灰发脏"，
+     斜切带看着像污渍。实色更干净，也才有那本画集的印刷感。
+     （.seam--footer 换成"最新→页脚"那一组的配色：青在前、玫红在后） */
+  --band-a: #ad3c60;
+  --band-b: #7bb6b2;
   position: relative;
   height: clamp(78px, 11vw, 116px);
   margin-block: -34px;
@@ -1708,7 +1627,7 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 /* 第二条换角度（斜向反过来），两条放在一起才不会像复制粘贴 */
 .seam--footer::before { clip-path: polygon(0 62%, 100% 22%, 100% 50%, 0 84%); }
 .seam--footer::after  { clip-path: polygon(0 14%, 100% 48%, 100% 70%, 0 38%); }
-.seam--footer { --band-b: rgba(123, 182, 178, .46); }
+.seam--footer { --band-b: #7bb6b2; }
 
 /* 支持的浏览器上让它随滚动轻微漂移（Chromium / 新版 Safari 才有；
    不支持的浏览器就是静态斜切条，一样好看） */
@@ -1744,14 +1663,11 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   min-height: clamp(240px, 46vh, 520px);
   background: var(--bg-2);
   isolation: isolate;
-  /* 浮现动效用它自己的节奏（图片大，位移小一点、时间稍长更稳） */
-  --reveal-delay: 0ms;
 }
-html.reveal .finale {
-  transform: translateY(30px) scale(.99);
-  filter: blur(4px);
-  transition-duration: .85s;
-}
+/* ⚠ 原来这里有一条 html.reveal .finale（靠 JS 加 .reveal 才隐藏、
+   滚到再加 .is-in 浮出来）。那套 IntersectionObserver 浮现已经整体换成
+   滚动驱动动画（见上面 scrollSettle），所以这两条删掉。
+   终幕现在是：进视口时由 scrollSettle 轻轻上浮 + 放大，滚过去复位。 */
 .finale-art {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
