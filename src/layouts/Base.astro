@@ -7,6 +7,8 @@ import { asset } from '../lib/url.js';
 import { ClientRouter } from 'astro:transitions';
 // 内页共用的首屏舞台（各页通过 hero / heroKicker / heroSub 传内容）
 import Gate from '../components/Gate.astro';
+// 首页专用的开场（纸做的电影片头）。只在 isHome 时渲染。
+import Opening from '../components/Opening.astro';
 
 const {
   title = config.name,
@@ -17,7 +19,9 @@ const {
   heroSub = '',
   heroImage = '',
   // 单页分享图（Open Graph / Twitter 卡片）。不传就用 config.ogImage
-  image = ''
+  image = '',
+  // 只有首页传 true：那才会渲染"纸做的电影片头"开场
+  isHome = false
 } = Astro.props;
 
 // 注意：属性解构统一在上面那段（title / description / hero…），
@@ -118,12 +122,26 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
       try {
         var reduce = window.matchMedia &&
           window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (!reduce) document.documentElement.classList.add('js-motion');
-      } catch (e) { /* 忽略 */ }
+        if (reduce) return;
+        document.documentElement.classList.add('js-motion');
+
+        /* 开场标记：只有"真正的首页硬加载 + 用户允许动效"才加。
+           ⚠ 这个类是所有开场样式（纸、字卡、首屏延迟）的总开关：
+             它没被加上，纸的 CSS 就永远停在 opacity:0 + visibility:hidden，
+             而首屏元素也不会有任何延迟 —— 页面就是一个普通的静态首页。
+             换句话说，任何一环出问题，最坏结果都是"没有开场"。 */
+        var p = location.pathname;
+        var isHome = p === '/' || p === '' || /\/index\.html$/.test(p);
+        if (isHome && !document.documentElement.dataset.openingDone) {
+          document.documentElement.classList.add('u-opening');
+        }
+      } catch (e) { /* 忽略：没有开场也要能正常打开 */ }
     })();
   </script>
 </head>
 <body data-view={view}>
+
+{isHome && <Opening name={name} subtitle={config.homeMotto} folio={`${viewLabel} / ${brandNo} \u00b7 IRINSHO.TOP`} />}
 
 <header class="topbar">
   <div class="topbar-inner">

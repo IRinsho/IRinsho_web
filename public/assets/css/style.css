@@ -1071,6 +1071,148 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 }
 
 /* =========================================================
+ *  开场：纸做的电影片头（.opening）
+ *  =========================================================
+ *  一页纸像杂志那样翻进来盖住屏幕 → 纸上打一张电影片头式的字卡
+ *  → 纸翻走，露出已经在后面就位的首屏。
+ *
+ *  为什么用"纸"：这个站是深色底，深色物体在上面"动了等于没动"
+ *  （前几轮的深色幕布就是这个下场）。一张暖白的纸是强反差，
+ *  **不依赖底图好不好看** —— 这是这个方案能成立的全部理由。
+ *
+ *  ⚠ 安全设计（硬要求，改这里之前先读一遍）：
+ *    · 纸的基础样式是 opacity:0 + visibility:hidden。
+ *      只有 <html class="u-opening">（首页硬加载 + 允许动效）时才显示。
+ *      没有那个类 → 纸就是个不可见的空 div，页面照常。
+ *    · 动画只做 translate / opacity —— 没有 clip-path、没有 mask、
+ *      没有 backdrop-filter，这三样在低端机上是翻车常客。
+ *    · 组件脚本有三条强制拆除路径（animationend / setTimeout /
+ *      滚动·点击·按键），任何一条命中都会把纸从 DOM 里删掉。
+ *    · 纸是纯装饰：它永远不会是"内容还在等它"的状态。
+ * ======================================================= */
+.opening {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;              /* 顶栏是 60、进度轨 9000 —— 纸要在它们之上 */
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #f7f3ee;        /* 暖白：比 ME 页的粉纸更"印刷" */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+/* 只有这一个开关能让纸出现 */
+html.u-opening .opening {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;       /* 开场期间吃掉点击，避免误触底下的链接 */
+  animation: openingPaper 2.05s cubic-bezier(.62, .04, .24, 1) both;
+}
+@keyframes openingPaper {
+  0%   { transform: translate3d(101%, 0, 0); }
+  27%  { transform: translate3d(0, 0, 0); }      /* 0.55s 就位 */
+  76%  { transform: translate3d(0, 0, 0); }      /* 停到 1.55s，字卡念完 */
+  100% { transform: translate3d(101%, 0, 0); }   /* 滑出 */
+}
+/* 折痕：纸两边的暗边，让"翻动"有厚度感。
+   只用纯色渐变，不加 blur —— 便宜且没有额外合成层。 */
+.opening-fold {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 46px;
+  pointer-events: none;
+}
+.opening-fold--left {
+  left: 0;
+  background: linear-gradient(90deg, rgba(60, 40, 30, .10), rgba(60, 40, 30, 0));
+}
+.opening-fold--right {
+  right: 0;
+  background: linear-gradient(270deg, rgba(60, 40, 30, .08), rgba(60, 40, 30, 0));
+}
+
+/* ---------- 字卡：电影片头的排版 ---------- */
+.opening-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 0 24px;
+  text-align: center;
+  max-width: 900px;
+}
+/* 字卡元素也用 `both`：默认就停在"还没出现"，纸一盖上来正好是空的 */
+.opening-inner > * { opacity: 0; animation: openingIn .8s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes openingIn {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+html.u-opening .opening-eyebrow { animation-delay: .62s; }
+html.u-opening .opening-title   { animation-delay: .78s; }
+html.u-opening .opening-rule    { animation-delay: .96s; }
+html.u-opening .opening-sub     { animation-delay: 1.06s; }
+html.u-opening .opening-foot    { animation-delay: 1.18s; }
+
+.opening-eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .34em;
+  color: var(--rose-deep);
+  text-transform: uppercase;
+}
+.opening-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: clamp(46px, 10vw, 104px);
+  line-height: 1.04;
+  letter-spacing: .14em;
+  /* 衬线大字往右补半格字距，让"大字距排版"看起来是居中的 */
+  text-indent: .14em;
+  color: #241a20;             /* 纸质页那套深棕，和 ME 页同一语言 */
+}
+/* 细横线：从中间向两侧展开 —— 电影片头最常见的那一笔 */
+.opening-rule {
+  display: block;
+  width: min(320px, 52vw);
+  height: 1px;
+  background: currentColor;
+  color: rgba(36, 26, 32, .38);
+  transform-origin: center;
+  animation-name: openingRule;
+}
+@keyframes openingRule {
+  from { opacity: 0; transform: scaleX(0); }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+.opening-sub {
+  margin: 0;
+  font-size: 13.5px;
+  letter-spacing: .18em;
+  color: rgba(36, 26, 32, .62);
+}
+.opening-foot {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .26em;
+  color: rgba(36, 26, 32, .42);
+  text-transform: uppercase;
+}
+
+/* 减少动态效果 / 窄屏：纸完全不出现 */
+@media (prefers-reduced-motion: reduce) {
+  html.u-opening .opening { display: none !important; }
+}
+@media (max-width: 600px) {
+  .opening-title { font-size: clamp(40px, 15vw, 64px); letter-spacing: .1em; text-indent: .1em; }
+  .opening-inner { gap: 10px; }
+}
+
+/* =========================================================
  *  首页首屏舞台（Gate）
  *  ---------------------------------------------------------
  *  由 index.astro / Gate.astro 的脚本写入的 CSS 变量只有两组：
@@ -1113,43 +1255,42 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
  *     而且"遮住内容"的东西一旦出错就是整屏空白。
  *  ⚠ .gate-bg 上不放 transform —— 指针视差挪到 .gate-hero 和 .gate-dust。
  * ======================================================= */
-.gate-bg { animation: gateBgIn 2.2s cubic-bezier(.16, .84, .3, 1) both; }
+.gate-bg { animation: gateBgIn 1.9s cubic-bezier(.16, .84, .3, 1) both; }
 @keyframes gateBgIn {
-  /* 1.22 → 1：1440px 宽上约 130px 位移，够看出"推近"。
-     （原来 1.12 只有 70px，肉眼看不出来） */
-  from { scale: 1.22; }
+  /* 1.12 → 1：纸滑出时画面轻微推近收尾。
+     之前是 1.22，那是"深色幕布"时代为了让画面自己有点动势；
+     现在动势由纸负责，背景只要一点点跟随就够了，幅度大了反而晕。 */
+  from { scale: 1.12; }
   to   { scale: 1; }
 }
 
 /* =========================================================
- *  开场：**焦点式**（画面由虚到实）
+ *  开场：**纸做的电影片头**（主开场，见 .opening 那一段）
  *  ---------------------------------------------------------
- *  前几版用的是"幕布"：一块深色盖住首屏再抬走。
- *  实测证明这条路走不通，两个原因：
- *    1. 站本身就是深色底，深色幕布压上去"什么都看不出来"——
- *       动画确实在跑（用 CDP 采到幕布 opacity 1→0、translate 0→-100%），
- *       但观感上就是"页面加载完了"，甚至被当成"主视觉挂了"
- *    2. 它是"遮住内容"的东西，一旦某处出错就是整屏空白 ——
- *       这套代码历史上已经因为遮挡出过两次故障
+ *  这里只保留"首屏自己的入场"，它现在是**配角**：
+ *  纸滑出的同时首屏才开始动，所以它的时间轴要跟着纸走 ——
+ *  下面的负延迟只有在 <html class="u-opening">（首页 + 允许动效）时生效。
+
+ *  为什么不再用深色遮罩 / 大范围虚化：
+ *    实测首屏平均亮度只有 26/255（页面底色 21），
+ *    深色物体在深色底上"动了等于没动"；而遮住内容的东西
+ *    一旦出错就是整屏空白（这套代码已经因此出过两次故障）。
  *
- *  现在换成完全不遮挡的做法：**一张图从虚焦拉到实焦**。
- *    · 主视觉 opacity 全程由一条规则负责，**绝不参与开场**
- *      （历史故障就是把 opacity 交给动画，被中断后永久淡成 0）
- *    · 开场只动三件事：背景轻微推近、画面从 blur 拉清楚、
- *      压暗层与氛围层从"几乎没有"缓缓落到静止状态
- *    · 观感上像镜头对上焦、也像画面在眼前"定下来" —— 不需要任何遮罩
- *    · 任何一层出问题，最坏结果都只是"画面偏亮/偏虚"，内容永远在
+ *  ⚠ 主视觉的 opacity 全程由**一条规则**负责，绝不参与开场 ——
+ *    历史故障就是把它交给动画，被中断后永久淡成 0。
  * ======================================================= */
 .gate-hero {
   background-image: var(--hero);
   opacity: max(.15, calc(1 - var(--gate-p, 0) * .9));
-  /* blur 从 16px 拉到 0，同时亮度落回 1：这就是整个开场的主角 */
-  animation: gateFocusIn 1.25s cubic-bezier(.2, .62, .25, 1) .1s both;
-  will-change: opacity, filter;
+  will-change: opacity;
+}
+/* 只有开场真的在播时，画面才需要"由虚到实"这一下 */
+html.u-opening .gate-hero {
+  animation: gateFocusIn 1.1s cubic-bezier(.2, .62, .25, 1) 1.5s both;
 }
 @keyframes gateFocusIn {
-  from { filter: blur(16px) brightness(1.14) saturate(1.06); }
-  60%  { filter: blur(2.5px) brightness(1.03) saturate(1.03); }
+  from { filter: blur(11px) brightness(1.10) saturate(1.05); }
+  60%  { filter: blur(2px) brightness(1.02) saturate(1.02); }
   to   { filter: blur(0) brightness(1) saturate(1); }
 }
 
@@ -1192,9 +1333,15 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
    （见 .gate-hero 的 gateFocusIn），这一层老实当静态压暗。 */
 .gate-veil {
   position: absolute; inset: 0;
+  /* ⚠ 数值砍了一半（上 .32→.16、中 .06→.03、下 .68→.42）。
+     原因是实测出来的一个硬数字：首屏平均亮度只有 **26/255**，
+     而页面底色是 21 —— 主视觉和背景几乎是同一个颜色，等于一块黑。
+     压暗叠了四层（veil + atmosphere + 图本身 + 滚动淡出），
+     每一层单看都"不过分"，加在一起就把插画吃掉了。
+     现在目标是平均亮度 55~70，让画面第一次真正露出来。 */
   background:
-    linear-gradient(180deg, rgba(9, 11, 22, .32) 0%, rgba(9, 11, 22, .06) 42%, rgba(9, 11, 22, .68) 100%),
-    radial-gradient(120% 80% at 50% 0%, transparent 46%, rgba(9, 11, 22, .3) 100%);
+    linear-gradient(180deg, rgba(9, 11, 22, .16) 0%, rgba(9, 11, 22, .03) 42%, rgba(9, 11, 22, .42) 100%),
+    radial-gradient(120% 80% at 50% 0%, transparent 46%, rgba(9, 11, 22, .16) 100%);
 }
 
 .gate-inner {
@@ -1212,11 +1359,11 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
    现在改成元素自己的入场动画：一帧都不会等，也不会和滚动进度抢属性。
    缓动统一 cubic-bezier(.2, .7, .2, 1)：起手快、收尾稳。
 
-   ⚠ 时间轴跟着"画面对上焦"那条走（.gate-hero 的 gateFocusIn：
-      0.1s 起、1.35s 落，前 60% 就把 blur 从 16px 收到 2.5px）：
-        0.32s kicker → 0.42s 大标题 → 0.72s 副标题 → 0.84s 滚动指示
-      —— 字在画面"逐渐清晰"的过程中陆续出现，而不是等画面定死再一起冒。
-      四个错开约 0.1~0.3s，节奏是"先小字、再大字、再说明、最后提示"。 */
+   ⚠ 时间轴分两种：
+     · 有开场（html.u-opening）：纸 1.55s 开始滑出，文字等它开始动再出场
+         1.58s kicker → 1.70s 大标题 → 2.00s 副标题 → 2.12s 滚动指示
+     · 没有开场（内页 / 减少动效 / 脚本没跑）：延迟全部不要，立刻正常显示
+   这样"开场"和"没有开场"是两套独立的时间轴，互不干扰。 */
 @keyframes gateKickerIn {
   from { opacity: 0; transform: translate3d(0, 8px, 0); }
   to   { opacity: 1; transform: none; }
@@ -1226,9 +1373,12 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   to   { opacity: 1; transform: none; }
 }
 
-.gate-kicker { animation: gateKickerIn .62s cubic-bezier(.2, .7, .2, 1) .32s both; }
-.gate-sub    { animation: gateTextIn .72s cubic-bezier(.2, .7, .2, 1) .72s both; }
-.gate-scroll { animation: gateTextIn .72s cubic-bezier(.2, .7, .2, 1) .84s both; }
+.gate-kicker { animation: gateKickerIn .62s cubic-bezier(.2, .7, .2, 1) both; }
+.gate-sub    { animation: gateTextIn .72s cubic-bezier(.2, .7, .2, 1) both; }
+.gate-scroll { animation: gateTextIn .72s cubic-bezier(.2, .7, .2, 1) both; }
+html.u-opening .gate-kicker { animation-delay: 1.58s; }
+html.u-opening .gate-sub    { animation-delay: 2.0s; }
+html.u-opening .gate-scroll { animation-delay: 2.12s; }
 /* ⚠ 文字层级要压在氛围层（z-index:3）之上。
    参考站里 .kisara-gate-atmosphere 是盖在标题上的（它靠更重的压暗来
    统一画面），但这里的主视觉是插画、文字是白色大标题 ——
@@ -1242,7 +1392,8 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
    现在合成一条、延迟写死在动画里 —— 不需要任何 JS，时间也不会错位。
    ⚠ 注意区别：这里动的是**标题文字**，不是主视觉画面。
      主视觉那边严禁用 opacity 做开场（见 .gate-hero 上方的长注释）。 */
-.gate-title  { animation: gateTitleIn .92s cubic-bezier(.22, .61, .36, 1) .42s both; }
+.gate-title  { animation: gateTitleIn .92s cubic-bezier(.22, .61, .36, 1) both; }
+html.u-opening .gate-title { animation-delay: 1.7s; }
 
 /* ⚠ 顺序要紧：标题排在 kicker 和 sub 之间（0.44s 起、1.5s 落） */
 .gate-kicker {
@@ -1342,7 +1493,6 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 .gate[data-opened] .gate-kicker,
 .gate[data-opened] .gate-sub,
 .gate[data-opened] .gate-scroll,
-.gate[data-opened] .gate-bg,
 .gate[data-opened] .gate-dust { animation: none !important; }
 /* =========================================================
  *  ③ 鼠标视差 + 滚动位移（同一层上只剩这两件事）
@@ -1448,13 +1598,13 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 .gate-atmosphere {
   position: absolute; inset: 0; z-index: 3;
   pointer-events: none;
-  /* ⚠ 和 .gate-veil 一样：静态终态，不带动画。
-     "由亮到暗"统一交给主视觉的 gateFocusIn（blur + brightness）负责，
-     这样开场只有**一个**动画在描述画面，中断也不会跳变。 */
+  /* ⚠ 和 .gate-veil 一样：静态终态，不带动画；
+     并且数值一起减半（原来 .10/.07/.12/.18/.22，现在全部腰斩），
+     理由见 .gate-veil 上面那段 —— 四层压暗叠起来把插画吃成一块黑。 */
   background:
-    linear-gradient(112deg, rgba(20, 25, 55, .10), rgba(20, 25, 55, 0) 46%, rgba(255, 190, 210, .05)),
-    radial-gradient(at 50% 46%, transparent 52%, rgba(8, 10, 31, .07) 74%, rgba(8, 10, 31, .18) 100%),
-    linear-gradient(rgba(7, 10, 31, .12), rgba(7, 10, 31, .04) 46%, rgba(7, 10, 31, .22));
+    linear-gradient(112deg, rgba(20, 25, 55, .05), rgba(20, 25, 55, 0) 46%, rgba(255, 190, 210, .03)),
+    radial-gradient(at 50% 46%, transparent 52%, rgba(8, 10, 31, .04) 74%, rgba(8, 10, 31, .09) 100%),
+    linear-gradient(rgba(7, 10, 31, .06), rgba(7, 10, 31, .02) 46%, rgba(7, 10, 31, .11));
 }
 
 /* 减少动态效果 / 窄屏：尘埃不要（省电也省视觉噪音），氛围层留着 */

@@ -1,0 +1,86 @@
+---
+/* =========================================================
+ *  开场：纸做的电影片头（杂志翻页 + 片头字卡）
+ *  ---------------------------------------------------------
+ *  为什么是这个方案：深色站点上，唯一一眼看得见的开场是**浅色物体在动**。
+ *  前几轮用深色幕布 / 画面虚化，都栽在同一件事上 —— 开场自己不带光，
+ *  而主视觉被压暗后平均亮度只有 26/255（和页面底色 21 几乎一样）。
+ *  一页纸是强反差，不依赖底图好不好看。
+ *
+ *  ⚠ 三层安全设计（这是硬要求）：
+ *    1. 纸的**基础样式就是 opacity:0 + visibility:hidden**。
+ *       只有 <html> 上有 .u-opening 类（由 Base.astro 的内联脚本按
+ *       "首页 + 允许动效"两个条件加上）时才会显示。
+ *       脚本没跑 / 被降级 → 纸根本不存在 → 页面照常打开。
+ *    2. 本组件只在首页渲染（Base.astro 的 prop 控制）。
+ *    3. 三条强制关闭路径：animationend、setTimeout 硬上限、
+ *       以及滚动 / 点击 / 按键 —— 想跳过随时能跳过，不做强制片头。
+ * ======================================================= */
+
+const { name = '', subtitle = '', folio = '' } = Astro.props;
+---
+
+<div class="opening" id="paperOpening" aria-hidden="true">
+  {/* 折痕阴影：纸两侧各一道，模拟纸被掀起时的暗边 */}
+  <div class="opening-fold opening-fold--left"></div>
+  <div class="opening-fold opening-fold--right"></div>
+
+  <div class="opening-inner">
+    <p class="opening-eyebrow">CHAPTER 00 / OPENING</p>
+    <h1 class="opening-title">{name}</h1>
+    <span class="opening-rule"></span>
+    {subtitle && <p class="opening-sub">{subtitle}</p>}
+    {folio && <p class="opening-foot">{folio}</p>}
+  </div>
+</div>
+
+<script>
+  (function () {
+    /* ⚠ 这个模块只在"真正的首页硬加载"时才有意义。
+       客户端路由换页回来时，浏览器不重新执行模块 —— 所以不会重复播。
+       仍然加一道 dataset 守卫，防止别的地方重复引入。 */
+    const root = document.documentElement;
+    const paper = document.getElementById('paperOpening');
+
+    if (!paper) return;
+    if (!root.classList.contains('u-opening')) {
+      // 条件不满足（不是首页 / 用户要求减少动效）：纸留着当摆设没意义，直接摘掉
+      paper.remove();
+      return;
+    }
+    if (root.dataset.openingDone === '1') { paper.remove(); return; }
+
+    const DUR = 2150;   // 与 CSS 里的 animation 总时长对齐（2.05s + 余量）
+    let closed = false;
+
+    function dismiss() {
+      if (closed) return;
+      closed = true;
+      root.dataset.openingDone = '1';
+      root.classList.remove('u-opening');
+      paper.remove();
+      document.removeEventListener('scroll', dismiss);
+      document.removeEventListener('pointerdown', dismiss);
+      document.removeEventListener('keydown', dismiss);
+      window.clearTimeout(timer);
+    }
+
+    // 出口①：让 JS 兜个底，CSS 动画自己跑完（正常路径）
+    paper.addEventListener('animationend', (e) => {
+      if (e.animationName === 'openingPaperOut') dismiss();
+    });
+
+    // 出口②：硬上限。动画被系统降级 / 标签页切走导致 rAF 停摆时兜住
+    const timer = window.setTimeout(dismiss, DUR + 1200);
+
+    // 出口③：想跳过就跳过
+    document.addEventListener('scroll', dismiss, { passive: true, once: true });
+    document.addEventListener('pointerdown', dismiss, { passive: true, once: true });
+    document.addEventListener('keydown', dismiss, { once: true });
+
+    // 页面隐藏（切标签页）时也直接拆掉，避免回来时停在一半
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) dismiss();
+    });
+  })();
+</script>
