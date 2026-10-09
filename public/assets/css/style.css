@@ -1147,17 +1147,44 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 }
 .gate-bg { position: absolute; inset: 0; z-index: 0; }
 
-/* 进场：背景不整块淡入（黑底上淡入一张深色图＝先糊后清），
-   而是「从 90% 缓缓推近到 100%」——有明确方向感，也不需要动透明度。
-   ⚠ 这条动画只写在这里，@supports 那段里**不允许**再给 .gate-bg 写 animation，
-     否则简写会把这条整条顶掉（旧版就是这么丢掉开场的）。 */
-.gate-bg { animation: gateBgIn 1.5s cubic-bezier(.22, .61, .36, 1) both; }
+/* =========================================================
+ *  开场（Opening）—— 一次明确的开幕动作，不是"轻微淡入"
+ *  ---------------------------------------------------------
+ *  上一版我写的是 scale 1.09 → 1（1.5s），力度太小：90%→100% 的缩放
+ *  在真实屏幕上基本看不出来，等于没做开场。现在改成两件事同时发生：
+ *
+ *    ① 一块接近页面底色的幕布（.gate-bg::after）盖住主视觉，
+ *       等 0.3s 后整块向上提起 22% + 淡出 → "帷幕拉开"
+ *    ② 主视觉自己在演一个很慢的 Ken Burns：1.12 → 1（1.9s）
+ *
+ *  ⚠ 幕布是**纯 CSS** 的（Pseudo-Element + animation，不依赖 JS）。
+ *     脚本挂了、IO 没触发，它照样会自己播完并停在 opacity:0 ——
+ *     最坏情况只是"没看到开场"，绝不会糊住首屏。
+ *  ⚠ 幕布必须是 .gate-bg::after（不是 .gate-bg 自己）：
+ *     .gate-bg 的 animation 已经给入场用了，一个元素只能有一条 animation。
+ *  ⚠ .gate-bg 上不放 transform —— 指针视差挪到 .gate-hero 和 .gate-dust，
+ *     这样 .gate-bg 只负责"缩放 + 幕布"两件事，互不打架。
+ * ======================================================= */
+.gate-bg { animation: gateBgIn 1.9s cubic-bezier(.16, .84, .3, 1) both; }
 @keyframes gateBgIn {
-  from { scale: 1.09; }
+  from { scale: 1.12; }
   to   { scale: 1; }
 }
+.gate-bg::after {
+  content: '';
+  position: absolute; inset: 0;
+  z-index: 5;                                   /* 在压暗层之上，幕布要是整块的 */
+  background: linear-gradient(180deg, #1a1e38 0%, #101226 62%, #0b0d1c 100%);
+  animation: gateCurtain 1.15s cubic-bezier(.7, 0, .22, 1) .3s both;
+}
+@keyframes gateCurtain {
+  from { opacity: 1; translate: 0 0; }
+   60% { opacity: 1; }
+  to   { opacity: 0; translate: 0 -22%; }
+}
 
-/* 主视觉层：cover 铺满，靠 --gate-p 淡出、靠 --gate-ty 上移 */
+/* 主视觉层：cover 铺满
+   ⚠ 滚动淡出由 --gate-p 负责（.gate-hero 那条规则里），这里只管开场 */
 .gate-layer {
   position: absolute;
   inset: -3%;
@@ -1165,17 +1192,25 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   background-size: cover;
   background-repeat: no-repeat;
 }
+/* ⚠ 三件必须记住的事：
+   1. 这里**不能**默认 opacity:0 再等脚本加类 —— 脚本没跑（换页返回）
+      就会剩一个空首屏。默认可见，滚动进度再来接管透明度。
+   2. **不能**挂 transition：--gate-p 是滚动时每帧都在变的，
+      每帧重新起一次永远走不完的过渡 = 发飘、发糊。
+   3. **不能**用 transform: scale(...)：1253×830 的大图每帧重新栅格化，
+      画面会发软。缩放交给外层 .gate-bg 的开场动画，位移走 translate3d。 */
 .gate-hero {
   background-image: var(--hero);
-  /* ⚠ 这里**不能**默认 opacity:0 再等脚本加类 —— 脚本没跑（换页返回）
-     就会剩一个空首屏。默认可见，滚动进度再来接管透明度。
-     ⚠ 也**不能**再挂 transition：--gate-p 是滚动时每帧都在变的，
-     每一帧都会重新起一次 0.7s / 0.9s 的过渡（永远走不完）＝ 发飘、发糊。
-     要平滑就在 JS 那边把进度插值好再写进来，别叠 CSS 过渡。
-     ⚠ 这里也不再写 transform: scale(...)：1253×830 的大图每帧重新栅格化，
-     画面会发软。改成外层 .gate-bg 的 translate3d 位移，纯合成、不掉画质。 */
   opacity: calc(1 - var(--gate-p, 0) * .9);
   will-change: opacity;
+}
+/* 主视觉的响应是"拖着走"的：--gate-p 乘一个额外的 0.72 再叠加到
+   opacity 上，等于开场那 0.55s 里它自己还额外淡入一次。
+   好处：就算某台机器上的幕布动画被系统降级掉了，主视觉也不是硬切进来的。 */
+.gate-hero { animation: gateHeroIn 1.35s cubic-bezier(.2, .7, .2, 1) .4s both; }
+@keyframes gateHeroIn {
+  from { opacity: calc(1 - var(--gate-p, 0) * .9 - .72); }
+  to   { opacity: calc(1 - var(--gate-p, 0) * .9); }
 }
 
 /* 压暗层：只压够文字可读的程度。之前压得太重（上 .62 / 下 .88），
@@ -1200,7 +1235,14 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
    observers 注册完、下一帧回调才执行，首屏早就画出来了，
    于是先看到完整内容、再"啪"地淡入一次 —— 像闪一下，不像开场。
    现在改成元素自己的入场动画：一帧都不会等，也不会和滚动进度抢属性。
-   缓动统一 cubic-bezier(.2, .7, .2, 1)：起手快、收尾稳。 */
+   缓动统一 cubic-bezier(.2, .7, .2, 1)：起手快、收尾稳。
+
+   ⚠ 时间轴照着"幕布拉开"排（幕布 .3s 起、1.45s 落）：
+     0.55s kicker → 0.72s 大标题 → 1.05s 副标题 → 1.20s 滚动指示
+     标题那 0.72s 落在幕布走到一半的位置，正好是"字从幕布后面长出来"。
+     上一版是 0.34 / 0.44 / 0.72 / 0.88——全挤在幕布还没动的时候，
+     所以看上去只是"页面加载完了"，没有开场。
+   粒子的漂移层 .gate-dust 也一起延后到 0.6s（见下面那一段）。 */
 @keyframes gateKickerIn {
   from { opacity: 0; transform: translate3d(0, 10px, 0); }
   to   { opacity: 1; transform: none; }
@@ -1210,15 +1252,15 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   to   { opacity: 1; transform: none; filter: blur(0); }
 }
 
-.gate-kicker { animation: gateKickerIn .78s cubic-bezier(.2, .7, .2, 1) .34s both; }
-.gate-sub    { animation: gateTextIn .88s cubic-bezier(.2, .7, .2, 1) .72s both; }
-.gate-scroll { animation: gateTextIn .88s cubic-bezier(.2, .7, .2, 1) .88s both; }
+.gate-kicker { animation: gateKickerIn .82s cubic-bezier(.2, .7, .2, 1) .55s both; }
+.gate-sub    { animation: gateTextIn .92s cubic-bezier(.2, .7, .2, 1) 1.05s both; }
+.gate-scroll { animation: gateTextIn .92s cubic-bezier(.2, .7, .2, 1) 1.20s both; }
 /* 标题：淡入上浮 + clip-path 圆形揭晓合成**一条**动画。
    ⚠ 以前是两个来源：opacity/位移来自 Base.astro 的 IntersectionObserver
    （要等回调，晚一帧才加 .is-in），clip-path 来自 .is-in 触发的 gateEnchant。
    两者起跑时间不一致，开场就"先看见字、再重新揭晓一次"。
    现在合成一条、延迟写死在动画里 —— 不需要任何 JS，时间也不会错位。 */
-.gate-title  { animation: gateTitleIn 1.32s cubic-bezier(.22, .61, .36, 1) .44s both; }
+.gate-title  { animation: gateTitleIn 1.18s cubic-bezier(.22, .61, .36, 1) .72s both; }
 
 /* ⚠ 顺序要紧：标题排在 kicker 和 sub 之间（0.44s 起、1.5s 落） */
 .gate-kicker {
@@ -1289,42 +1331,73 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   .gate-title { font-size: clamp(32px, 11vw, 54px); }
 }
 
-/* 减少动态效果：静态显示主视觉（不做推近 / 淡出 / 入场） */
+/* 减少动态效果：静态显示主视觉（不做开场 / 淡出 / 漂移） */
 @media (prefers-reduced-motion: reduce) {
-  .gate-hero { opacity: 1 !important; translate: none !important; }
+  .gate-hero { opacity: 1 !important; animation: none !important; }
   .gate-bg { animation: none !important; scale: none !important; }
-  .gate-kicker, .gate-sub, .gate-scroll,
-  html.js-motion .gate-title.is-in, html.reveal .gate-title.is-in { animation: none !important; }
-  .gate-title { clip-path: none !important; }
+  .gate-bg::after { display: none !important; }          /* 幕布直接不要 */
+  .gate-kicker, .gate-sub, .gate-scroll, .gate-dust { animation: none !important; }
+  .gate-title { animation: none !important; clip-path: none !important; }
   .gate-scroll i { animation: none; }
   .gate-rail { display: none; }
 }
 
+/* ⚠ 一滚动就立刻结束开场。
+   ---------------------------------------------------------
+   index.astro / Gate.astro 的脚本在第一次真实滚动时给 .gate 打上
+   data-opened（**一次性**，不再摘掉；滚动期间另外打 data-scrolling）。
+
+   为什么必须是一次性的：
+   这些进场动画都是 `both` 填充的一次性动画，从第 0 帧就占着 opacity 不放。
+   用户手快、在开场还没演完时就往下滚，滚动写进来的透明度会被动画终值
+   压住 —— 表现为"首屏淡不掉"。所以一滚动就把它结束掉。
+
+   而**不能**用"滚动时禁用、停下再恢复"的写法：
+   动画被 `animation: none` 掐掉之后，一旦这条规则失效（类名被摘掉），
+   浏览器会把那条动画当作**新动画**重新套用，于是从 0% 再来一遍 ——
+   表现就是回到顶部时首屏内容"fade 回去又淡出来"，比原来更糟。
+   一次性标记没有这个问题：套用过的动画不会被重新创建。 */
+.gate[data-opened] .gate-hero,
+.gate[data-opened] .gate-title,
+.gate[data-opened] .gate-kicker,
+.gate[data-opened] .gate-sub,
+.gate[data-opened] .gate-scroll,
+.gate[data-opened] .gate-bg,
+.gate[data-opened] .gate-bg::after,
+.gate[data-opened] .gate-dust { animation: none !important; }
+
 /* =========================================================
  *  ③ 鼠标视差 + 滚动位移（同一层上只剩这两件事）
  *  ---------------------------------------------------------
- *  ⚠ 每个元素最多只用 transform / translate 的**一个**通道：
- *    · .gate-bg       → transform 走指针视差，translate 走滚动位移
+ *  每个元素最多只用 transform / translate 的**一个**通道：
+ *    · .gate-bg       → 只有 scale（开场）+ 幕布伪元素。**不放 transform**，
+ *                        因为幕布 ::after 会跟着父元素的 transform 一起动，
+ *                        会把"向上提起"的位移方向搞乱
+ *    · .gate-hero     → transform 走指针视差，opacity 走滚动淡出
  *    · .gate-inner    → 只走指针视差（文字不再跟着滚动上下飘，
  *                        滚动时文字和背景反向错位，就是"发飘"的观感来源）
- *    · .gate-particles→ 漂移层 → transform 走指针视差，translate 走滚动
+ *    · .gate-particles→ transform 走指针视差；.gate-dust → translate 走滚动
  *  ⚠ 这里**不许**再写 transition: transform ——
  *    指针位置是每帧写进变量的，叠一个 0.5s 过渡等于每帧重开一次过渡，
  *    手感会明显"慢半拍"。要阻尼在 JS 里做插值。
  * ======================================================= */
 .gate-bg {
   translate: 0 var(--gate-ty, 0px);
+}
+.gate-hero {
   transform: translate3d(calc(var(--mx, 0) * 9px), calc(var(--my, 0) * 9px), 0);
 }
 .gate-inner { transform: translate3d(calc(var(--mx, 0) * -5px), calc(var(--my, 0) * -5px), 0); }
 /* 漂浮粒子单独包一层来承接滚动位移：
-   .gate-particles 已经在跑入场动画（gateDriftIn），
-   两个 animation 简写写在一个元素上会互相顶掉 —— 所以分成内外两层。 */
+   .gate-particles 承接指针视差（transform），
+   .gate-dust 承接滚动位移（translate）+ 开场漂移（animation）——
+   一个元素只能有一条 animation，挤在一起就会互相顶掉。 */
 .gate-particles { transform: translate3d(calc(var(--mx, 0) * 20px), calc(var(--my, 0) * 20px), 0); }
 .gate-dust {
   position: absolute; inset: 0;
   translate: 0 var(--gate-ty-dust, 0px);
-  animation: gateDriftIn 1.5s cubic-bezier(.2, .7, .2, 1) .25s both;
+  /* 比文字再晚一点（0.6s）：让"幕布拉开 → 字出来 → 尘埃浮起"有先有后 */
+  animation: gateDriftIn 1.6s cubic-bezier(.2, .7, .2, 1) .6s both;
 }
 @keyframes gateDriftIn {
   from { opacity: 0; translate: 0 calc(var(--gate-ty-dust, 0px) + 34px); }
@@ -1333,7 +1406,7 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 
 /* 触屏 / 窄屏：不做指针视差，位移压到最低（手机上少动一点更稳） */
 @media (max-width: 760px) {
-  .gate-bg, .gate-inner, .gate-particles, .gate-dust { transform: none; }
+  .gate-hero, .gate-inner, .gate-particles, .gate-dust { transform: none; }
 }
 
 /* ① 引力星野（可交互 Canvas）：铺在背景和文字之间，不挡点击 */

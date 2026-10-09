@@ -232,6 +232,7 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       let sraf = 0;
       let praf = 0;
       let ticking = false;
+      let idleTimer = 0;
 
       function writeTy() {
         gate.style.setProperty('--gate-ty', (-scroll.cur * TY_BG).toFixed(2) + 'px');
@@ -280,10 +281,30 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
         if (!praf) praf = requestAnimationFrame(loop);
       }, { passive: true });
 
-      function onScroll() {
-        /* 注：不再在这里打 html[data-scrolling] ——
-           那个标记统一由 Base.astro 的 startScrollFlag() 维护。
-           两处各写一份 setTimeout 会互相踩，标记忽有忽无。 */
+      /* ⚠ onScroll 有两种调用来源：
+         · 事件（scroll / resize）→ 参数是 Event 对象
+         · 初始化时手工调用 → 必须显式传 'init'
+         所以判断写成 === 'init'，不能写成"参数假值"。 */
+      function onScroll(init) {
+        /* ⚠ 开场（幕布 / 文字 / 缩放）是 `both` 填充的一次性动画，
+           从第 0 帧就占着 opacity 不放。用户手快、在开场还没演完时
+           就往下滚，滚动写进来的透明度就会被动画终值压住 ——
+           看起来像"首屏淡不掉"。所以第一次真实滚动就把开场**永久**
+           结束掉：给 .gate 打 data-opened（CSS 那边 animation: none）。
+           ⚠ 一次性、不摘掉：写成"滚动时禁用、停下恢复"的话，规则一失效
+             浏览器会把动画当新动画重套一遍，回到顶部首屏会 fade 回去
+             再淡出来。data-scrolling 只用来给别的规则做参考。
+           ⚠ 初始化那一次不算"滚动" —— 否则开场第一帧就被自己掐掉，
+             用户永远看不到开幕（上一版"没有开场"就有这一半原因）。 */
+        if (init !== 'init') {
+          gate.dataset.opened = '1';
+          gate.dataset.scrolling = '1';
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            delete gate.dataset.scrolling;
+          }, 180);
+        }
+
         if (ticking) return;
         ticking = true;
         requestAnimationFrame(() => {
@@ -309,7 +330,7 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       scroll.cur = scroll.p;
       gate.style.setProperty('--gate-p', scroll.cur.toFixed(4));
       writeTy();
-      onScroll();
+      onScroll('init');
     }
 
     /* 首次加载 + 每次换页返回都要重新初始化

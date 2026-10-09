@@ -71,6 +71,7 @@ const {
 
     let sraf = 0;         // 滚动插值的持续循环
     let ptrRaf = 0;       // 指针事件的节流
+    let idleTimer = 0;    // 开场中断标记的计时器
 
     const ptr = { x: 0, y: 0, cx: 0, cy: 0 };
     const move = { p: 0, cur: 0 };
@@ -127,9 +128,22 @@ const {
         gate.style.setProperty('--gate-ty-dust', (-move.cur * 96).toFixed(2) + 'px');
       }
 
-      function onScroll() {
-        /* 注：html[data-scrolling] 那个标记统一由 Base.astro 维护，
-           这里不再自己写一份（两份 setTimeout 会互相踩）。 */
+      /* ⚠ 参数只有两种来源：事件（Event 对象）/ 初始化时显式传 'init'。
+         初始化那次绝不算"滚动"，否则开场第一帧就被自己掐掉。 */
+      function onScroll(init) {
+        /* 见 index.astro 同一处的详细说明：
+           开场是一次性 `both` 动画，从第 0 帧就占着 opacity；
+           第一次真实滚动就把它**永久**结束掉（data-opened，不摘），
+           data-scrolling 只是给别的规则做参考。 */
+        if (init !== 'init') {
+          gate.dataset.opened = '1';
+          gate.dataset.scrolling = '1';
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            delete gate.dataset.scrolling;
+          }, 180);
+        }
+
         update();
         if (!sraf) sraf = requestAnimationFrame(tail);
       }
@@ -164,7 +178,7 @@ const {
       update();
       move.cur = move.p;
       tail();
-      onScroll();
+      onScroll('init');     // 初始化不算滚动，别把开场掐掉
     }
 
     document.addEventListener('astro:page-load', bind);
