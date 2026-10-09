@@ -187,15 +187,15 @@ button, input { font: inherit; color: inherit; }
 }
 .tab:hover .tab-no, .tab.active .tab-no { color: var(--rose); }
 .tab svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.tab::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: -3px;
-  height: 2px; background: var(--rose);
-  transform: scaleX(0); transform-origin: left;
-  transition: transform .25s ease;
-}
+/* ⚠ 这里以前有一条 .tab::after 的下划线（.tab.active::after { scaleX(1) }）。
+   它和顶栏那条"跟着鼠标滑动的指示条"（.nav-ind）压在**同一个位置**：
+   指示条带 12px 玫红辉光、底下的下划线是纯色实线，两条一叠就是
+   一条边缘发虚的粗线 —— 看起来像渲染重影，也是"顶栏那条线怪"的来源。
+   现在只留指示条一条，它本身就负责"当前在哪 / 鼠标在哪"。
+   悬停反馈交给图标轻抬 + 编号变亮（下面那几条）。 */
+
 .tab:hover { color: var(--ink); }
 .tab.active { color: #fff; }
-.tab.active::after { transform: scaleX(1); }
 
 .topbar-actions { display: flex; align-items: center; gap: 12px; flex: none; }
 .avatar-btn {
@@ -780,6 +780,11 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
  *  ⚠ 这份选择器清单要和 Base.astro 里 startReveal() 的 targets 保持一致。
  *    .gallery-item 目前没有页面在用（相册走的是 .photo-card），
  *    但脚本的浮现目标 + 鼠标热区里都留着它，所以这里也跟着留。
+ *  ⚠ .gate-inner > *（首屏舞台里的字）**故意不在这里**：
+ *    它们的入场由下面 .gate-kicker / .gate-title / .gate-sub / .gate-scroll
+ *    自己的一段 CSS 动画负责（纯 CSS，不依赖 IntersectionObserver）。
+ *    以前挂在 IO 上，要等 observers 注册完、下一帧回调才加 .is-in，
+ *    首屏已经画出来了才"啪"地淡入一次 —— 看起来像闪一下而不是开场。
  * ======================================================= */
 html.reveal .markdown > *,
 html.reveal .post-bar,
@@ -787,8 +792,7 @@ html.reveal .post,
 html.reveal .gallery-item,
 html.reveal .video-card,
 html.reveal .panel,
-html.reveal .finale,
-html.reveal .gate-inner > * {
+html.reveal .finale {
   opacity: 0;
   transform: translateY(22px) scale(.985);
   filter: blur(3px);
@@ -805,11 +809,27 @@ html.reveal .post.is-in,
 html.reveal .gallery-item.is-in,
 html.reveal .video-card.is-in,
 html.reveal .panel.is-in,
-html.reveal .finale.is-in,
-html.reveal .gate-inner > *.is-in {
+html.reveal .finale.is-in {
   opacity: 1;
   transform: none;
   filter: none;
+}
+
+/* ⚠ 滚动时关掉浮现的过渡：
+   淡入本身是好的，坏的是"正在滚的时候还在慢悠悠淡入"——
+   过渡拖着 0.68s 去追一个一直在变的滚动位置，就是那种"发飘"。
+   滚动期间让 .is-in 一步到位（滚动时这点位移本来也看不清），
+   停下之后恢复过渡，慢速滚动 / 首次进场那种"浮上来"的手感仍然在。
+   --reveal-delay 也一起归零，否则跟手了却还要按序号等 55ms×n。 */
+html.reveal[data-scrolling] .markdown > *,
+html.reveal[data-scrolling] .post-bar,
+html.reveal[data-scrolling] .post,
+html.reveal[data-scrolling] .gallery-item,
+html.reveal[data-scrolling] .video-card,
+html.reveal[data-scrolling] .panel,
+html.reveal[data-scrolling] .finale {
+  transition-duration: 0ms;
+  transition-delay: 0ms;
 }
 
 /* =========================================================
@@ -819,6 +839,18 @@ html.reveal .gate-inner > *.is-in {
  * ======================================================= */
 html.has-cursor,
 html.has-cursor * { cursor: none !important; }
+/* ⚠ 输入框例外：自定义光标是"拖尾的圈"，在文本框里它既看不出插入点在哪，
+   也没法用 I 形光标选词。这里把系统光标还回去（圈本身也同时缩小、变淡，
+   见下面的 .cur-ring.is-text）。 */
+html.has-cursor input,
+html.has-cursor textarea,
+html.has-cursor [contenteditable='true'] { cursor: auto !important; }
+html.has-cursor input[type='text'],
+html.has-cursor input[type='search'],
+html.has-cursor input[type='email'],
+html.has-cursor input[type='url'],
+html.has-cursor input[type='password'],
+html.has-cursor textarea { cursor: text !important; }
 
 .cur-dot,
 .cur-ring {
@@ -832,7 +864,7 @@ html.has-cursor * { cursor: none !important; }
 }
 .cur-dot.is-on, .cur-ring.is-on { opacity: 1; }
 
-/* 中心的小点 */
+/* 中心的小点：完全贴住指针（每帧写 transform，一点拖尾都不给） */
 .cur-dot {
   width: 6px; height: 6px;
   border-radius: 50%;
@@ -843,44 +875,50 @@ html.has-cursor * { cursor: none !important; }
 
 /* 外圈：平时是个细环，悬停在可点元素上时放大并染色。
    ⚠ 位置由 CSS 变量给（--cur-rx/--cur-ry 是"经过磁吸后的位置"），
-      不再由 JS 直接写 transform —— 这样下面的拉长/倾斜才能叠加进来。 */
+      不再由 JS 直接写 transform。
+   ⚠ 这里的几个数值都是往"轻、跟手、不抢戏"的方向调过的：
+      · 去掉 backdrop-filter: blur(1px) —— 一圈毛玻璃在小圆环上既看不出
+        高级感，又让浏览器每帧多做一次背景采样（不跟手的来源之一）
+      · --cur-magnet 的放大系数 .42 → .28（磁吸本身也调小了，见 Base.astro）
+      · 不再吃 --cur-stretch（滚动拉长整个去掉了：滚页面时圈被抻成胶囊
+        看着像 bug，不是设计） */
 .cur-ring {
-  width: 30px; height: 30px;
+  width: 26px; height: 26px;
   border-radius: 50%;
-  border: 1px solid rgba(224, 70, 111, .55);
-  background: rgba(224, 70, 111, .06);
-  backdrop-filter: blur(1px);
+  border: 1px solid rgba(224, 70, 111, .5);
+  background: rgba(224, 70, 111, .05);
   display: flex; align-items: center; justify-content: center;
 
   transform:
     translate3d(var(--cur-rx, -100px), var(--cur-ry, -100px), 0)
     translate(-50%, -50%)
-    scale(
-      calc(1 + var(--cur-magnet, 0) * .42 + var(--cur-stretch, 0) * .06),
-      calc(1 + var(--cur-magnet, 0) * .42 + var(--cur-stretch, 0) * .46)
-    );
-  transition: width .22s ease, height .22s ease, opacity .25s ease,
-              background .22s ease, border-color .22s ease;
+    scale(calc(1 + var(--cur-magnet, 0) * .28));
   will-change: transform;
 }
 .cur-ring.is-hot {
-  width: 46px; height: 46px;
-  border-color: rgba(224, 70, 111, .85);
-  background: rgba(224, 70, 111, .12);
+  width: 40px; height: 40px;
+  border-color: rgba(224, 70, 111, .8);
+  background: rgba(224, 70, 111, .1);
 }
+/* 卡片热区：只比链接大一点。原来是 68px + 16% 底色 + 中间一个 OPEN，
+   在相册的网格上等于每划过一个格子就糊上一块粉 —— 太吵。 */
 .cur-ring.is-card {
-  width: 68px; height: 68px;
-  background: rgba(224, 70, 111, .16);
+  width: 52px; height: 52px;
+  background: rgba(224, 70, 111, .12);
   border-color: var(--rose);
 }
-.cur-ring.is-down { transform-origin: center; }
-.cur-ring.is-down { width: 22px; height: 22px; }
+/* 输入框上方：收小、变淡，把注意力让给系统光标 */
+.cur-ring.is-text {
+  width: 16px; height: 16px;
+  border-color: rgba(224, 70, 111, .28);
+  background: transparent;
+}
 
 /* 圈里的小字（例如卡片上的 OPEN） */
 .cur-label {
   font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: .14em;
+  font-size: 8.5px;
+  letter-spacing: .12em;
   color: var(--rose);
   opacity: 0;
   transition: opacity .2s ease;
@@ -1032,6 +1070,9 @@ html.js-motion::after {
   .nav-ind { display: none !important; }
 }
 
+/* 指示条：现在它是顶栏**唯一**的一条线（下面那条 .tab::after 已经删掉）。
+   所以把张扬的 12px 玫红辉光收掉了 —— 一条实心的小短条压在 62px 高的
+   顶栏下沿，本来就够醒目，再糊一层 12px 的光只会让边缘发虚。 */
 .nav-ind {
   position: absolute;
   left: 0; bottom: -3px;
@@ -1039,7 +1080,7 @@ html.js-motion::after {
   width: 0;
   border-radius: 2px;
   background: linear-gradient(90deg, var(--rose), var(--rose-2, #ff7ba0));
-  box-shadow: 0 0 12px rgba(224, 70, 111, .7);
+  box-shadow: 0 0 6px rgba(224, 70, 111, .35);
   opacity: 0;
   pointer-events: none;
   transition:
@@ -1049,6 +1090,10 @@ html.js-motion::after {
 }
 .nav-ind.is-on { opacity: 1; }
 .nav-ind.is-instant { transition: none; }
+
+/* 当前板块：加粗 + 纯白。
+   （指示条会跟着鼠标走，所以"我在哪"还得靠字重和颜色说清楚） */
+.tab.active { font-weight: 700; }
 
 /* 导航项自身：悬停时图标轻抬、编号变亮 */
 .tab svg { transition: transform .32s cubic-bezier(.22, .61, .36, 1); }
@@ -1072,8 +1117,21 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 
 /* =========================================================
  *  首页首屏舞台（Gate）
- *  --gate-p：0~1 的滚动进度，由 index.astro 的脚本写入
- *  所有位移/缩放/淡入淡出都在这里算 —— 脚本挂了也只是静态主视觉
+ *  ---------------------------------------------------------
+ *  由 index.astro / Gate.astro 的脚本写入的 CSS 变量只有两组：
+ *    · --gate-p   0~1 的滚动进度（淡出用）
+ *    · --gate-ty  这个进度换算出来的竖向位移（px）
+ *    · --mx/--my  指针位置（-0.5~0.5，视差用）
+ *  位移一律走 transform / translate3d，脚本挂了就是一张静态主视觉。
+ *
+ *  ⚠ 三条以前互相打架、现在被拆开的分工：
+ *    1. 入场（一次性）→ 只动外层包裹（.gate-particles 的漂移层）
+ *       和文字元素（.gate-kicker / .gate-title / .gate-sub / .gate-scroll）
+ *    2. 滚动（连续）  → 只动 .gate-hero 的 opacity 和 .gate-bg 的 --gate-ty
+ *    3. 指针（连续）  → 只动各个元素的 translate3d(var(--mx/--my))
+ *    一个元素上不再同时挂"入场动画"和"滚动动画" —— 那正是旧版
+ *    「一进去就啪地全出现」的原因：同一条 animation 简写里，
+ *    @supports 里的滚动视差把前面的入场动画整条覆盖掉了。
  * ======================================================= */
 .gate {
   position: relative;
@@ -1089,34 +1147,35 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 }
 .gate-bg { position: absolute; inset: 0; z-index: 0; }
 
-/* 进场动画放在**外层**：
-   这样即使脚本没跑（例如换页返回时脚本没重新初始化），
-   它自己也会播完并停在"完全可见"，绝不会留下一个空的首屏。
-   （之前把 opacity:0 放在 .gate-hero 上、靠脚本加 .is-ready 才显示，
-     换页回来脚本没跑 → 首屏就是一片空的，这是个真 bug） */
-.gate-bg { animation: gateBgIn .9s cubic-bezier(.22, .61, .36, 1) both; }
+/* 进场：背景不整块淡入（黑底上淡入一张深色图＝先糊后清），
+   而是「从 90% 缓缓推近到 100%」——有明确方向感，也不需要动透明度。
+   ⚠ 这条动画只写在这里，@supports 那段里**不允许**再给 .gate-bg 写 animation，
+     否则简写会把这条整条顶掉（旧版就是这么丢掉开场的）。 */
+.gate-bg { animation: gateBgIn 1.5s cubic-bezier(.22, .61, .36, 1) both; }
 @keyframes gateBgIn {
-  from { opacity: 0; transform: scale(1.02); }
-  to   { opacity: 1; transform: none; }
+  from { scale: 1.09; }
+  to   { scale: 1; }
 }
 
-/* 主视觉层：cover 铺满，靠 --gate-p 做推近 + 淡出
-   （原来还有一层 .gate-finale 在这里交叉揭晓，现在终幕图是页面里独立的 .finale 一段） */
+/* 主视觉层：cover 铺满，靠 --gate-p 淡出、靠 --gate-ty 上移 */
 .gate-layer {
   position: absolute;
   inset: -3%;
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-  will-change: opacity, transform;
 }
 .gate-hero {
   background-image: var(--hero);
   /* ⚠ 这里**不能**默认 opacity:0 再等脚本加类 —— 脚本没跑（换页返回）
-     就会剩一个空首屏。默认可见，滚动进度再来接管透明度。 */
-  opacity: calc(1 - var(--gate-p, 0) * 0.9);
-  transform: scale(calc(1 + var(--gate-p, 0) * 0.08));
-  transition: opacity .7s cubic-bezier(.22, .61, .36, 1), transform .9s cubic-bezier(.22, .61, .36, 1);
+     就会剩一个空首屏。默认可见，滚动进度再来接管透明度。
+     ⚠ 也**不能**再挂 transition：--gate-p 是滚动时每帧都在变的，
+     每一帧都会重新起一次 0.7s / 0.9s 的过渡（永远走不完）＝ 发飘、发糊。
+     要平滑就在 JS 那边把进度插值好再写进来，别叠 CSS 过渡。
+     ⚠ 这里也不再写 transform: scale(...)：1253×830 的大图每帧重新栅格化，
+     画面会发软。改成外层 .gate-bg 的 translate3d 位移，纯合成、不掉画质。 */
+  opacity: calc(1 - var(--gate-p, 0) * .9);
+  will-change: opacity;
 }
 
 /* 压暗层：只压够文字可读的程度。之前压得太重（上 .62 / 下 .88），
@@ -1136,11 +1195,41 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   gap: 10px;
   padding: 0 clamp(18px, 4vw, 44px) clamp(30px, 6vw, 66px);
 }
+/* ---------- 首屏文字的入场（一段有节奏的开场，纯 CSS） ----------
+   以前这四个元素靠 Base.astro 的 IntersectionObserver 加 .is-in 淡入：
+   observers 注册完、下一帧回调才执行，首屏早就画出来了，
+   于是先看到完整内容、再"啪"地淡入一次 —— 像闪一下，不像开场。
+   现在改成元素自己的入场动画：一帧都不会等，也不会和滚动进度抢属性。
+   缓动统一 cubic-bezier(.2, .7, .2, 1)：起手快、收尾稳。 */
+@keyframes gateKickerIn {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes gateTextIn {
+  from { opacity: 0; transform: translate3d(0, 26px, 0); filter: blur(9px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+
+.gate-kicker { animation: gateKickerIn .78s cubic-bezier(.2, .7, .2, 1) .34s both; }
+.gate-sub    { animation: gateTextIn .88s cubic-bezier(.2, .7, .2, 1) .72s both; }
+.gate-scroll { animation: gateTextIn .88s cubic-bezier(.2, .7, .2, 1) .88s both; }
+/* 标题：淡入上浮 + clip-path 圆形揭晓合成**一条**动画。
+   ⚠ 以前是两个来源：opacity/位移来自 Base.astro 的 IntersectionObserver
+   （要等回调，晚一帧才加 .is-in），clip-path 来自 .is-in 触发的 gateEnchant。
+   两者起跑时间不一致，开场就"先看见字、再重新揭晓一次"。
+   现在合成一条、延迟写死在动画里 —— 不需要任何 JS，时间也不会错位。 */
+.gate-title  { animation: gateTitleIn 1.32s cubic-bezier(.22, .61, .36, 1) .44s both; }
+
+/* ⚠ 顺序要紧：标题排在 kicker 和 sub 之间（0.44s 起、1.5s 落） */
 .gate-kicker {
   margin: 0;
   font-family: var(--font-mono);
   font-size: 11px; letter-spacing: .34em;
-  color: var(--rose);
+  /* ⚠ 这里原来就是 --rose(#e0466f)：11px 的小字压在深色插画上，
+     那个浪漫的玫红在暗处几乎读不出来。换成亮一档的 --rose-2，
+     再补一点同色微光（比投影便宜，也不会在插画上糊出灰边）。 */
+  color: var(--rose-2, #f2749a);
+  text-shadow: 0 0 14px rgba(224, 70, 111, .55);
 }
 .gate-title {
   margin: 0;
@@ -1192,7 +1281,6 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   width: calc(var(--rail, 0) * 100%);
   background: linear-gradient(90deg, var(--rose), var(--rose-2, #ff7ba0));
   box-shadow: 0 0 10px rgba(224, 70, 111, .6);
-  transition: width .16s linear;
 }
 
 /* 移动端：整屏高度用 svh，别被手机地址栏顶掉一截 */
@@ -1201,18 +1289,52 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   .gate-title { font-size: clamp(32px, 11vw, 54px); }
 }
 
-/* 减少动态效果：静态显示主视觉（不做推近 / 淡出） */
+/* 减少动态效果：静态显示主视觉（不做推近 / 淡出 / 入场） */
 @media (prefers-reduced-motion: reduce) {
-  .gate-hero { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .gate-hero { opacity: 1 !important; translate: none !important; }
+  .gate-bg { animation: none !important; scale: none !important; }
+  .gate-kicker, .gate-sub, .gate-scroll,
+  html.js-motion .gate-title.is-in, html.reveal .gate-title.is-in { animation: none !important; }
+  .gate-title { clip-path: none !important; }
   .gate-scroll i { animation: none; }
   .gate-rail { display: none; }
 }
 
-/* ③ 鼠标视差：背景和文字按小系数、粒子按大系数偏移 → 产生纵深 */
-.gate-bg { transform: translate3d(calc(var(--mx, 0) * 12px), calc(var(--my, 0) * 12px), 0); }
-.gate-inner { transform: translate3d(calc(var(--mx, 0) * -6px), calc(var(--my, 0) * -6px), 0); }
-.gate-particles { transform: translate3d(calc(var(--mx, 0) * 26px), calc(var(--my, 0) * 26px), 0); }
-.gate-bg, .gate-inner, .gate-particles { transition: transform .5s cubic-bezier(.22, .61, .36, 1); }
+/* =========================================================
+ *  ③ 鼠标视差 + 滚动位移（同一层上只剩这两件事）
+ *  ---------------------------------------------------------
+ *  ⚠ 每个元素最多只用 transform / translate 的**一个**通道：
+ *    · .gate-bg       → transform 走指针视差，translate 走滚动位移
+ *    · .gate-inner    → 只走指针视差（文字不再跟着滚动上下飘，
+ *                        滚动时文字和背景反向错位，就是"发飘"的观感来源）
+ *    · .gate-particles→ 漂移层 → transform 走指针视差，translate 走滚动
+ *  ⚠ 这里**不许**再写 transition: transform ——
+ *    指针位置是每帧写进变量的，叠一个 0.5s 过渡等于每帧重开一次过渡，
+ *    手感会明显"慢半拍"。要阻尼在 JS 里做插值。
+ * ======================================================= */
+.gate-bg {
+  translate: 0 var(--gate-ty, 0px);
+  transform: translate3d(calc(var(--mx, 0) * 9px), calc(var(--my, 0) * 9px), 0);
+}
+.gate-inner { transform: translate3d(calc(var(--mx, 0) * -5px), calc(var(--my, 0) * -5px), 0); }
+/* 漂浮粒子单独包一层来承接滚动位移：
+   .gate-particles 已经在跑入场动画（gateDriftIn），
+   两个 animation 简写写在一个元素上会互相顶掉 —— 所以分成内外两层。 */
+.gate-particles { transform: translate3d(calc(var(--mx, 0) * 20px), calc(var(--my, 0) * 20px), 0); }
+.gate-dust {
+  position: absolute; inset: 0;
+  translate: 0 var(--gate-ty-dust, 0px);
+  animation: gateDriftIn 1.5s cubic-bezier(.2, .7, .2, 1) .25s both;
+}
+@keyframes gateDriftIn {
+  from { opacity: 0; translate: 0 calc(var(--gate-ty-dust, 0px) + 34px); }
+  to   { opacity: 1; translate: 0 var(--gate-ty-dust, 0px); }
+}
+
+/* 触屏 / 窄屏：不做指针视差，位移压到最低（手机上少动一点更稳） */
+@media (max-width: 760px) {
+  .gate-bg, .gate-inner, .gate-particles, .gate-dust { transform: none; }
+}
 
 /* ① 引力星野（可交互 Canvas）：铺在背景和文字之间，不挡点击 */
 .gate-field {
@@ -1335,63 +1457,35 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   .fx-layer { display: none; }
 }
 
-/* ---------- ⑦ 光标滚动拉长 ----------
-   圈本身的位置与缩放已经写在上面那条 .cur-ring 里了（合并了磁吸 + 拉长），
-   这里只补一条滚动时的过渡，让拉长/回弹更顺。
-   没脚本时 --cur-stretch / --cur-magnet 都不存在 → 兜底为 0 → 还是一个普通圆环。 */
+/* ---------- ⑦ 光标：过渡只留"形状"那几项 ----------
+   ⚠ 这里**绝对不能**再写 transform 的过渡。
+   圈的位置是 JS 每帧写进 --cur-rx/--cur-ry 再走 transform 的，
+   叠一条 transform .1s 的 CSS 过渡 = 每帧重新起步一次永远走不完的过渡，
+   结果就是圈整体慢半拍、还一顿一顿的（"不跟手 + 看着廉价"的主因）。
+   阻尼感由 JS 的插值系数负责，CSS 这边只管宽度/颜色/透明度。 */
 
 .cur-ring {
   transition: width .22s ease, height .22s ease, opacity .25s ease,
-              background .22s ease, border-color .22s ease, transform .1s linear;
+              background .22s ease, border-color .22s ease;
 }
 
-/* ---------- ③ 滚动驱动的分层视差（CSS 原生滚动时间线） ----------
-   现代浏览器原生支持，不加 JS；不支持的浏览器就安静地什么都不做。
-   注意：这里是滚动**驱动**动画（animation-timeline），不是滚动监听。 */
+/* ---------- ③ 滚动驱动动画：只剩接缝条(seam) ----------
+   首屏那三层（背景/文字/粒子）以前也挂在这里，问题是：
+   `animation: gateParallaxBg linear both` 是一句**简写**，
+   它会把上面 .gate-bg 那条入场动画（gateBgIn）整条覆盖掉 ——
+   所以在支持 animation-timeline 的浏览器（Chrome / Edge / 新版 Safari）
+   里，首屏根本没有入场动画，一进去就是"啪"地全出现。
+   现在首屏的滚动位移改由 JS 写 --gate-ty / --gate-ty-dust，
+   入场动画独占了 animation 这个属性，两边不再抢。
+   面板区的 scrollLift 也一并去掉：它和 html.reveal 的浮现（opacity +
+   transform）同时作用在同一批卡片上，等于一次入场叠了两套位移。 */
 
-@supports (animation-timeline: scroll()) {
+@supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
-    /* 首屏：背景慢、文字中、粒子快 —— 三层不同速率才有纵深 */
-    .gate-bg {
-      animation: gateParallaxBg linear both;
-      animation-timeline: scroll(root block);
-      animation-range: 0 100vh;
-    }
-    .gate-inner {
-      animation: gateParallaxText linear both;
-      animation-timeline: scroll(root block);
-      animation-range: 0 100vh;
-    }
-    .gate-particles {
-      animation: gateParallaxDust linear both;
-      animation-timeline: scroll(root block);
-      animation-range: 0 100vh;
-    }
-
-    /* 面板区：滚上来时轻微上浮 + 放大，滚过去再收回 */
-    .panel, .gallery-item, .post, .video-card {
-      animation: scrollLift linear both;
-      animation-timeline: view();
-      animation-range: entry 0% cover 34%;
-    }
+    /* 首屏的三层视差（原来在这里）已经移交 JS：见上面 .gate-bg / .gate-inner
+       / .gate-particles 的 --gate-ty 说明。面板区的 scrollLift 同样已删除。
+       这个 @supports 块留给以后想加的原生滚动驱动效果。 */
   }
-}
-
-@keyframes gateParallaxBg {
-  from { translate: 0 0; }
-  to   { translate: 0 -6vh; }
-}
-@keyframes gateParallaxText {
-  from { translate: 0 0; }
-  to   { translate: 0 -16vh; }
-}
-@keyframes gateParallaxDust {
-  from { translate: 0 0; }
-  to   { translate: 0 -30vh; }
-}
-@keyframes scrollLift {
-  from { translate: 0 22px; scale: .975; }
-  to   { translate: 0 0;    scale: 1; }
 }
 
 /* ---------- ⑤ 相册筛选：编排式入场 ----------
@@ -1442,44 +1536,57 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   100% { opacity: 0; transform: translate3d(var(--dx, 14px), calc(-1 * var(--dy, 60vh)), 0) scale(1.15); }
 }
 
-/* ④ 黑场节拍：压黑一下再揭晓（--flash 由脚本按滚动位置算） */
-.gate-flash {
-  position: absolute; inset: 0; z-index: 3;
-  pointer-events: none;
-  background: #05060d;
-  opacity: var(--flash, 0);
-}
+/* ④ 黑场节拍（.gate-flash）：整个效果已经删掉了 ——
+   它原来靠 JS 写 --flash 来压黑一下，但脚本里那两行本来就被设成 0
+   （"实际看着像闪一下，像故障而不像节拍"），元素一直是个永远透明的空壳。
+   现在把元素和规则一起删掉；下面这条只防旧缓存里还留着 DOM 的情况。 */
+.gate-flash { display: none; }
 
 /* ⑤ 光带扫过：已删除（见 index.astro 注释）。保留这条只为防旧缓存里
    还留着那个元素时露出白条 —— 直接隐藏。 */
 .gate-sweep { display: none; }
 
-/* ② 标题注魔：渐变字 + clip-path 圆形揭晓（源站这个效果本来就是纯 CSS） */
+/* ② 标题注魔：渐变字 + clip-path 圆形揭晓（源站这个效果本来就是纯 CSS）
+   ⚠ 渐变收手了：原来从 #ffffff 一路冲到 --rose(#e0466f) 再拉回来，
+     在 92px 的大字上，"玫红"占了将近半个字宽 —— 压在那张深色插画上
+     就是一条突兀的粉柱子，也是"不好看"最直观的一处。
+     现在改成「白 → 极淡的玫瑰白 → 白」：只在字的下缘留一点暖意，
+     整体仍然是白字，跟主视觉的冷紫灰是协调的。 */
 .gate-title {
   background-image: linear-gradient(
-    100deg,
-    #ffffff 0%, #ffe6ef 30%, var(--rose) 48%, #ffd9e6 62%, #ffffff 92%
+    102deg,
+    #ffffff 0%, #fffafc 38%, #ffe9f1 54%, #fff6fa 72%, #ffffff 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 6px 26px rgba(224, 70, 111, .38));
+  /* ⚠ 这里原来还有 filter: drop-shadow(0 6px 26px rgba(224,70,111,.38))。
+     文字被设成 transparent（渐变裁进字形），drop-shadow 只跟"绘制出来的
+     不透明像素"走，所以这层玫红投影基本看不到，留下的是每帧对大字号做
+     一次滤镜的开销。删掉。 */
 }
-html.reveal .gate-title.is-in,
-html.js-motion .gate-title.is-in {
-  animation: gateEnchant 1.35s cubic-bezier(.22, .61, .36, 1) both;
-}
-@keyframes gateEnchant {
-  from { clip-path: circle(0% at 8% 55%); }
-  to   { clip-path: circle(150% at 8% 55%); }
+/* ⚠ 标题的入场不再依赖 .is-in（IntersectionObserver）——
+   回调时机比首屏绘制晚，会让标题先完整露一下、再重新揭晓一次。
+   现在动画直接挂在 .gate-title 上，上面那条就是全部。 */
+@keyframes gateTitleIn {
+  from {
+    opacity: 0;
+    clip-path: circle(0% at 8% 55%);
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: circle(150% at 8% 55%);
+    transform: none;
+  }
 }
 /* 减少动效：标题直接显示完整（不做圆形揭晓） */
 @media (prefers-reduced-motion: reduce) {
   html.reveal .gate-title.is-in, html.js-motion .gate-title.is-in { animation: none !important; }
-  .gate-title { clip-path: none !important; }
+  .gate-title { animation: none !important; clip-path: none !important; }
   .gate-particles, .gate-flash, .gate-sweep { display: none !important; }
-  .gate-bg, .gate-inner, .gate-particles { transform: none !important; }
+  .gate-bg, .gate-inner, .gate-particles, .gate-dust { transform: none !important; }
 }
 
 /* =========================================================

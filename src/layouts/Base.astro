@@ -214,8 +214,13 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
       if (prefersReduced) return;
       document.documentElement.classList.add('reveal');
 
+      /* ⚠ .gate-inner > *（首屏舞台里的字）**故意不在这个清单里**：
+         它们由 style.css 里 .gate-kicker / .gate-title / .gate-sub /
+         .gate-scroll 自己的一段 CSS 入场动画负责。
+         挂在 IO 上的话要等回调，首屏已经画完了才"啪"地淡入一次 ——
+         看起来像闪一下，不像开场。 */
       const targets = document.querySelectorAll(
-        '.markdown > *, .post-bar, .post, .gallery-item, .video-card, .panel, .finale, .gate-inner > *'
+        '.markdown > *, .post-bar, .post, .gallery-item, .video-card, .panel, .finale'
       );
 
       if ('IntersectionObserver' in window && targets.length) {
@@ -280,9 +285,17 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
     let rx = mx;
     let ry = my;
     let visible = false;
+    // 上一次算出来的热区状态：只有真的变了才碰 classList / textContent。
+    // （以前每次 pointermove 都无条件写一遍，指针划过相册网格时等于
+    //   每帧触发一批样式失效 —— 也是"不跟手"的一部分。）
+    let lastHot = null;
+    let lastCard = null;
+    let lastLabel = '';
 
-    // pointermove 比 mousemove 更可靠（鼠标 / 触控板 / 触控笔都算），
-    // 挂在 document 上，避免指针在 iframe 上方时收不到事件
+    /* ⚠ 只挂 pointermove 一个：pointer 事件在所有现代浏览器里都覆盖
+       鼠标 / 触控板 / 触控笔，pointermove 也包含 hover 的移动。
+       以前同时挂 pointermove + mousemove + pointerover，
+       同一帧同一个动作会被处理三遍。 */
     const onMove = (e) => {
       mx = e.clientX;
       my = e.clientY;
@@ -291,20 +304,35 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
         dot.classList.add('is-on');
         ring.classList.add('is-on');
       }
-      const hot = e.target && e.target.closest
-        ? e.target.closest('a, button, .post, .video-card, .gallery-item, .chip, input, textarea, [role="button"]')
+
+      const el = e.target;
+      const inField = !!(el && el.closest &&
+        el.closest('input, textarea, [contenteditable="true"]'));
+      const hot = (!inField && el && el.closest)
+        ? el.closest('a, button, .post, .video-card, .gallery-item, .photo-card, .chip, [role="button"]')
         : null;
-      const isCard = !!(hot && hot.matches('.post, .video-card, .gallery-item'));
+      const isCard = !!(hot && hot.matches('.post, .video-card, .gallery-item, .photo-card'));
+
+      // 输入框上方：系统 I 形光标还回去了，圈也收小让路
+      if (inField !== lastHot) {
+        ring.classList.toggle('is-text', inField);
+        lastHot = inField;
+      }
       ring.classList.toggle('is-hot', !!hot);
-      ring.classList.toggle('is-card', isCard);
+      if (isCard !== lastCard) {
+        ring.classList.toggle('is-card', isCard);
+        lastCard = isCard;
+      }
       dot.classList.toggle('is-hot', !!hot);
-      label.textContent = isCard ? 'OPEN' : '';
-      if (hot && hot.dataset && hot.dataset.cursorLabel) label.textContent = hot.dataset.cursorLabel;
+
+      const text = (hot && hot.dataset && hot.dataset.cursorLabel) || (isCard ? 'OPEN' : '');
+      if (text !== lastLabel) {
+        label.textContent = text;
+        lastLabel = text;
+      }
     };
 
     document.addEventListener('pointermove', onMove, { passive: true });
-    document.addEventListener('mousemove', onMove, { passive: true });   // 双保险
-    document.addEventListener('pointerover', onMove, { passive: true });
 
     document.addEventListener('mouseleave', () => {
       visible = false;
@@ -312,17 +340,16 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
       ring.classList.remove('is-on');
     });
 
-    window.addEventListener('mousedown', () => ring.classList.add('is-down'), { passive: true });
-    window.addEventListener('mouseup', () => ring.classList.remove('is-down'), { passive: true });
-
     /* 磁吸：指针靠近可点元素时，圈被"吸"向元素中心一点，
        分开时松回去 —— 手感上像元素对光标有引力。
-       吸力上限保守（最多 38%、只在 170px 内生效），免得光标不跟手。 */
+       ⚠ 数值往"跟手"方向收过：作用半径 170 → 78，吸力上限 38% → 14%。
+       原来的 170px 意味着指针离链接还很远、圈就已经开始往元素中心漂，
+       屏幕上到处都能感到"光标不听话"。现在只有真正贴到元素上才有一点点吸附。 */
     let hotEl = null;
     let magnet = 0;              // 当前吸力 0~1（带阻尼）
 
-    const MAGNET_R = 170;
-    const MAGNET_MAX = 0.38;
+    const MAGNET_R = 78;
+    const MAGNET_MAX = 0.14;
 
     const originalOnMove = onMove;
     const onMoveMagnet = (e) => {
@@ -336,43 +363,73 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('pointerover', onMove);
     document.addEventListener('pointermove', onMoveMagnet, { passive: true });
-    document.addEventListener('mousemove', onMoveMagnet, { passive: true });
-    document.addEventListener('pointerover', onMoveMagnet, { passive: true });
 
-    // 圈的跟随用阻尼（lerp），点则完全贴住指针
-    (function loop() {
-      rx += (mx - rx) * 0.18;
-      ry += (my - ry) * 0.18;
+    /* 圈的跟随：位置**直接用指针坐标**（不插值），只有"磁吸偏移"带阻尼。
+       ⚠ 这一点是"跟手"的关键。
+       以前整圈位置都走 lerp(0.18)：每帧只走 18% 的差距，
+       一帧 60Hz 下要 5~9 帧才贴上去 —— 手感上就是**明显慢半拍**，
+       而且是"圆环在追光标"的廉价感。
+       现在环心 = 指针位置 + 阻尼过的磁吸偏移(magnet)：
+       光标一动它立刻就在那儿，磁吸只负责那一点点"被吸过去"的弹性。 */
+    let tpx = 0;                 // 环心实际位置（= 指针 + 磁吸偏移）
+    let tpy = 0;
+    let rafId = 0;
+    let lastRx = NaN;            // 上一次真正写进 CSS 的值
+    let lastRy = NaN;
+    let lastMag = NaN;
 
-      /* 目标吸力：指针在元素矩形内或离得近 → 往元素中心拉 */
+    function frame() {
+      /* 目标吸力：指针离元素中心够近 → 往元素中心拉一点 */
       let wantMagnet = 0;
-      let tx = rx;
-      let ty = ry;
+      let cx = 0;
+      let cy = 0;
       if (hotEl && document.body.contains(hotEl)) {
-        const r = hotEl.getBoundingClientRect();
+        const r = hotEl.getBoundingClientRect();   // 只在真有悬停元素时量一次
         if (r.width && r.height) {
-          const cx = r.left + r.width / 2;
-          const cy = r.top + r.height / 2;
-          const d = Math.hypot(rx - cx, ry - cy);
-          if (d < MAGNET_R) {
-            wantMagnet = (1 - d / MAGNET_R) * MAGNET_MAX;
-            tx = rx + (cx - rx) * wantMagnet;
-            ty = ry + (cy - ry) * wantMagnet;
-          }
+          cx = r.left + r.width / 2;
+          cy = r.top + r.height / 2;
+          const d = Math.hypot(mx - cx, my - cy);
+          if (d < MAGNET_R) wantMagnet = (1 - d / MAGNET_R) * MAGNET_MAX;
         }
       }
-      magnet += (wantMagnet - magnet) * 0.12;
+      magnet += (wantMagnet - magnet) * 0.14;
+      if (wantMagnet === 0 && magnet < 0.0006) magnet = 0;
+
+      tpx = mx + (cx - mx) * magnet;
+      tpy = my + (cy - my) * magnet;
 
       /* 用 CSS 变量定位（而不是直接写 transform）：
-         这样 CSS 里的倾斜/拉伸可以叠加在同一个 transform 上，不会互相覆盖 */
-      document.documentElement.style.setProperty('--cur-x', mx.toFixed(2) + 'px');
-      document.documentElement.style.setProperty('--cur-y', my.toFixed(2) + 'px');
-      document.documentElement.style.setProperty('--cur-rx', tx.toFixed(2) + 'px');
-      document.documentElement.style.setProperty('--cur-ry', ty.toFixed(2) + 'px');
-      document.documentElement.style.setProperty('--cur-magnet', magnet.toFixed(3));
+         这样 CSS 里的缩放可以叠加在同一个 transform 上，不会互相覆盖。
+         ⚠ 两个改动：
+          · 不再每帧无条件写 —— 值没变就不碰样式（省掉一批无意义的样式失效）
+          · --cur-x / --cur-y 以前也写，但 CSS 里从来没消费过，删掉 */
+      if (tpx !== lastRx) {
+        document.documentElement.style.setProperty('--cur-rx', tpx.toFixed(2) + 'px');
+        lastRx = tpx;
+      }
+      if (tpy !== lastRy) {
+        document.documentElement.style.setProperty('--cur-ry', tpy.toFixed(2) + 'px');
+        lastRy = tpy;
+      }
+      if (magnet !== lastMag) {
+        document.documentElement.style.setProperty('--cur-magnet', magnet.toFixed(3));
+        lastMag = magnet;
+      }
+      // 小点完全贴住指针（它才是"指针在哪"的答案，一点拖尾都不给）
       dot.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
-      requestAnimationFrame(loop);
-    })();
+
+      /* 指针不动、磁吸也归位了 → 停下（别在没人动的时候空转 rAF）。
+         下一次 pointermove 会通过 kick() 把它叫起来。 */
+      if (wantMagnet === 0 && magnet === 0) { rafId = 0; return; }
+      rafId = requestAnimationFrame(frame);
+    }
+
+    function kick() {
+      if (!rafId) rafId = requestAnimationFrame(frame);
+    }
+
+    document.addEventListener('pointermove', kick, { passive: true });
+    kick();
   }
 
   /* =========================================================
@@ -458,6 +515,7 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
         let cur = { rx: 0, ry: 0, mx: 50, my: 50, on: 0 };
         let raf = 0;
         let idleFrames = 0;
+        let rect = null;                        // 缓存的卡片矩形（见下面 pointerenter）
 
         function tick() {
           // 插值逼近目标值
@@ -499,11 +557,20 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
           if (!raf) { idleFrames = 0; raf = requestAnimationFrame(tick); }
         }
 
+        /* ⚠ 矩形只在进卡片时量一次：
+           以前每次 pointermove 都 getBoundingClientRect()，
+           指针划过相册网格时等于每帧强制布局（no-op 掉一批合成）。
+           矩形在指针停留期间只会因为页面滚动 / 窗口变化而变，那两种
+           情况下面各挂了失效处理，够了。 */
+        card.addEventListener('pointerenter', () => { rect = null; }, { passive: true });
+        window.addEventListener('scroll', () => { rect = null; }, { passive: true });
+        window.addEventListener('resize', () => { rect = null; }, { passive: true });
+
         card.addEventListener('pointermove', (e) => {
-          const r = card.getBoundingClientRect();
-          if (!r.width || !r.height) return;
-          const px = (e.clientX - r.left) / r.width;    // 0~1
-          const py = (e.clientY - r.top) / r.height;
+          if (!rect) rect = card.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const px = (e.clientX - rect.left) / rect.width;    // 0~1
+          const py = (e.clientY - rect.top) / rect.height;
 
           target.ry = (px - 0.5) * MAX_TILT * 2;        // 左右 → 绕 Y 轴
           target.rx = (0.5 - py) * MAX_TILT * 2;        // 上下 → 绕 X 轴
@@ -536,7 +603,11 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
     try {
       if (prefersReduced) return;
 
-      const CLICKABLE = 'a, button, .post, .gallery-item, .video-card, .panel, .filter-btn, .tag';
+      /* ⚠ 只认"真的是个控件"的东西。
+         以前清单里还带 .post / .video-card / .panel —— 于是点一下任何
+         卡片空白处都会在卡片上炸开一圈玫红涟漪，跟卡片自己的悬停上浮
+         抢戏，看着很吵。现在卡片只给光标反馈（OPEN），不再放涟漪。 */
+      const CLICKABLE = 'a, button, .filter-btn, .tag, [role="button"]';
       let layer = null;
 
       function ensureLayer() {
@@ -558,9 +629,10 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
       function onClickFx(e) {
         if (e.button != null && e.button !== 0) return;   // 只认左键
         const now = Date.now();
-        // 去重：pointerdown 与 mousedown 常常前后脚都到，120ms 内只放一次
-        // （真人双击间隔通常 >150ms，所以不会误吞）
-        if (now - lastFx < 120) return;
+        // 去重：pointerdown 与 mousedown 常常前后脚都到，60ms 内只放一次。
+        // （窗口从 120ms 收到 60ms：这两个事件本来就是同一瞬间到达的，
+        //   120ms 会把用户真实的快速连点也吞掉。）
+        if (now - lastFx < 60) return;
         lastFx = now;
 
         const hit = e.target && e.target.closest && e.target.closest(CLICKABLE);
@@ -607,40 +679,38 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   }
 
   /* =========================================================
-   *  ⑦ 光标进阶：磁吸 + 滚动拉长
+   *  ⑦ 滚动状态标记（全站一处，供 CSS 使用）
    *  ---------------------------------------------------------
-   *  在原有"点 + 阻尼圈"的基础上补两件事：
-   *    · 磁吸：靠近可点元素时，圈被吸过去并放大
-   *    · 滚动时圈拉长成胶囊，停下再变回圆
+   *  页面上很多过渡是"慢工出细活"型的（浮现 0.68s、卡片 0.32s…），
+   *  静止时它们很舒服，**滚动时**却会拖住整个画面：
+   *  过渡要花 0.68s 去追一个一直在变的滚动位置，看起来就是发飘、跟手差。
    *
-   *  单独一个 observer，不改 initCursor 内部逻辑 ——
-   *  这样万一这里出错，原来的光标照常工作。
+   *  所以这里只做一件事：滚动期间给 <html> 打上 data-scrolling，
+   *  停下 160ms 后摘掉。style.css 里用
+   *  `html.reveal[data-scrolling] …` 把过渡时长归零 ——
+   *  滚的时候干脆利落，停下来该有的淡入一点都不少。
+   *
+   *  只在这里维护这一个标记：以前分散在 index.astro / Gate.astro 各写一份，
+   *  两个 setTimeout 会互相踩，标记忽有忽无。
    * ======================================================= */
 
-  function initCursorExtras() {
+  function startScrollFlag() {
     try {
       if (prefersReduced) return;
-      const fine = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-      if (!fine) return;
+      if (document.documentElement.dataset.scrollFlag === '1') return;   // 幂等
+      document.documentElement.dataset.scrollFlag = '1';
 
-      let lastY = window.scrollY;
-      let scrollStopTimer = 0;
-      let stretch = 0;
+      const IDLE = 160;
+      let timer = 0;
 
       window.addEventListener('scroll', () => {
-        const dy = Math.abs(window.scrollY - lastY);
-        lastY = window.scrollY;
-        // 滚得越快拉得越长，上限收住别太夸张
-        stretch = Math.min(1, stretch + dy / 160);
-        document.documentElement.style.setProperty('--cur-stretch', stretch.toFixed(3));
-
-        clearTimeout(scrollStopTimer);
-        scrollStopTimer = setTimeout(() => {
-          stretch = 0;
-          document.documentElement.style.setProperty('--cur-stretch', '0');
-        }, 180);
+        document.documentElement.dataset.scrolling = '1';
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          delete document.documentElement.dataset.scrolling;
+        }, IDLE);
       }, { passive: true });
-    } catch (e) { /* 忽略 */ }
+    } catch (e) { /* 忽略：这只是优化，出错不影响别处 */ }
   }
 
   /* =========================================================
@@ -659,11 +729,11 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   function bootMotion() {
     initMenu();                 // 下拉菜单（幂等，重复调用安全）
     startReveal();
+    startScrollFlag();          // 滚动期间关掉"慢过渡"（全站一处）
     if (!document.querySelector('.cur-ring')) initCursor();
     startNavIndicator();
     initCardTilt();             // 新的卡片在换页后要重新绑定
     initClickFx();
-    initCursorExtras();
   }
 
   // 换页刚开始（新 DOM 已换入、脚本还没跑）：如果鼠标圈被换掉了，

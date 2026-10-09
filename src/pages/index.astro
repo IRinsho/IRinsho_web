@@ -86,17 +86,18 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     */}
     <canvas class="gate-field" id="gateField" aria-hidden="true"></canvas>
 
-    {/* ①b 漂浮粒子：10 个上浮的光点（纯 CSS 关键帧，零素材） */}
+    {/* ①b 漂浮粒子：10 个上浮的光点（纯 CSS 关键帧，零素材）
+        ⚠ 外面这层 .gate-dust 是必要的：.gate-particles 承接鼠标视差（transform），
+          .gate-dust 承接滚动位移（translate）。挤在一个元素上的话会互相顶掉。 */}
     <div class="gate-particles" aria-hidden="true">
-      {[...Array(10)].map((_, i) => (
-        <i
-          style={`left:${(i * 9.7 + 4).toFixed(1)}%;--dx:${(i % 2 ? -1 : 1) * (10 + i * 2)}px;--dy:${52 + (i % 5) * 9}vh;--dur:${19 + (i % 6) * 3}s;--delay:${(i * 1.7).toFixed(1)}s`}
-        />
-      ))}
+      <div class="gate-dust">
+        {[...Array(10)].map((_, i) => (
+          <i
+            style={`left:${(i * 9.7 + 4).toFixed(1)}%;--dx:${(i % 2 ? -1 : 1) * (10 + i * 2)}px;--dy:${52 + (i % 5) * 9}vh;--dur:${19 + (i % 6) * 3}s;--delay:${(i * 1.7).toFixed(1)}s`}
+          />
+        ))}
+      </div>
     </div>
-
-    {/* ④ 黑场节拍：滚到中段时闪一下，模仿源站的"剧情节拍" */}
-    <span class="gate-flash" aria-hidden="true"></span>
 
     <div class="gate-inner">
       <p class="gate-kicker">CHAPTER 00 / OPENING</p>
@@ -185,10 +186,23 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
 
     /* =========================================================
      *  首屏舞台：滚动进度 → CSS 变量
-     *  · --gate-p 从 0 到 1：主视觉缓慢推近并淡出、终幕画面淡入揭晓
-     *  · 顶部进度轨跟着走
-     *  · 全部用 requestAnimationFrame 节流，避免滚动时掉帧
-     *  · 系统开了「减少动态效果」→ 不绑任何东西，直接静态显示主视觉
+     *  ---------------------------------------------------------
+     *  · --gate-p     0~1：主视觉淡出用的进度
+     *  · --gate-ty    竖向位移（px）：写在外层 .gate-bg / .gate-dust 上
+     *  · --mx / --my  指针位置（-0.5~0.5）：分层视差用
+     *
+     *  ⚠ 这一版把"发飘/发糊"的三个根因都拆掉了：
+     *    1. 以前 --gate-p 每帧都在变，CSS 那边却给 .gate-hero 挂了
+     *       `transition: opacity .7s` —— 每帧重新起一次永远走不完的过渡，
+     *       于是它永远在"追"滚动位置。现在位移改由这里插值（lerp）后
+     *       再写进去：连续、有阻尼、可直接预期。
+     *    2. 以前缩放写在 .gate-hero 上（scale(1 + p*.08)），
+     *       1253×830 的大图每帧重新栅格化 → 画面发软。现在只做
+     *       translate3d 位移（纯合成，不动画质），而且幅度收了一半。
+     *    3. 以前滚动时整页内容的浮现过渡还在跑（0.68s 追滚动位置）。
+     *       现在滚动期间 <html> 上会有 data-scrolling（由 Base.astro 的
+     *       startScrollFlag 统一打），CSS 那边把过渡时长归零 ——
+     *       静止进场的手感保留，滚动期间干脆利落。
      * ======================================================= */
     function initGate() {
       const reduce = window.matchMedia &&
@@ -196,69 +210,106 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       const gate = document.getElementById('homeGate');
       const rail = document.getElementById('gateRail');
 
-      // ⚠ 防重复绑定：换页返回时 Astro 会把这段脚本再跑一遍，
-      //   不拦一下就会叠加一堆 scroll / mousemove 监听
+      // ⚠ 防重复绑定：换页返回时 Astro 会把这段脚本再跑一遍
       if (!gate || gate.dataset.gateBound === '1') return;
       gate.dataset.gateBound = '1';
 
       if (reduce) {
         gate.style.setProperty('--gate-p', '0');
-        if (rail) rail.style.opacity = '0';
+        gate.style.setProperty('--gate-ty', '0px');
+        gate.style.setProperty('--gate-ty-dust', '0px');
+        if (rail) rail.style.display = 'none';
         return;
       }
 
+      const DAMP = 0.16;       // 滚动插值系数：越大越跟手
+      const LERP = 0.12;       // 指针插值系数
+      const TY_BG = 44;        // 滚动到底时背景上移多少 px
+      const TY_DUST = 92;      // 粒子层（分层更明显）
+
+      const scroll = { p: 0, cur: 0 };
+      const ptr = { x: 0, y: 0, cx: 0, cy: 0 };
+      let sraf = 0;
+      let praf = 0;
       let ticking = false;
 
-      function update() {
-        ticking = false;
-        const h = gate.offsetHeight || 1;
-        // 滚过大约一屏就基本揭晓完毕
-        const p = Math.min(1, Math.max(0, window.scrollY / (h * 0.85)));
-        gate.style.setProperty('--gate-p', p.toFixed(3));
-
-        // ④ 黑场节拍已去掉：实际看着像"闪一下"，像故障而不像节拍
-        gate.style.setProperty('--flash', '0');
-
-        // ⑤ 光带扫过已删掉：横向平移不够、角度又接近垂直，
-        //    静止时看着就是一道突兀的白竖条，不如不要
-        gate.style.setProperty('--sweep', '0');
-
-        // 进度轨：整页滚动进度（含页面总高度）
-        if (rail) {
-          const doc = document.documentElement;
-          const total = Math.max(1, doc.scrollHeight - window.innerHeight);
-          rail.style.setProperty('--rail', (window.scrollY / total).toFixed(4));
-        }
+      function writeTy() {
+        gate.style.setProperty('--gate-ty', (-scroll.cur * TY_BG).toFixed(2) + 'px');
+        gate.style.setProperty('--gate-ty-dust', (-scroll.cur * TY_DUST).toFixed(2) + 'px');
       }
 
-      /* ③ 鼠标视差：把指针位置换算成 -0.5~0.5 的 --mx / --my，
-         CSS 里再乘不同系数（背景小、粒子大）做出纵深 */
-      window.addEventListener('mousemove', (e) => {
+      function readScroll() {
+        const h = gate.offsetHeight || 1;
+        scroll.p = Math.min(1, Math.max(0, window.scrollY / (h * 0.85)));
+      }
+
+      /* 插值尾巴：一直追到足够接近目标才停，不做无意义的空转 */
+      function tail() {
+        const d = scroll.p - scroll.cur;
+        if (Math.abs(d) < 0.0015) {
+          scroll.cur = scroll.p;
+          sraf = 0;
+        } else {
+          scroll.cur += d * DAMP;
+          sraf = requestAnimationFrame(tail);
+        }
+        gate.style.setProperty('--gate-p', scroll.cur.toFixed(4));
+        writeTy();
+      }
+
+      /* 指针视差：pointermove 只记坐标，真正写变量在 rAF 里做 */
+      function loop() {
+        ptr.cx += (ptr.x - ptr.cx) * LERP;
+        ptr.cy += (ptr.y - ptr.cy) * LERP;
+        gate.style.setProperty('--mx', ptr.cx.toFixed(4));
+        gate.style.setProperty('--my', ptr.cy.toFixed(4));
+        if (Math.abs(ptr.x - ptr.cx) < 0.0006 && Math.abs(ptr.y - ptr.cy) < 0.0006) {
+          ptr.cx = ptr.x;
+          ptr.cy = ptr.y;
+          praf = 0;
+          return;
+        }
+        praf = requestAnimationFrame(loop);
+      }
+
+      window.addEventListener('pointermove', (e) => {
         const r = gate.getBoundingClientRect();
         if (r.bottom < 0 || r.top > window.innerHeight) return;   // 不在视野里就不算
-        const mx = (e.clientX / window.innerWidth - 0.5).toFixed(3);
-        const my = (e.clientY / window.innerHeight - 0.5).toFixed(3);
-        gate.style.setProperty('--mx', mx);
-        gate.style.setProperty('--my', my);
+        ptr.x = e.clientX / window.innerWidth - 0.5;
+        ptr.y = e.clientY / window.innerHeight - 0.5;
+        if (!praf) praf = requestAnimationFrame(loop);
       }, { passive: true });
 
       function onScroll() {
+        /* 注：不再在这里打 html[data-scrolling] ——
+           那个标记统一由 Base.astro 的 startScrollFlag() 维护。
+           两处各写一份 setTimeout 会互相踩，标记忽有忽无。 */
         if (ticking) return;
         ticking = true;
-        requestAnimationFrame(update);
+        requestAnimationFrame(() => {
+          ticking = false;
+          readScroll();
+
+          // 顶部进度轨：整页滚动进度（含页面总高度）
+          if (rail) {
+            const doc = document.documentElement;
+            const total = Math.max(1, doc.scrollHeight - window.innerHeight);
+            rail.style.setProperty('--rail', (window.scrollY / total).toFixed(4));
+          }
+
+          if (!sraf) sraf = requestAnimationFrame(tail);
+        });
       }
 
       window.addEventListener('scroll', onScroll, { passive: true });
       window.addEventListener('resize', onScroll, { passive: true });
-      update();
 
-      // 主视觉预载完之后再让它淡入（避免材质没到就先放大露白边）
-      const probe = new Image();
-      probe.onload = () => gate.classList.add('is-ready');
-      probe.onerror = () => gate.classList.add('is-ready');
-      probe.src = (getComputedStyle(gate).getPropertyValue('--hero') || '')
-        .replace(/^url\(["']?/, '').replace(/["']?\)$/, '').trim();
-      setTimeout(() => gate.classList.add('is-ready'), 2500);   // 兜底
+      // 初始状态：立刻落到当前滚动位置（刷新时停在页面中间也不会跳一下）
+      readScroll();
+      scroll.cur = scroll.p;
+      gate.style.setProperty('--gate-p', scroll.cur.toFixed(4));
+      writeTy();
+      onScroll();
     }
 
     /* 首次加载 + 每次换页返回都要重新初始化
