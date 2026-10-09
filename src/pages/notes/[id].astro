@@ -31,9 +31,18 @@ const header =
   '<h1>' + escapeHtml(note.title) + '</h1>' +
   (note.summary ? '<blockquote><p>' + escapeHtml(note.summary) + '</p></blockquote>' : '');
 
+/* ⚠ 标签以前是 <span class="chip">，长得能点、实际是死的 ——
+   用户反馈的"分类标签点不了"就是这里。现在是真的链接：
+   点一下回到笔记列表并自动按这个标签过滤（列表页读 ?q=，见 notes/index.astro）。
+   tag 里可能有空格 / 特殊字符，一律 encodeURIComponent。 */
 const tagsHtml = (note.tags && note.tags.length)
   ? '<div class="chips">' +
-    note.tags.map((t) => '<span class="chip">#' + escapeHtml(t) + '</span>').join('') +
+    note.tags.map((t) => {
+      const tag = String(t).trim();
+      return '<a class="chip chip--link" href="' + asset('notes/') + '?q=' +
+        encodeURIComponent(tag) + '" title="看所有带「' + escapeHtml(tag) + '」的笔记">#' +
+        escapeHtml(tag) + '</a>';
+    }).join('') +
     '</div>'
   : '';
 

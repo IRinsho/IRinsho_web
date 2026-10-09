@@ -112,8 +112,46 @@ button, input { font: inherit; color: inherit; }
   border-radius: var(--radius-sm);
   color: var(--ink-2);
 }
+/* ⚠ 文章页的标签现在是真链接（以前是点不动的 <span>）。
+   要给足"这是能点的"暗示：手型光标 + 悬停变色描边。
+   用 :where() 保持低优先级，免得盖掉别处对 .chip 的定制。 */
+.chip--link {
+  cursor: pointer;
+  transition: color .2s ease, border-color .2s ease, background .2s ease;
+}
+@media (hover: hover) {
+  .chip--link:hover {
+    color: #fff;
+    border-color: var(--rose);
+    background: var(--rose-dim);
+  }
+}
+.chip--link:focus-visible {
+  outline: 2px solid var(--rose);
+  outline-offset: 2px;
+}
 .empty { color: var(--ink-3); text-align: center; padding: 70px 0; letter-spacing: .1em; font-size: 13.5px; }
 .empty code { font-family: var(--font-mono); color: var(--rose); }
+/* 筛到什么都没有时的那一行：别只留一片空白（那看起来就像"坏了"） */
+.empty-reset {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 3px 12px;
+  border: 1px solid var(--rose-dim);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--rose-2);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: .08em;
+  cursor: pointer;
+  transition: background .2s ease, border-color .2s ease, color .2s ease;
+}
+@media (hover: hover) {
+  .empty-reset:hover { background: var(--rose-dim); border-color: var(--rose); color: #fff; }
+}
+/* 计数归零时染成玫红，让"筛掉了"这件事在数字上也能看见 */
+.blog-count[data-zero='1'] { color: var(--rose); }
 
 .icon-btn {
   width: 36px; height: 36px;
@@ -1065,60 +1103,58 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 .gate-bg { position: absolute; inset: 0; z-index: 0; }
 
 /* =========================================================
- *  开场（Opening）—— 一次明确的开幕动作，不是"轻微淡入"
+ *  开场（Opening）—— 由两件事组成
  *  ---------------------------------------------------------
- *  上一版我写的是 scale 1.09 → 1（1.5s），力度太小：90%→100% 的缩放
- *  在真实屏幕上基本看不出来，等于没做开场。现在改成两件事同时发生：
+ *    ① 背景极慢地推近：scale 1.22 → 1（2.2s）　← 就是下面这条
+ *    ② 主视觉从虚焦拉到实焦：blur 16px → 0　　← 见下面 gateFocusIn
  *
- *    ① 一块接近页面底色的幕布（.gate-bg::after）盖住主视觉，
- *       等 0.3s 后整块向上提起 22% + 淡出 → "帷幕拉开"
- *    ② 主视觉自己在演一个很慢的 Ken Burns：1.12 → 1（1.9s）
- *
- *  ⚠ 幕布是**纯 CSS** 的（Pseudo-Element + animation，不依赖 JS）。
- *     脚本挂了、IO 没触发，它照样会自己播完并停在 opacity:0 ——
- *     最坏情况只是"没看到开场"，绝不会糊住首屏。
- *  ⚠ 幕布必须是 .gate-bg::after（不是 .gate-bg 自己）：
- *     .gate-bg 的 animation 已经给入场用了，一个元素只能有一条 animation。
- *  ⚠ .gate-bg 上不放 transform —— 指针视差挪到 .gate-hero 和 .gate-dust，
- *     这样 .gate-bg 只负责"缩放 + 幕布"两件事，互不打架。
+ *  ⚠ .gate-bg 上**不再有**遮罩类伪元素（历史上那块"幕布"已经删掉）。
+ *     原因写在下面 gateFocusIn 那一段里：深色幕布压深色页面看不出开场，
+ *     而且"遮住内容"的东西一旦出错就是整屏空白。
+ *  ⚠ .gate-bg 上不放 transform —— 指针视差挪到 .gate-hero 和 .gate-dust。
  * ======================================================= */
-.gate-bg { animation: gateBgIn 1.6s cubic-bezier(.16, .84, .3, 1) both; }
+.gate-bg { animation: gateBgIn 2.2s cubic-bezier(.16, .84, .3, 1) both; }
 @keyframes gateBgIn {
-  /* ⚠ 1.12 → 1 在 1440px 宽的窗口上只有 ~70px 的位移，人是看不出来的。
-     改成 1.22 → 1（约 130px），配合幕布提起，才有"推近"的观感。 */
+  /* 1.22 → 1：1440px 宽上约 130px 位移，够看出"推近"。
+     （原来 1.12 只有 70px，肉眼看不出来） */
   from { scale: 1.22; }
   to   { scale: 1; }
 }
-.gate-bg::after {
-  content: '';
-  position: absolute;
-  /* ⚠ 四周各留出一截（不是 inset:0）：幕布要能整块往上退出画面，
-     留出 30% 的余量，translate 到 -100% 时才会彻底离开。 */
-  inset: -30% 0 0 0;
-  z-index: 5;                                   /* 在压暗层之上，幕布要是整块的 */
-  /* ⚠ 底边羽化：这是这一版最关键的一处观感修正。
-     实测发现幕布"整体上移"时，下沿会在画面正中切出一条**硬边**
-     （不透明幕布 / 亮插画 的 1px 分界）—— 那看着就是"加载进度条走了一半"，
-     完全不像开幕。改成底部 40% 渐隐之后，幕布像是"从下方揭起来"的，
-     没有分界线，露出来的画面是渐渐多起来的。 */
-  background: linear-gradient(180deg,
-    rgba(20, 24, 46, .97) 0%,
-    rgba(15, 18, 36, .97) 34%,
-    rgba(11, 13, 28, .96) 52%,
-    rgba(11, 13, 28, .72) 72%,
-    rgba(11, 13, 28, .34) 88%,
-    rgba(11, 13, 28, 0) 100%);
-  /* 节奏：压住约 0.5s（15% + 1000×15% = 300ms）→ 1.05s 内揭起 */
-  animation: gateCurtain 1.2s cubic-bezier(.55, 0, .2, 1) .15s both;
+
+/* =========================================================
+ *  开场：**焦点式**（画面由虚到实）
+ *  ---------------------------------------------------------
+ *  前几版用的是"幕布"：一块深色盖住首屏再抬走。
+ *  实测证明这条路走不通，两个原因：
+ *    1. 站本身就是深色底，深色幕布压上去"什么都看不出来"——
+ *       动画确实在跑（用 CDP 采到幕布 opacity 1→0、translate 0→-100%），
+ *       但观感上就是"页面加载完了"，甚至被当成"主视觉挂了"
+ *    2. 它是"遮住内容"的东西，一旦某处出错就是整屏空白 ——
+ *       这套代码历史上已经因为遮挡出过两次故障
+ *
+ *  现在换成完全不遮挡的做法：**一张图从虚焦拉到实焦**。
+ *    · 主视觉 opacity 全程由一条规则负责，**绝不参与开场**
+ *      （历史故障就是把 opacity 交给动画，被中断后永久淡成 0）
+ *    · 开场只动三件事：背景轻微推近、画面从 blur 拉清楚、
+ *      压暗层与氛围层从"几乎没有"缓缓落到静止状态
+ *    · 观感上像镜头对上焦、也像画面在眼前"定下来" —— 不需要任何遮罩
+ *    · 任何一层出问题，最坏结果都只是"画面偏亮/偏虚"，内容永远在
+ * ======================================================= */
+.gate-hero {
+  background-image: var(--hero);
+  opacity: max(.15, calc(1 - var(--gate-p, 0) * .9));
+  /* blur 从 16px 拉到 0，同时亮度落回 1：这就是整个开场的主角 */
+  animation: gateFocusIn 1.25s cubic-bezier(.2, .62, .25, 1) .1s both;
+  will-change: opacity, filter;
 }
-@keyframes gateCurtain {
-  from { opacity: 1; translate: 0 0; }
-   15% { opacity: 1; }
-  to   { opacity: 0; translate: 0 -100%; }
+@keyframes gateFocusIn {
+  from { filter: blur(16px) brightness(1.14) saturate(1.06); }
+  60%  { filter: blur(2.5px) brightness(1.03) saturate(1.03); }
+  to   { filter: blur(0) brightness(1) saturate(1); }
 }
 
 /* 主视觉层：cover 铺满
-   ⚠ 滚动淡出由 --gate-p 负责（.gate-hero 那条规则里），这里只管开场 */
+   ⚠ 滚动淡出由 --gate-p 负责（见上面 .gate-hero 那条唯一规则） */
 .gate-layer {
   position: absolute;
   inset: -3%;
@@ -1126,59 +1162,39 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   background-size: cover;
   background-repeat: no-repeat;
 }
-/* ⚠ 主视觉的 opacity：**只有这一条规则说了算**。
+/* ⚠ 主视觉的 opacity：**只有一条规则说了算**（就在上面 .gate-hero 里）。
    ---------------------------------------------------------
-   这一版修的是一个"把主视觉永久锁死成透明"的 bug，成因是这样叠出来的：
+   这里曾经是第二次踩同一个坑的地方，记录下来避免以后再犯：
 
-     ① 原来这里有一条独立的 `.gate-hero { animation: gateHeroIn … both }`，
-        而基础规则里是 `opacity: calc(1 - var(--gate-p) * .9)`
-     ② `both` 填充 + 延迟 ⇒ 动画开始前就先用 from 的值（0），
-        所以每次加载的前 0.4 秒主视觉本来就是空的
-     ③ 用户只要在那 1.75 秒里滚一下，脚本就给 .gate 打上 data-opened，
-        CSS 里 `animation: none !important` 把整条动画撤掉
-     ④ opacity 落回基础值 calc(1 - p * .9)，而接近顶部时它就是 0
-     ⑤ 结果：主视觉永久是 0，整个首屏只剩氛围层的深蓝渐变（截图那样）
+     ① 基础规则写 `opacity: calc(1 - var(--gate-p) * .9)`
+     ② 另外又给同一个元素加了一条 `animation: gateHeroIn … both`，
+        而它的 from 是 `calc(1 - var(--gate-p)*.9 - .72)` ——
+        在页面顶部 p=0 时这个算式等于 -0.72，被钳成 0
+     ③ `both` + 延迟 ⇒ 动画开始前就先用 from 的值（0）
+     ④ 用户在动画播完前滚一下 → 脚本打上 data-opened →
+        `animation: none !important` 撤掉动画 → opacity 落回基础值
+     ⑤ 基础值在顶部就是 0 ⇒ **主视觉永久透明**，整屏只剩氛围层的深蓝
 
-   现在把入场透明度整个删掉：
-     · 开场由幕布（.gate-bg::after）负责 —— 它本来就是"整块盖住再提起"，
-       主视觉不需要自己再淡入一次，多一个 opacity 来源就多一次踩踏机会
-     · 透明度只服务于滚动淡出，并且**设了下限 .15**：
-       最坏情况是"淡到很暗"，永远不会淡成 0 —— 一张图看不见是灾难，
-       暗一点只是设计
-   如果以后还想给主视觉加入场淡入，请用**外层包裹元素**的 opacity，
-   不要再往这个元素上叠第二条 opacity 规则。 */
-.gate-hero {
-  background-image: var(--hero);
-  opacity: max(.15, calc(1 - var(--gate-p, 0) * .9));
-  /* 开场时这张图是"亮的、清的"，压暗层落下之后才沉到静态的暗调。
-     下压由 .gate-veil / .gate-atmosphere 的入场完成，这里只把底子提一点。
-     ⚠ 不要再给这个元素加 opacity 动画（历史上就是这么把主视觉淡成 0 的）。 */
-  filter: brightness(1.06) saturate(1.04);
-  will-change: opacity;
-}
+   两条规矩：
+     · opacity 只能有一个来源（现在只服务于滚动淡出，并设了下限 .15）
+     · 开场**不许动 opacity** —— 用 blur / 位移 / 压暗层来做，
+       这样任何一层出错，最坏也只是"偏亮偏虚"，内容永远在 */
 
 /* 压暗层：只压够文字可读的程度。之前压得太重（上 .62 / 下 .88），
    深色主视觉会被压成一团糊 —— 现在上 .32 / 下 .68，画面能看清楚了
 
-   ⚠ 这一层现在**带入场**，这是整个开场最关键的一处修正。
-   先说清楚之前的净效果（用无头 Edge 实测出来的）：
-     · t≈0.15s  幕布盖着，而幕布底下那张图的亮度是 100%
-     · t≈1.6s   幕布提起、压暗层和氛围层一起压上来 → 图掉到约 40%
-   也就是"先给你看一眼亮图，再压暗" —— 观感上根本不是开场。
-   现在改成：开场时压暗层几乎不存在（画面是亮的、清的），
-   等幕布提起之后（0.5s 起）再用 1.6s 慢慢落下来，
-   落定后就是原来那套安静的静态暗调。 */
+   ⚠ 这一层现在是**静态终态**，不带动画。
+   曾经让它从 .18 淡到 1（想做出"开场亮、之后沉下来"），实测虽然生效，
+   但它带来两个新问题：
+     · 开场那 0.5 秒里画面很亮、文字对比度不足（标题是白字压亮插画）
+     · 一旦被 data-opened 中断，规则失效会让它瞬间跳变 —— 画面突然变暗
+   所以"由亮到暗"这件事改由主视觉自己的 blur / brightness 动画承担
+   （见 .gate-hero 的 gateFocusIn），这一层老实当静态压暗。 */
 .gate-veil {
   position: absolute; inset: 0;
   background:
     linear-gradient(180deg, rgba(9, 11, 22, .32) 0%, rgba(9, 11, 22, .06) 42%, rgba(9, 11, 22, .68) 100%),
     radial-gradient(120% 80% at 50% 0%, transparent 46%, rgba(9, 11, 22, .3) 100%);
-  opacity: .18;
-  animation: gateVeilIn 1.6s cubic-bezier(.3, .1, .25, 1) .5s both;
-}
-@keyframes gateVeilIn {
-  from { opacity: .18; }
-  to   { opacity: 1; }
 }
 
 .gate-inner {
@@ -1196,24 +1212,23 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
    现在改成元素自己的入场动画：一帧都不会等，也不会和滚动进度抢属性。
    缓动统一 cubic-bezier(.2, .7, .2, 1)：起手快、收尾稳。
 
-   ⚠ 时间轴照着"幕布拉开"排（幕布 .3s 起、1.45s 落）：
-     0.55s kicker → 0.72s 大标题 → 1.05s 副标题 → 1.20s 滚动指示
-     标题那 0.72s 落在幕布走到一半的位置，正好是"字从幕布后面长出来"。
-     上一版是 0.34 / 0.44 / 0.72 / 0.88——全挤在幕布还没动的时候，
-     所以看上去只是"页面加载完了"，没有开场。
-   粒子的漂移层 .gate-dust 也一起延后到 0.6s（见下面那一段）。 */
+   ⚠ 时间轴跟着"画面对上焦"那条走（.gate-hero 的 gateFocusIn：
+      0.1s 起、1.35s 落，前 60% 就把 blur 从 16px 收到 2.5px）：
+        0.32s kicker → 0.42s 大标题 → 0.72s 副标题 → 0.84s 滚动指示
+      —— 字在画面"逐渐清晰"的过程中陆续出现，而不是等画面定死再一起冒。
+      四个错开约 0.1~0.3s，节奏是"先小字、再大字、再说明、最后提示"。 */
 @keyframes gateKickerIn {
-  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
   to   { opacity: 1; transform: none; }
 }
 @keyframes gateTextIn {
-  from { opacity: 0; transform: translate3d(0, 26px, 0); filter: blur(9px); }
-  to   { opacity: 1; transform: none; filter: blur(0); }
+  from { opacity: 0; transform: translate3d(0, 20px, 0); }
+  to   { opacity: 1; transform: none; }
 }
 
-.gate-kicker { animation: gateKickerIn .72s cubic-bezier(.2, .7, .2, 1) .34s both; }
-.gate-sub    { animation: gateTextIn .82s cubic-bezier(.2, .7, .2, 1) .86s both; }
-.gate-scroll { animation: gateTextIn .82s cubic-bezier(.2, .7, .2, 1) .98s both; }
+.gate-kicker { animation: gateKickerIn .62s cubic-bezier(.2, .7, .2, 1) .32s both; }
+.gate-sub    { animation: gateTextIn .72s cubic-bezier(.2, .7, .2, 1) .72s both; }
+.gate-scroll { animation: gateTextIn .72s cubic-bezier(.2, .7, .2, 1) .84s both; }
 /* ⚠ 文字层级要压在氛围层（z-index:3）之上。
    参考站里 .kisara-gate-atmosphere 是盖在标题上的（它靠更重的压暗来
    统一画面），但这里的主视觉是插画、文字是白色大标题 ——
@@ -1224,8 +1239,10 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
    ⚠ 以前是两个来源：opacity/位移来自 Base.astro 的 IntersectionObserver
    （要等回调，晚一帧才加 .is-in），clip-path 来自 .is-in 触发的 gateEnchant。
    两者起跑时间不一致，开场就"先看见字、再重新揭晓一次"。
-   现在合成一条、延迟写死在动画里 —— 不需要任何 JS，时间也不会错位。 */
-.gate-title  { animation: gateTitleIn 1.02s cubic-bezier(.22, .61, .36, 1) .5s both; }
+   现在合成一条、延迟写死在动画里 —— 不需要任何 JS，时间也不会错位。
+   ⚠ 注意区别：这里动的是**标题文字**，不是主视觉画面。
+     主视觉那边严禁用 opacity 做开场（见 .gate-hero 上方的长注释）。 */
+.gate-title  { animation: gateTitleIn .92s cubic-bezier(.22, .61, .36, 1) .42s both; }
 
 /* ⚠ 顺序要紧：标题排在 kicker 和 sub 之间（0.44s 起、1.5s 落） */
 .gate-kicker {
@@ -1307,30 +1324,25 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
   .gate-rail { display: none; }
 }
 
-/* ⚠ 一滚动就立刻结束开场。
+/* ⚠ 一滚动就结束开场。
    ---------------------------------------------------------
    index.astro / Gate.astro 的脚本在第一次真实滚动时给 .gate 打上
    data-opened（**一次性**，不再摘掉；滚动期间另外打 data-scrolling）。
 
-   为什么必须是一次性的：
-   这些进场动画都是 `both` 填充的一次性动画，从第 0 帧就占着 opacity 不放。
-   用户手快、在开场还没演完时就往下滚，滚动写进来的透明度会被动画终值
-   压住 —— 表现为"首屏淡不掉"。所以一滚动就把它结束掉。
+   为什么必须是一次性的：这些进场动画都是 `both` 填充的一次性动画，
+   从第 0 帧就占着属性不放；写成"滚动时禁用、停下再恢复"的话，
+   规则一失效浏览器会把动画当新动画重套一遍，从 0% 再来一次。
 
-   而**不能**用"滚动时禁用、停下再恢复"的写法：
-   动画被 `animation: none` 掐掉之后，一旦这条规则失效（类名被摘掉），
-   浏览器会把那条动画当作**新动画**重新套用，于是从 0% 再来一遍 ——
-   表现就是回到顶部时首屏内容"fade 回去又淡出来"，比原来更糟。
-   一次性标记没有这个问题：套用过的动画不会被重新创建。 */
-.gate[data-opened] .gate-hero,
+   ⚠ 名单里**故意没有** .gate-hero / .gate-veil / .gate-atmosphere：
+     它们是"画面本身"，中断只会让画面突然变清晰或突然变亮 ——
+     那是从"开场"直接跳到"结束"，比让它自己播完难看。
+     让它们安静播完即可（都不影响可读性）。
+   这里只掐"文字类"和"装饰类"，它们中途结束的观感就是"直接到位"。 */
 .gate[data-opened] .gate-title,
 .gate[data-opened] .gate-kicker,
 .gate[data-opened] .gate-sub,
 .gate[data-opened] .gate-scroll,
 .gate[data-opened] .gate-bg,
-.gate[data-opened] .gate-bg::after,
-.gate[data-opened] .gate-veil,
-.gate[data-opened] .gate-atmosphere,
 .gate[data-opened] .gate-dust { animation: none !important; }
 /* =========================================================
  *  ③ 鼠标视差 + 滚动位移（同一层上只剩这两件事）
@@ -1436,22 +1448,13 @@ html.js-motion .topbar { animation: barDrop .55s cubic-bezier(.22, .61, .36, 1) 
 .gate-atmosphere {
   position: absolute; inset: 0; z-index: 3;
   pointer-events: none;
-  /* ⚠ 数值比参考站轻得多。它那张底图是深色插画、压暗是为了统一画面；
-     这里的主视觉是白底插画，照抄它的强度会把人物整个吃掉 ——
-     第一版就是压太重，整屏糊成一片深蓝。
-     现在只保留"斜向一道冷光 + 很轻的暗角 + 底部稍微压暗"。
-   ⚠ 和 .gate-veil 一样带入场：开场从 0 开始，幕布提起之后再落下。
-     两层一起"淡进来"才是那种"画面在你眼前定下来"的开场感。 */
+  /* ⚠ 和 .gate-veil 一样：静态终态，不带动画。
+     "由亮到暗"统一交给主视觉的 gateFocusIn（blur + brightness）负责，
+     这样开场只有**一个**动画在描述画面，中断也不会跳变。 */
   background:
     linear-gradient(112deg, rgba(20, 25, 55, .10), rgba(20, 25, 55, 0) 46%, rgba(255, 190, 210, .05)),
     radial-gradient(at 50% 46%, transparent 52%, rgba(8, 10, 31, .07) 74%, rgba(8, 10, 31, .18) 100%),
     linear-gradient(rgba(7, 10, 31, .12), rgba(7, 10, 31, .04) 46%, rgba(7, 10, 31, .22));
-  opacity: 0;
-  animation: gateAtmosphereIn 1.6s cubic-bezier(.3, .1, .25, 1) .55s both;
-}
-@keyframes gateAtmosphereIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
 }
 
 /* 减少动态效果 / 窄屏：尘埃不要（省电也省视觉噪音），氛围层留着 */

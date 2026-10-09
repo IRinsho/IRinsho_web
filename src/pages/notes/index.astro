@@ -53,6 +53,10 @@ const countOf = (c) => (c === ALL ? notes.length : notes.filter((n) => n.categor
     ))}
   </div>
 
+  <p class="empty" id="notesEmpty" hidden>
+    没有匹配的笔记。<button type="button" class="empty-reset" id="notesReset">清除筛选</button>
+  </p>
+
   {notes.length === 0 && (
     <p class="empty">
       还没有笔记。用 Obsidian 打开 <code>blog/</code> 文件夹写一篇，然后运行 <code>npm run sync</code>。
@@ -60,47 +64,151 @@ const countOf = (c) => (c === ALL ? notes.length : notes.filter((n) => n.categor
   )}
 
   <script>
+    /* =========================================================
+     *  笔记列表：搜索 + 分类筛选
+     *  ---------------------------------------------------------
+     *  这一版修的三件事（都是"点了没反应"的真实来源）：
+     *
+     *  ① 标签深链失效
+     *     文章页的 #标签 以前是 <span>，点不动。改成链接之后会带
+     *     ?q=标签 回来，这里必须**在首屏就读一次 URL**，
+     *     否则点进来还是个"搜了没反应"的列表。
+     *
+     *  ② 反应慢
+     *     原来输入框有 120ms 防抖。数据就在 DOM 的 data-search 属性里，
+     *     过滤 9 张卡片是微秒级的事 —— 那 120ms 纯粹是白等的延迟，
+     *     打字快的时候还会觉得"吞字"。现在同步执行，输入即出结果。
+     *
+     *  ③ 筛完没反馈
+     *     全部被筛掉时页面只剩一根分类栏和一片空白，
+     *     看起来就像"坏了"。现在有一行明确的空状态 + 清除按钮，
+     *     计数也在同一帧更新。
+     * ======================================================= */
     const grid = document.getElementById('blogGrid');
     const input = document.getElementById('notesSearch');
     const countEl = document.getElementById('notesCount');
-    const cards = Array.from(document.querySelectorAll('.post'));
+    const filters = document.getElementById('blogFilters');
+    const emptyEl = document.getElementById('notesEmpty');
+    const resetEl = document.getElementById('notesReset');
+    const cards = grid ? Array.from(grid.querySelectorAll('.post')) : [];
     let cat = '全部';
 
+    // URL 里带 ?cat= 时也认（方便把"某个分类"直接分享出去）
+    function readUrl() {
+      const p = new URLSearchParams(location.search);
+      const q = (p.get('q') || '').trim();
+      const c = (p.get('cat') || '').trim();
+      if (q && input) input.value = q;
+      if (c && filters) {
+        const hit = Array.from(filters.querySelectorAll('button'))
+          .find((b) => b.dataset.cat === c);
+        if (hit) cat = c;
+      }
+    }
+
+    // 把当前筛选写回地址栏（replaceState：不往历史里塞垃圾，
+    // 刷新 / 分享 / 从文章页返回都还能保持筛选状态）
+    function syncUrl(q) {
+      try {
+        const p = new URLSearchParams();
+        if (q) p.set('q', q);
+        if (cat && cat !== '全部') p.set('cat', cat);
+        const qs = p.toString();
+        history.replaceState(null, '', qs ? '?' + qs : location.pathname);
+      } catch (e) { /* 某些内嵌浏览器禁用 history，忽略 */ }
+    }
+
     function apply() {
-      const q = (input.value || '').trim().toLowerCase();
+      const q = (input ? input.value : '').trim().toLowerCase();
       let shown = 0;
-      cards.forEach((el) => {
+      for (const el of cards) {
         const okCat = cat === '全部' || el.dataset.category === cat;
         const okQ = !q || (el.dataset.search || '').includes(q);
         const show = okCat && okQ;
         el.hidden = !show;
         if (show) shown++;
-      });
-      countEl.textContent = String(shown).padStart(2, '0') + ' SIGNALS';
+      }
+      if (countEl) {
+        countEl.textContent = String(shown).padStart(2, '0') + ' SIGNALS';
+        countEl.dataset.zero = shown === 0 ? '1' : '';
+      }
+      if (emptyEl) emptyEl.hidden = shown !== 0 || cards.length === 0;
+      if (filters) {
+        filters.querySelectorAll('button').forEach((b) => {
+          b.classList.toggle('active', b.dataset.cat === cat);
+        });
+      }
+      syncUrl(q);
     }
 
     if (grid) {
-      document.getElementById('blogFilters').addEventListener('click', (e) => {
-        const btn = e.target.closest('button');
-        if (!btn) return;
-        document.querySelectorAll('#blogFilters button').forEach((b) => b.classList.toggle('active', b === btn));
-        cat = btn.dataset.cat;
-        apply();
-      });
+      readUrl();
 
-      let timer = null;
-      input.addEventListener('input', () => {
-        clearTimeout(timer);
-        timer = setTimeout(apply, 120);
-      });
+      if (filters) {
+        filters.addEventListener('click', (e) => {
+          const btn = e.target.closest('button');
+          if (!btn) return;
+          cat = btn.dataset.cat || '全部';
+          apply();
+        });
+      }
+
+      if (input) {
+        // ⚠ 不用防抖：数据在 DOM 里，过滤是同步的，加延迟只会显得"没反应"
+        input.addEventListener('input', apply);
+        // 搜索框里的 × （type=search 自带）也要触发一次
+        input.addEventListener('search', apply);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') { input.value = ''; apply(); }
+        });
+      }
+
+      if (resetEl) {
+        resetEl.addEventListener('click', () => {
+          if (input) input.value = '';
+          cat = '全部';
+          apply();
+          if (input) input.focus();
+        });
+      }
+
+      /* ⚠ 兜底：把"清除筛选"也做一份事件委托绑在 document 上。
+         原因是这类按钮容易被别处的局部绑定漏掉（换页重建、被别的监听
+         stopPropagation 等）；委托在 document 上，换多少次页都还在。
+         用 dataset 打标记保证只绑一次。 */
+      if (!document.documentElement.dataset.notesResetBound) {
+        document.documentElement.dataset.notesResetBound = '1';
+        document.addEventListener('click', (e) => {
+          if (!e.target.closest || !e.target.closest('#notesReset')) return;
+          const box = document.getElementById('notesSearch');
+          if (box) box.value = '';
+          document.querySelectorAll('#blogFilters button').forEach((b, i) => {
+            b.classList.toggle('active', i === 0);
+          });
+          const cardsNow = document.querySelectorAll('#blogGrid .post');
+          cardsNow.forEach((el) => { el.hidden = false; });
+          const c = document.getElementById('notesCount');
+          if (c) { c.textContent = String(cardsNow.length).padStart(2, '0') + ' SIGNALS'; c.dataset.zero = ''; }
+          const em = document.getElementById('notesEmpty');
+          if (em) em.hidden = true;
+          try { history.replaceState(null, '', location.pathname); } catch (err) {}
+          if (box) box.focus();
+        });
+      }
 
       // 按 / 快速跳到搜索框
       document.addEventListener('keydown', (e) => {
-        if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+        const tag = (document.activeElement && document.activeElement.tagName) || '';
+        if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
           e.preventDefault();
-          input.focus();
+          if (input) input.focus();
         }
       });
+
+      // 换页回来（Astro 客户端路由）也要重新读一次 URL 并应用
+      document.addEventListener('astro:page-load', () => { readUrl(); apply(); });
+
+      apply();
     }
   </script>
 </Base>
