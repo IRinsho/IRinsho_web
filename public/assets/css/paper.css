@@ -1,0 +1,604 @@
+/* =========================================================
+ *  paper.css —— 首页「最近信号」浅色纸面段落 + 章节导航轨
+ *  ---------------------------------------------------------
+ *  这个文件是**新增层**：只定义自己的选择器（.paper-* / .chaprail）
+ *  和一组新的设计 token，不覆盖 style.css 里的任何既有规则。
+ *  所以它坏掉、或某个浏览器不支持某条属性时，老页面原样还在。
+ *
+ *  设计依据：参考站 yuimi-chaya.github.io（Kisara）的「Latest notes」段。
+ *  参考站首页靠明暗交替换气（深 → 白纸 → 深 → 浅灰 → 浅色 Latest → 深页脚）。
+ *  本站在此之前首页全是同一种深藏青，下半页没有换气点。
+ *
+ *  ⚠ 配色刻意**不抄**参考站的冷白（#ffffff / #edf1f0），
+ *    而是用本站 :root 里已有的暖纸（--paper-ink / --paper-rose）。
+ *    那两个色是个人页 ME 一直在用的同一套纸，
+ *    这样这一段是本站纸面主题的延伸，而不是贴上去的别人的皮。
+ * ======================================================= */
+
+/* =========================================================
+ *  ① 设计 token 阶梯
+ *  ---------------------------------------------------------
+ *  style.css 里字号是散落的字面量（12.5px / 13.5px / 15px …），
+ *  没有统一的阶梯。这里补一层**新的**变量供新代码使用，
+ *  不改老规则（老规则的视觉不变，避免牵一发动全身）。
+ *  参考站的真实档位：字号 sub-1rem + 展示级大字，中间层很薄；
+ *  间距 4px 粗步、8px 递进；hover .16–.18s、入场 .42–.76s。
+ * ======================================================= */
+:root {
+  /* 字号阶梯 */
+  --fs-2xs: 10px;
+  --fs-xs: 11.5px;
+  --fs-sm: 12.5px;
+  --fs-base: 14px;
+  --fs-md: 15px;
+  --fs-lg: 17px;
+  --fs-xl: 20px;
+  --fs-display: clamp(2.4rem, 5.2vw, 4.1rem);
+
+  /* 间距节奏（4 的倍数，8 递进） */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 28px;
+  --sp-8: 34px;
+  --sp-9: 42px;
+  --sp-10: 64px;
+
+  /* 缓动（与 style.css 的既有曲线同源，只是起了名字） */
+  --ease-out: cubic-bezier(.22, .61, .36, 1);
+  --ease-print: cubic-bezier(.23, 1, .32, 1);
+
+  /* 纸面底（暖白，不是冷白） */
+  --paper-bg-a: #faf6f2;
+  --paper-bg-b: #f4edea;
+  --paper-bg-c: #f8f1ed;
+}
+
+/* =========================================================
+ *  ② 纸面段落外壳
+ *  ---------------------------------------------------------
+ *  做成「一张铺在深色桌面上的纸」：大圆角 + 内侧高光 + 外投影。
+ *  和站内 .panel / .finale / .friend-entry 同一套卡片语言，
+ *  所以不会显得突兀；也避免了 100vw 全出血带来的横向滚动条。
+ * ======================================================= */
+.paper-band {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 34px 0 0;
+  padding: clamp(26px, 3.6vw, 52px) clamp(20px, 3.4vw, 46px) clamp(26px, 3vw, 44px);
+  border-radius: calc(var(--radius) + 4px);
+  color: var(--paper-ink);
+  background:
+    radial-gradient(120% 90% at 10% 0%, #fffdfb 0%, rgba(255, 253, 251, 0) 58%),
+    linear-gradient(168deg, var(--paper-bg-a) 0%, var(--paper-bg-b) 60%, var(--paper-bg-c) 100%);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    inset 0 0 0 1px rgba(36, 26, 32, .055),
+    0 26px 64px rgba(0, 0, 0, .34);
+}
+
+/* 纸的纤维 / 网点：两层极淡的规则纹理，靠 mix-blend-mode 压进纸里。
+   ⚠ 参考站其实**没有任何噪点**（我查过它 5 个 CSS，noise/grain 0 命中），
+     它的质感来自 repeating-linear-gradient 扫描线 + radial-gradient 硬网点。
+     这里照同样的思路做，不引入图片素材。 */
+.paper-grain {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .5;
+  mix-blend-mode: multiply;
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(36, 26, 32, .06) 0 .6px, transparent 1px),
+    repeating-linear-gradient(96deg, rgba(36, 26, 32, .022) 0 1px, transparent 1px 7px);
+  background-size: 4px 4px, auto;
+}
+
+/* =========================================================
+ *  ③ 段落抬头：眉标 / 大标题 / 「查看全部」
+ * ======================================================= */
+.paper-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2) var(--sp-6);
+  align-items: end;
+  padding-bottom: clamp(18px, 2.2vw, 26px);
+  border-bottom: 1px solid var(--paper-line);
+}
+
+.paper-eyebrow {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--paper-rose);
+}
+
+/* 大标题：衬线 + 极紧行高（字号越大行高越紧，参考站是 .86~.92） */
+.paper-title {
+  grid-column: 1;
+  grid-row: 2;
+  margin: var(--sp-2) 0 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-display);
+  font-weight: 700;
+  line-height: .98;
+  letter-spacing: -.012em;
+  color: var(--paper-ink);
+}
+
+.paper-title i {
+  font-style: normal;
+  color: var(--paper-rose);
+}
+
+.paper-more {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  align-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--paper-ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--paper-line);
+  transition: color .18s ease, border-color .18s ease;
+}
+
+.paper-more b {
+  font-weight: 400;
+  transition: transform .28s var(--ease-out);
+}
+
+.paper-more:hover { color: var(--paper-rose); border-color: var(--paper-rose); }
+.paper-more:hover b { transform: translate(3px, -3px); }
+
+/* =========================================================
+ *  ④ 三栏货架
+ *  ---------------------------------------------------------
+ *  参考站做法：外层上下细线 + 每栏一条竖分隔线，min-height 270，
+ *  padding 34/34，封面 7:10 竖版 + 硬阴影（零模糊，像印出来的）。
+ * ======================================================= */
+.paper-shelf {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--paper-line);
+}
+
+.paper-card {
+  display: grid;
+  grid-template-columns: clamp(74px, 6.4vw, 104px) minmax(0, 1fr);
+  gap: clamp(14px, 1.6vw, 22px);
+  /* ⚠ 这里**不能**写 align-content: start。
+     写了网格行就只按内容高度排，不撑满卡片 → 右列的 height:100% 变成内容高度，
+     .paper-read 的 margin-top:auto 就没有可分配的空间，
+     三张卡的「READ SIGNAL」会各在一个高度上（摘要长的更低），看着是没对齐的。 */
+  min-height: clamp(190px, 20vw, 246px);
+  padding: clamp(20px, 2.4vw, 30px) clamp(14px, 1.8vw, 26px);
+  border-right: 1px solid var(--paper-line);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color .24s ease;
+}
+
+.paper-card:last-child { border-right: 0; }
+
+.paper-card:hover { background-color: rgba(36, 26, 32, .028); }
+
+/* 封面：竖版 7:10，硬阴影 + 极轻的 1.3° 递增倾斜（参考站的标志性细节） */
+.paper-cover {
+  margin: 0;
+  align-self: start;   /* 网格行会撑满卡片，封面仍按 7:10 自己的比例，不跟着拉伸 */
+  aspect-ratio: 7 / 10;
+  border-radius: 2px;
+  overflow: hidden;
+  background: #e7ded9;
+  rotate: calc(var(--i, 0) * 1.3deg - 1.3deg);
+  box-shadow: 6px 8px 0 rgba(36, 26, 32, .075);
+  transition: rotate .34s var(--ease-print), box-shadow .34s ease;
+}
+
+.paper-card:hover .paper-cover {
+  rotate: 0deg;
+  box-shadow: 8px 11px 0 rgba(36, 26, 32, .1);
+}
+
+.paper-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 没封面：用类目色相生成一张「印刷底」（和列表页同一套 hueFor 算法）
+   ⚠ 饱和度刻意压得比列表页低：纸面段落整体是暖白低饱和的，
+     一张高饱和的紫/绿渐变压在暖纸上会像贴纸，不像印上去的。 */
+.paper-cover-gen {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background:
+    repeating-linear-gradient(104deg, rgba(255, 255, 255, .14) 0 1px, transparent 1px 6px),
+    linear-gradient(158deg,
+      hsl(var(--h, 340) 24% 74%) 0%,
+      hsl(calc(var(--h, 340) + 22) 27% 60%) 100%);
+}
+
+.paper-cover-gen b {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: rgba(255, 253, 250, .86);
+  letter-spacing: .04em;
+}
+
+/* ---- 右列文字 ---- */
+.paper-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+
+.paper-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0 0 var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--paper-rose);
+}
+
+.paper-meta .paper-slash,
+.paper-meta time { color: var(--paper-ink-2); }
+
+.paper-card-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: clamp(15px, 1.3vw, 17.5px);
+  font-weight: 700;
+  line-height: 1.32;
+  letter-spacing: -.004em;
+  color: var(--paper-ink);
+  transition: color .18s ease;
+}
+
+.paper-card:hover .paper-card-title { color: var(--paper-rose); }
+
+.paper-excerpt {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.72;
+  color: var(--paper-ink-2);
+  /* 三行封顶：三栏并排时摘要长短不一会把卡片撑成参差高度 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.paper-read {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  /* ⚠ margin-top:auto 是必要的：三张卡摘要长短不一，
+     不给 auto 的话「READ SIGNAL」会跟着摘要上下浮动，三栏参差不齐。
+     自动撑到卡片底部，三行就对齐了。 */
+  margin-top: auto;
+  padding-top: var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: .16em;
+  color: var(--paper-rose);
+}
+
+.paper-read i {
+  font-style: normal;
+  transition: transform .28s var(--ease-out);
+}
+
+.paper-card:hover .paper-read i { transform: translate(3px, -3px); }
+
+.paper-empty {
+  margin: var(--sp-6) 0 var(--sp-4);
+  font-size: var(--fs-base);
+  color: var(--paper-ink-2);
+}
+
+.paper-empty code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(36, 26, 32, .07);
+  font-family: var(--font-mono);
+  font-size: .92em;
+}
+
+/* =========================================================
+ *  ⑤ 滚动渐显：接进现有的 html.u-reveal 那套
+ *  ---------------------------------------------------------
+ *  ⚠ 必须和 style.css 的写法一致（opacity:0 + backwards 填充），
+ *    否则开场/换页时会闪一下。开关仍然是 <html class="u-reveal">：
+ *    脚本没跑 → 没有这个类 → 这一段默认完全可见，绝不会藏着不出来。
+ * ======================================================= */
+html.u-reveal .paper-band {
+  opacity: 0;
+  animation: riseIn .76s cubic-bezier(.22, .61, .36, 1) backwards;
+}
+
+html.u-reveal .paper-band.is-in {
+  opacity: 1;
+  animation-delay: var(--rise-delay, 0s);
+}
+
+/* 三张卡错峰 80ms 一拍，和首页其它卡片同一个节奏。
+   ⚠ 延迟变量名必须是 --rise-delay：index.astro 的 initRiseIn 只写这一个。 */
+html.u-reveal .paper-card {
+  opacity: 0;
+  animation: paperCardIn .62s var(--ease-print) backwards;
+  animation-delay: var(--rise-delay, 0s);
+}
+
+html.u-reveal .paper-card.is-in { opacity: 1; }
+
+@keyframes paperCardIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* =========================================================
+ *  ⑥ 章节导航轨（右侧竖排 01–05）
+ *  ---------------------------------------------------------
+ *  参考站右侧那条 01/02/03/04 的竖轨：给长首页一个「我在第几段」的锚。
+ *  只在宽屏出现（窄屏右下角会压住正文）。
+ * ======================================================= */
+.chaprail {
+  position: fixed;
+  right: max(14px, calc((100vw - 1320px) / 2 - 46px));
+  top: 50%;
+  z-index: 40;
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  padding-left: 12px;
+  transform: translateY(-50%);
+}
+
+.chaprail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: linear-gradient(180deg,
+    transparent, rgba(236, 237, 246, .16) 12%, rgba(236, 237, 246, .16) 88%, transparent);
+}
+
+.chaprail a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: .12em;
+  color: var(--ink-3);
+  text-decoration: none;
+  transition: color .2s ease;
+}
+
+.chaprail a::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  width: 1px;
+  height: 100%;
+  background: var(--rose);
+  transform: scaleY(0);
+  transform-origin: center;
+  transition: transform .3s var(--ease-out);
+}
+
+.chaprail a:hover { color: var(--ink); }
+
+.chaprail a.is-current { color: var(--rose); }
+.chaprail a.is-current::before { transform: scaleY(1); }
+
+.chaprail b { font-weight: 400; opacity: .8; }
+
+.chaprail span {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  transition: max-width .32s var(--ease-out), opacity .26s ease;
+}
+
+.chaprail:hover span,
+.chaprail a:focus-visible span {
+  max-width: 90px;
+  opacity: 1;
+}
+
+@media (min-width: 1180px) {
+  .chaprail { display: flex; }
+}
+
+/* =========================================================
+ *  ⑧ 自定义右键菜单
+ *  ---------------------------------------------------------
+ *  由 Base.astro 的 initContextMenu() 驱动（只在鼠标设备上挂着）。
+ *  样式走站内既有 token（--line / --ink-2 / --rose），所以和顶栏同一套质感。
+ *  ⚠ 默认就是「关」的状态：opacity:0 + pointer-events:none。
+ *    脚本没跑起来时它只是一块透明的东西，永远不挡鼠标。
+ * ======================================================= */
+.ctxmenu {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 200;
+  min-width: 196px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(19, 21, 40, .93);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .07),
+    0 20px 48px rgba(0, 0, 0, .52);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+  backdrop-filter: blur(14px) saturate(1.08);
+  opacity: 0;
+  transform: translateY(-4px) scale(.985);
+  transform-origin: top left;
+  pointer-events: none;
+  transition: opacity .14s ease, transform .18s var(--ease-out);
+}
+
+.ctxmenu.is-open {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.ctxmenu-head {
+  margin: 0;
+  padding: 6px 10px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.ctxmenu a,
+.ctxmenu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color .14s ease, color .14s ease;
+}
+
+.ctxmenu kbd {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--ink-3);
+}
+
+.ctxmenu :is(a, button):hover,
+.ctxmenu :is(a, button):focus-visible {
+  background: var(--rose-dim);
+  color: var(--ink);
+  outline: none;
+}
+
+.ctxmenu :is(a, button):hover kbd,
+.ctxmenu :is(a, button):focus-visible kbd { color: var(--rose-2); }
+
+.ctxmenu-sep {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--line-2);
+}
+
+/* =========================================================
+ *  ⑨ 修复：个人页（/me/）浅粉纸面上的两处对比度缺陷
+ *  ---------------------------------------------------------
+ *  ① --paper-rose-deep 作用域写窄了
+ *     style.css 里它被定义在 `.me-links` 上（作者本意是"本页局部令牌，
+ *     不动 :root"）。但 `.me-friend` 是 `.me-links` 的**兄弟节点**，不是
+ *     后代 —— 自定义属性只沿 DOM 向下继承，所以 `.me-friend` 里
+ *     `color: var(--paper-rose-deep)` 取不到值，整条声明失效，
+ *     颜色退回继承来的 --ink(#ecedf6 近白)。
+ *     结果：「进入友链」和右侧 ↗ 在浅粉底上完全隐形，
+ *     同一张卡片里只有用 --paper-ink 的那行小字看得见。
+ *     这里把它提到整页作用域，两个块都能取到，值不变（#a52b52）。
+ *
+ *  ② 右侧竖排导航太淡
+ *     原来是 rgba(36,26,32,.42)：10.5px 的小字在 #f8ebf0 上约 2.7:1，
+ *     低于正文可读线。提到 .55 后约 4.2:1，仍然很轻但不至于读不出来。
+ * ======================================================= */
+body[data-view='me'] {
+  --paper-rose-deep: #a52b52;
+}
+
+body[data-view='me'] .me-sidenav a {
+  color: rgba(36, 26, 32, .55);
+}
+
+/* =========================================================
+ *  ⑦ 响应式
+ * ======================================================= */
+@media (max-width: 900px) {
+  .paper-shelf { grid-template-columns: 1fr; }
+
+  .paper-card {
+    grid-template-columns: clamp(64px, 14vw, 92px) minmax(0, 1fr);
+    border-right: 0;
+    border-bottom: 1px solid var(--paper-line);
+  }
+
+  .paper-card:last-child { border-bottom: 0; }
+}
+
+@media (max-width: 620px) {
+  .paper-head {
+    grid-template-columns: 1fr;
+  }
+
+  .paper-more {
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: start;
+    margin-top: var(--sp-3);
+  }
+
+  .paper-excerpt { -webkit-line-clamp: 2; line-clamp: 2; }
+}
+
+/* 减少动态效果：这一段的入场与悬停位移一并关掉 */
+@media (prefers-reduced-motion: reduce) {
+  html.u-reveal .paper-band,
+  html.u-reveal .paper-card {
+    opacity: 1;
+    animation: none;
+  }
+
+  .paper-cover,
+  .paper-card,
+  .paper-read i,
+  .paper-more b { transition: none; }
+
+  .paper-cover { rotate: 0deg; }
+  .chaprail span { transition: none; }
+}

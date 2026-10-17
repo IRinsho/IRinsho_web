@@ -1,12 +1,12 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { notes, categories, ALL } from '../../lib/notes.js';
+import { notes, categories, ALL, coverOf } from '../../lib/notes.js';
 import { asset } from '../../lib/url.js';
 import { pad2, fmtSlash, hueFor } from '../../lib/format.js';
 
 const countOf = (c) => (c === ALL ? notes.length : notes.filter((n) => n.category === c).length);
 ---
-<Base title="Blog · IRinsho" hero="笔记" heroKicker="BLOG / 04" heroSub="学习路上掉下来的碎片。" heroImage="media/images/note.jpg">
+<Base title="Blog · IRinsho" hero="笔记" heroKicker="BLOG / 04" heroSub="学习路上掉下来的碎片。" heroImage="media/images/note.webp">
   <div class="blog-bar">
     <label class="blog-search">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
@@ -32,7 +32,7 @@ const countOf = (c) => (c === ALL ? notes.length : notes.filter((n) => n.categor
       >
         {n.cover ? (
           <div class="post-cover">
-            <img src={asset(n.cover)} alt={n.title} loading="lazy" />
+            <img src={asset(coverOf(n.cover))} alt={n.title} loading="lazy" />
             <span class="cover-tag">{n.category || 'NOTE'}</span>
           </div>
         ) : (

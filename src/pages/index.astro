@@ -8,6 +8,8 @@ import { asset } from '../lib/url.js';
 import { pad2 } from '../lib/format.js';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+// 首页最后那一段「铺在暗色桌面上的纸」：最近信号
+import LatestSignals from '../components/LatestSignals.astro';
 
 // poster 文件可能已经不存在（例如之前抓错被删掉），这种情况当没填
 function posterExists(p) {
@@ -68,7 +70,7 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
   <section
     class="gate"
     id="homeGate"
-    style={`--hero:url(${asset('media/images/home-hero.jpg')})`}
+    style={`--hero:url(${asset('media/images/home-hero.webp')})`}
   >
     <div class="gate-bg" aria-hidden="true">
       <span class="gate-layer gate-hero"></span>
@@ -135,7 +137,7 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
   {/* 顶部滚动进度轨 */}
   <div class="gate-rail" id="gateRail" aria-hidden="true"><i></i></div>
 
-  <div class="panels">
+  <div class="panels" id="homePanels">
     {PANELS.map((p) => (
       <a class={'panel ' + p.cls} href={asset(p.href)}>
         {/*
@@ -161,7 +163,7 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     ))}
   </div>
 
-  <nav class="chapters">
+  <nav class="chapters" id="homeChapters">
     <span class="chapters-label">首页章节</span>
     <span class="chapters-count">{pad2(chapters.length)}</span>
     {chapters.map((c) => (
@@ -183,14 +185,40 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
   </a>
 
   {/*
+    ★ 纸面段落：整页唯一的浅色区
+    ---------------------------------------------------------
+    参考站的版面节奏是「深 → 白纸 → 深 → 浅灰 → 浅色 Latest → 深页脚」，
+    也就是靠明暗交替让长首页有换气点。本站之前从头到尾同一种深藏青，
+    滚到面板区之后就没有「翻页」的感觉了。
+    这一段是暗 → 浅 → 暗 的那一次换气，放在终幕之前：
+    读者看完面板、章节、友链，翻过来是一张纸，然后才是终幕画面。
+  */}
+  <LatestSignals />
+
+  {/*
+    右侧章节导航轨（宽屏才出现）
+    ---------------------------------------------------------
+    对齐参考站右侧那条 01/02/03/04 竖轨：长首页需要一个「我在第几段」的锚。
+    用 IntersectionObserver 标出当前段落（见下面的 initChapRail）。
+    窄屏会在 CSS 里直接 display:none —— 右下角会压住正文。
+  */}
+  <nav class="chaprail" id="chapRail" aria-label="页面章节">
+    <a href="#homeGate" data-rail="homeGate"><b>01</b><span>开场</span></a>
+    <a href="#homePanels" data-rail="homePanels"><b>02</b><span>分格</span></a>
+    <a href="#homeChapters" data-rail="homeChapters"><b>03</b><span>章节</span></a>
+    <a href="#latestSignals" data-rail="latestSignals"><b>04</b><span>信号</span></a>
+    <a href="#homeFinale" data-rail="homeFinale"><b>05</b><span>终幕</span></a>
+  </nav>
+
+  {/*
     终幕画面单独作为一段显示 —— 原来它只在「滚动到首屏中段」时才揭晓，
     结果这张图很可能一直看不到，太别扭。现在它是一段正式内容：
     面板区之后、页脚之前，一定会被看到。
   */}
-  <section class="finale" aria-label="终幕">
+  <section class="finale" id="homeFinale" aria-label="终幕">
     <img
       class="finale-art"
-      src={asset('media/images/home-finale.jpg')}
+      src={asset('media/images/home-finale.webp')}
       alt=""
       loading="lazy"
       decoding="async"
@@ -378,7 +406,10 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
 
         const root = document.documentElement;
         // 换页/重复调用安全：没有目标就直接返回，不浪费 observer
-        const SEL = '.panel, .chapters .chapter, .friend-entry, .finale';
+        // ⚠ 新增的 .paper-band / .paper-card 也在这份清单里 ——
+        //   paper.css 里给它们写了 html.u-reveal 下的 opacity:0，
+        //   两处必须同时改，否则纸面段落会永远停在透明。
+        const SEL = '.panel, .chapters .chapter, .friend-entry, .finale, .paper-band, .paper-card';
         const targets = [...document.querySelectorAll(SEL)];
         if (!targets.length) return;
 
@@ -442,8 +473,69 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       } catch (e) { /* 渐显只是锦上添花，出错不影响内容 */ }
     }
 
+    /* =========================================================
+     *  右侧章节导航轨：标出当前滚到第几段
+     *  ---------------------------------------------------------
+     *  · 观察 5 个段落，取「当前可见比例最大」的那一段高亮
+     *  · 只在宽屏存在（paper.css 里 1180px 以上才 display:flex），
+     *    窄屏取不到元素就直接返回，什么都不做
+     *  · 幂等：DOM 被换掉时 dataset 跟着没了，换页后能正常重绑
+     * ======================================================= */
+    function initChapRail() {
+      try {
+        const rail = document.getElementById('chapRail');
+        if (!rail || rail.dataset.railBound === '1') return;
+
+        const links = [...rail.querySelectorAll('a[data-rail]')];
+        if (!links.length) return;
+
+        const pairs = links
+          .map((a) => [document.getElementById(a.dataset.rail), a])
+          .filter(([el]) => el);
+
+        if (!pairs.length) return;
+        rail.dataset.railBound = '1';
+
+        const byId = new Map(pairs.map(([el, a]) => [el.id, a]));
+        const setCurrent = (id) => {
+          for (const [key, a] of byId) a.classList.toggle('is-current', key === id);
+        };
+
+        if (!('IntersectionObserver' in window)) {
+          setCurrent(pairs[0][0].id);
+          return;
+        }
+
+        /* 记录每段当前可见比例，取最大的那个。
+           ⚠ 比例全为 0 时不改高亮：滚到两段之间的缝隙（接缝条、空白）
+             那一下会抖成"没有当前段"，比保持上一个更难看。 */
+        const ratios = new Map();
+        const io = new IntersectionObserver((entries) => {
+          for (const en of entries) {
+            ratios.set(en.target.id, en.isIntersecting ? en.intersectionRatio : 0);
+          }
+
+          let bestId = '';
+          let best = 0;
+          for (const [id, r] of ratios) {
+            if (r > best) { best = r; bestId = id; }
+          }
+          if (bestId) setCurrent(bestId);
+        }, { threshold: [0, .08, .2, .35, .5, .7, .9] });
+
+        for (const [el] of pairs) io.observe(el);
+      } catch (e) { /* 导航轨只是辅助，出错不影响正文 */ }
+    }
+
     /* 首次加载 + 每次换页返回都要重新初始化
        （之前只在首次加载跑，换页回来主视觉和终幕就都不显示了） */
+    document.addEventListener('astro:page-load', initChapRail);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initChapRail);
+    } else {
+      initChapRail();
+    }
+
     document.addEventListener('astro:page-load', initGate);
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initGate);

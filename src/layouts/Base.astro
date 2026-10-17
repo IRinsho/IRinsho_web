@@ -115,6 +115,10 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
 
   <link rel="icon" href={asset('favicon.svg')}>
   <link rel="stylesheet" href={asset('assets/css/style.css')}>
+  {/* 新增层：首页纸面段落 + 章节导航轨 + 字号/间距 token。
+      必须在 style.css 之后 —— 它用到 style.css :root 里的 --paper-* / --radius。
+      它只定义自己的选择器，不覆盖既有规则，所以加载顺序变了也不会打架。 */}
+  <link rel="stylesheet" href={asset('assets/css/paper.css')}>
   <ClientRouter />
   <!-- 首屏之前先把「开了动效」标记写上，避免内容闪一下再消失 -->
   <script is:inline>
@@ -212,7 +216,7 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
       eyebrow={heroKicker}
       title={hero}
       sub={heroSub}
-      image={heroImage || 'media/images/home-hero.jpg'}
+      image={heroImage || 'media/images/home-hero.webp'}
     />
   )}
   <slot />
@@ -221,6 +225,28 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
 <footer class="footer">
   <span>{footerText}</span>
 </footer>
+
+{/*
+  自定义右键菜单（对齐参考站 .kisara-context-menu）
+  ---------------------------------------------------------
+  三条刻意的克制，避免变成"网站抢了浏览器的手"：
+    ① 只在「精确指针」设备上启用（触屏 / 电视不拦）
+    ② 在链接、按钮、图片、输入框、视频上**不拦** —— 那些地方
+       用户往往就是要用原生菜单（另存图片、复制链接、检查元素）
+    ③ 按住 Shift + 右键永远出原生菜单
+  菜单本身是普通链接 + 两个按钮，键盘 Tab / Esc 都能用。
+*/}
+<div class="ctxmenu" id="ctxMenu" role="menu" aria-hidden="true" aria-label="快捷菜单">
+  <p class="ctxmenu-head">QUICK ROUTE</p>
+  <a role="menuitem" href={asset('')}><span>首页</span><kbd>01</kbd></a>
+  <a role="menuitem" href={asset('photos/')}><span>相册</span><kbd>02</kbd></a>
+  <a role="menuitem" href={asset('videos/')}><span>影像</span><kbd>03</kbd></a>
+  <a role="menuitem" href={asset('notes/')}><span>笔记</span><kbd>04</kbd></a>
+  <a role="menuitem" href={asset('me/')}><span>个人档案</span><kbd>05</kbd></a>
+  <div class="ctxmenu-sep" role="separator"></div>
+  <button type="button" role="menuitem" data-ctx="top"><span>回到顶部</span><kbd>↑</kbd></button>
+  <button type="button" role="menuitem" data-ctx="copy"><span>复制本页链接</span><kbd>C</kbd></button>
+</div>
 
 <script>
   /* 窄屏的下拉菜单 —— 必须是「可重复调用且幂等」的：
@@ -412,6 +438,109 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   }
 
   /* =========================================================
+   *  ⑦ 自定义右键菜单
+   *  ---------------------------------------------------------
+   *  参考站 yuimi-chaya.github.io 有一份 .kisara-context-menu。
+   *  这里做一版**不抢浏览器手**的：
+   *    · 只在 hover:hover + pointer:fine（真正的鼠标）上启用
+   *    · 链接 / 按钮 / 图片 / 输入框 / 视频上完全不拦
+   *    · Shift + 右键 = 原生菜单（取图、检查元素都还在）
+   *    · Esc / 点别处 / 滚动 / 换页 都会关掉
+   *  所有绑定都挂在 document 上并做幂等，换页重建 DOM 也不会重复绑。
+   * ======================================================= */
+  function initContextMenu() {
+    try {
+      const menu = document.getElementById('ctxMenu');
+      if (!menu || menu.dataset.ctxBound === '1') return;
+      menu.dataset.ctxBound = '1';
+
+      // 触屏 / 没有精确指针：直接不启用（否则长按会莫名其妙弹菜单）
+      if (!window.matchMedia ||
+          !window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+        menu.remove();
+        return;
+      }
+
+      const NO_INTERCEPT = 'a, button, input, textarea, select, video, audio, [contenteditable], label';
+      let isOpen = false;
+
+      const close = () => {
+        if (!isOpen) return;
+        isOpen = false;
+        menu.classList.remove('is-open');
+        menu.setAttribute('aria-hidden', 'true');
+      };
+
+      const place = (x, y) => {
+        // 先归零再量：不归零的话上一帧的 translate 会参与 getBoundingClientRect
+        menu.style.left = '0px';
+        menu.style.top = '0px';
+        const r = menu.getBoundingClientRect();
+        const left = Math.max(12, Math.min(x, window.innerWidth - r.width - 12));
+        const top = Math.max(12, Math.min(y, window.innerHeight - r.height - 12));
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+      };
+
+      document.addEventListener('contextmenu', (e) => {
+        if (e.shiftKey) return;                       // 留给浏览器
+        const t = e.target;
+        if (!t || !t.closest) return;
+        if (t.closest(NO_INTERCEPT)) return;          // 留给浏览器
+        e.preventDefault();
+        isOpen = true;
+        menu.classList.add('is-open');
+        menu.setAttribute('aria-hidden', 'false');
+        place(e.clientX, e.clientY);
+      }, { passive: false });
+
+      // 点菜单外部 / 滚动 / Esc → 关
+      document.addEventListener('pointerdown', (e) => {
+        if (isOpen && !menu.contains(e.target)) close();
+      }, { passive: true });
+      window.addEventListener('scroll', close, { passive: true });
+      window.addEventListener('resize', close, { passive: true });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isOpen) close();
+      });
+
+      // 菜单里的动作
+      menu.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-ctx]');
+        if (btn) {
+          const act = btn.dataset.ctx;
+          if (act === 'top') {
+            close();
+            try {
+              const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+              window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+            } catch (err) { window.scrollTo(0, 0); }
+          } else if (act === 'copy') {
+            const done = () => {
+              const label = btn.querySelector('span');
+              if (!label) return;
+              const old = label.textContent;
+              label.textContent = '已复制';
+              setTimeout(() => { label.textContent = old; }, 1400);
+            };
+            try {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(location.href).then(done, () => {});
+              }
+            } catch (err) { /* 剪贴板被禁用就当没点 */ }
+          }
+          return;
+        }
+        // 点了菜单里的链接 → 立刻收起（换页后它还会在，但先关掉更利落）
+        if (e.target.closest('a')) close();
+      });
+
+      // 换页前也收起来
+      document.addEventListener('astro:before-swap', close);
+    } catch (e) { /* 只是锦上添花，出错不影响别处 */ }
+  }
+
+  /* =========================================================
    *  ④ 换页后重启
    *  ---------------------------------------------------------
    *  开了页面过渡（ClientRouter）后，Astro 换页时会把旧 DOM 整个换掉。
@@ -463,6 +592,7 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
     startNavIndicator();
     startScrollProgress();
     startScrollFlag();
+    initContextMenu();
   }
 
   document.addEventListener('astro:page-load', bootMotion);
