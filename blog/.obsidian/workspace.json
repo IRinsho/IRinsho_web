@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "求最大公约数以及最小公倍数.md",
+                "file": "Maya.md",
                 "mode": "preview",
                 "source": true,
                 "backlinks": true,
@@ -28,7 +28,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "求最大公约数以及最小公倍数"
+              "title": "Maya"
             }
           }
         ]
@@ -184,7 +184,7 @@
             "state": {
               "type": "file-properties",
               "state": {
-                "file": "求最大公约数以及最小公倍数.md"
+                "file": "Maya.md"
               },
               "icon": "lucide-info",
               "title": "笔记属性"
@@ -212,8 +212,9 @@
   },
   "active": "e75b1ae276593724",
   "lastOpenFiles": [
-    "使用 C 语言实现的“输入某一时刻，输出下一秒”.md",
     "求最大公约数以及最小公倍数.md",
+    "Maya.md",
+    "使用 C 语言实现的“输入某一时刻，输出下一秒”.md",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
     "去掉末尾的空格.md",
     "c语言学习/特殊换行代码.md",
