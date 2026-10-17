@@ -1,0 +1,543 @@
+/* =========================================================
+ *  glass.css —— 液态玻璃层
+ *  ---------------------------------------------------------
+ *  ⭐ 想改浓度，只改下面这一个数：--glass
+ *       0    = 完全实体（关掉玻璃）
+ *       0.35 = 轻描淡写的一层雾
+ *       0.62 = 默认，明显是玻璃但文字仍然扎实
+ *       0.85 = 很浓
+ *       1    = 最浓：模糊最大、最透、高光最亮
+ *     改完保存即可，全站（顶栏 / 分格标牌 / 友链条 / 右键菜单…）
+ *     都会一起变，因为它们全部由这个数推导。
+ *
+ *  ⚠ 为什么不是「越透越像玻璃」：
+ *     真实玻璃的读感来自**模糊 + 高光 + 边缘折射**，不是低不透明度。
+ *     所以不透明度是有下限的，而且**分页面给**：
+ *       深色页（首页 / 相册 / 视频 / 笔记）顶栏最低压到 0.50 —— 背后是插画，
+ *         透出来很好看，导航字也压得住；
+ *       个人页（/me/ 浅粉纸面）最低只到 0.82 —— 它背后是浅色底，
+ *         压太低会把顶栏糊成中灰、浅色导航字直接读不出来。
+ *     想要"更浓"，靠的是 blur / saturate / 高光 一起加，不是继续减不透明度。
+ *
+ *  ⚠ 本文件仍然只定义自己的选择器 + 追加 box-shadow / background 层，
+ *     不改任何既有布局属性（尺寸、定位、字号一律不动）。
+ * ======================================================= */
+
+:root {
+  /* ⭐⭐ 液态浓度（0–1）—— 就这一个旋钮 */
+  --glass: 0.62;
+
+  /* ---- 以下全部由 --glass 推导，不用手改 ---- */
+
+  /* 模糊半径：0 → 26px */
+  --g-blur: calc(var(--glass) * 26px);
+  /* 饱和度提升：100% → 190%（玻璃会把背后的颜色"挤"得更艳） */
+  --g-sat: calc(100% + var(--glass) * 90%);
+  /* 对比度微提，让模糊后的画面不至于发灰 */
+  --g-con: calc(100% + var(--glass) * 12%);
+
+  /* 统一的高光/描边强度 */
+  --g-hi: calc(var(--glass) * 0.30);        /* 上缘内侧高光 */
+  --g-shade: calc(var(--glass) * 0.24);     /* 下缘内侧压暗 */
+  --g-edge: calc(0.05 + var(--glass) * 0.20); /* 外描边 */
+  --g-glow: calc(var(--glass) * 0.20);      /* 玫红漫射光 */
+
+  /* 顶栏：深色玻璃。
+     ⚠ 公式必须从 **1.0** 起步：--glass = 0 要严格等于"完全实体"，
+       否则浓度调到 0 时顶栏还留着百分之几的透明，
+       页面上那些固定辉光（#main::before）会从顶栏左上角漏出来一条。
+     ⚠ 透明度下限是分页面给的，见下面 body[data-view='me'] 那条 ——
+       深色页可以压到 0.50（背后是插画，透出来很好看）；
+       个人页底色是浅粉，压太低会把顶栏糊成中灰、浅色导航字读不出来。 */
+  --g-top-a: calc(1 - var(--glass) * 0.50);
+
+  /* 分格标牌：浅色霜面玻璃（压在图上的白牌） */
+  --g-plate-a: calc(1 - var(--glass) * 0.31);
+
+  /* 深色卡片（友链条等） */
+  --g-card-a: calc(1 - var(--glass) * 0.54);
+}
+
+/* =========================================================
+ *  ① 顶栏 —— 深色液态玻璃
+ *  ---------------------------------------------------------
+ *  这是全站最有"玻璃感"的地方：首页顶部它正压在插画主视觉上，
+ *  backdrop-filter 有真实内容可模糊，滚动时画面在玻璃后面流动。
+ *
+ *  background 用**多层叠加**而不是伪元素：
+ *    第 1 层 = 斜向高光（模拟玻璃表面的反光条）
+ *    第 2 层 = 深色底色（带透明度）
+ *  这样不会和既有 ::before / ::after 抢位置。
+ * ======================================================= */
+.topbar {
+  background:
+    linear-gradient(102deg,
+      rgba(255, 255, 255, calc(0.015 + var(--glass) * 0.115)) 0%,
+      rgba(255, 255, 255, calc(var(--glass) * 0.03)) 24%,
+      rgba(255, 255, 255, 0) 50%,
+      rgba(224, 70, 111, calc(var(--glass) * 0.075)) 100%),
+    rgba(17, 19, 38, var(--g-top-a));
+  /* 斜向高光要够宽才有"液体"的走向感：把渐变拉宽再去移动它 */
+  background-size: 190% 100%, auto;
+  background-position: 100% 0, 0 0;
+  -webkit-backdrop-filter: blur(var(--g-blur)) saturate(var(--g-sat)) contrast(var(--g-con));
+  backdrop-filter: blur(var(--g-blur)) saturate(var(--g-sat)) contrast(var(--g-con));
+  border-bottom-color: rgba(255, 255, 255, var(--g-edge));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, var(--g-hi)),          /* 上缘高光：玻璃最标志性的一笔 */
+    inset 0 0 0 1px rgba(255, 255, 255, calc(var(--glass) * 0.09)), /* 折射边 */
+    inset 0 -1px 0 rgba(0, 0, 0, var(--g-shade)),
+    0 calc(var(--glass) * 12px) calc(var(--glass) * 40px) rgba(0, 0, 0, calc(var(--glass) * 0.34));
+}
+
+/* 个人页（浅粉纸面）单独保底：不透明度下限抬高，保证导航字可读 */
+body[data-view='me'] {
+  --g-top-a: calc(1 - var(--glass) * 0.18);
+}
+
+/* =========================================================
+ *  ② 窄屏下拉菜单 —— 深色玻璃
+ *  ⚠ 它本身有半透明底色，这里必须连带 backdrop-filter 一起给，
+ *    否则只有"半透明"没有"模糊"，看起来像一块塑料。
+ * ======================================================= */
+@media (max-width: 860px) {
+  .tabs {
+    background: rgba(17, 19, 38, var(--g-top-a));
+    -webkit-backdrop-filter: blur(calc(var(--g-blur) + 6px)) saturate(var(--g-sat));
+    backdrop-filter: blur(calc(var(--g-blur) + 6px)) saturate(var(--g-sat));
+    border-color: rgba(255, 255, 255, var(--g-edge));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, var(--g-hi)),
+      0 24px 50px rgba(0, 0, 0, calc(0.42 + var(--glass) * 0.2));
+  }
+}
+
+/* =========================================================
+ *  ③ 头像 —— 玻璃圆环
+ * ======================================================= */
+.avatar-btn {
+  border-color: rgba(224, 70, 111, calc(0.55 - var(--glass) * 0.22));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, var(--g-hi)),
+    inset 0 0 0 calc(var(--glass) * 3px) rgba(255, 255, 255, calc(var(--glass) * 0.06)),
+    0 0 calc(var(--glass) * 18px) rgba(224, 70, 111, var(--g-glow));
+}
+
+/* =========================================================
+ *  ④ 分格标牌（HOME / GALLERY / …）—— 浅色霜面玻璃
+ *  ---------------------------------------------------------
+ *  这是最能体现"液态玻璃"的一块：它压在手绘插画上，
+ *  backdrop-filter 会把背后的笔画糊开，同时把线条的高反差压柔 ——
+ *  像一块真的毛玻璃片放在画上。
+ * ⚠ 文字是深墨 #14162a，所以白底不透明度也有下限，
+ *    太透会让字落在杂乱的插画细节上。
+ * ======================================================= */
+.panel-plate {
+  background:
+    linear-gradient(118deg,
+      rgba(255, 255, 255, calc(0.30 + var(--glass) * 0.22)) 0%,
+      rgba(255, 255, 255, calc(var(--glass) * 0.04)) 46%,
+      rgba(255, 255, 255, 0) 68%),
+    rgba(255, 255, 255, var(--g-plate-a));
+  -webkit-backdrop-filter: blur(calc(var(--g-blur) * 0.85)) saturate(calc(100% + var(--glass) * 70%));
+  backdrop-filter: blur(calc(var(--g-blur) * 0.85)) saturate(calc(100% + var(--glass) * 70%));
+  border-color: rgba(20, 22, 42, calc(0.9 - var(--glass) * 0.46));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.5 + var(--glass) * 0.4)),
+    inset 0 -1px 0 rgba(20, 22, 42, calc(var(--glass) * 0.10)),
+    calc(4px + var(--glass) * 1px) calc(4px + var(--glass) * 2px) 0 rgba(6, 8, 18, calc(0.45 - var(--glass) * 0.12)),
+    0 calc(var(--glass) * 16px) calc(var(--glass) * 34px) rgba(6, 8, 18, calc(var(--glass) * 0.28));
+}
+
+/* =========================================================
+ *  ⑤ 友链入口条 —— 深色玻璃
+ *  ⚠ 原规则已经有一层渐变 + 半透明底色。这里用同样的层叠思路重写，
+ *    并把 backdrop-filter 补齐（原先只有底色、没有模糊）。
+ * ======================================================= */
+.friend-entry {
+  background:
+    linear-gradient(102deg,
+      rgba(255, 255, 255, calc(0.10 + var(--glass) * 0.16)) 0%,
+      rgba(255, 255, 255, calc(var(--glass) * 0.03)) 34%,
+      rgba(224, 70, 111, calc(var(--glass) * 0.08)) 100%),
+    rgba(25, 28, 52, var(--g-card-a));
+  -webkit-backdrop-filter: blur(var(--g-blur)) saturate(var(--g-sat)) contrast(var(--g-con));
+  backdrop-filter: blur(var(--g-blur)) saturate(var(--g-sat)) contrast(var(--g-con));
+  border-color: rgba(224, 70, 111, calc(0.28 + var(--glass) * 0.16));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.09 + var(--glass) * 0.22)),
+    inset 0 0 0 1px rgba(255, 255, 255, calc(var(--glass) * 0.04)),
+    0 calc(var(--glass) * 22px) calc(var(--glass) * 54px) rgba(0, 0, 0, calc(0.32 + var(--glass) * 0.18));
+}
+
+/* =========================================================
+ *  ⑥ 右键菜单 —— 改成由 --glass 统一驱动
+ *  （原先写死了 blur(14px)，调浓度时它不会跟着变）
+ * ======================================================= */
+.ctxmenu {
+  background:
+    linear-gradient(140deg,
+      rgba(255, 255, 255, calc(var(--glass) * 0.10)) 0%,
+      rgba(255, 255, 255, 0) 42%),
+    rgba(19, 21, 40, calc(1 - var(--glass) * 0.26));
+  -webkit-backdrop-filter: blur(calc(var(--g-blur) * 0.8)) saturate(var(--g-sat));
+  backdrop-filter: blur(calc(var(--g-blur) * 0.8)) saturate(var(--g-sat));
+  border-color: rgba(255, 255, 255, var(--g-edge));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, var(--g-hi)),
+    0 calc(var(--glass) * 22px) calc(var(--glass) * 52px) rgba(0, 0, 0, calc(0.42 + var(--glass) * 0.18));
+}
+
+/* =========================================================
+ *  ⑦ 纸面段落 —— 只加「玻璃边缘」，不做成透明
+ *  ---------------------------------------------------------
+ *  ⚠ 这一段刻意**不**做半透明。它是整页的浅色纸，深墨字压在纸上；
+ *    一做透明，后面的深色背景会透上来把纸压成灰，字的对比度直接崩。
+ *    所以这里只补玻璃的两个标志性特征：上缘高光 + 外圈漫射光。
+ *    也就是"玻璃的边"，不是"玻璃的体"。
+ * ======================================================= */
+.paper-band {
+  box-shadow:
+    inset 0 1px 0 #fff,
+    inset 0 1px 1px rgba(255, 255, 255, calc(0.6 + var(--glass) * 0.4)),
+    inset 0 0 0 1px rgba(255, 255, 255, calc(var(--glass) * 0.22)),
+    inset 0 0 0 calc(1px + var(--glass) * 1.5px) rgba(36, 26, 32, 0.055),
+    0 calc(var(--glass) * 26px) calc(var(--glass) * 60px) rgba(0, 0, 0, calc(0.30 + var(--glass) * 0.16)),
+    0 0 calc(var(--glass) * 40px) rgba(255, 255, 255, calc(var(--glass) * 0.05));
+}
+
+/* =========================================================
+ *  ⑧ 右侧章节轨 —— 玻璃胶囊
+ * ======================================================= */
+.chaprail {
+  padding: 12px 12px 12px 14px;
+  border-radius: 999px;
+  background: rgba(17, 19, 38, calc(var(--glass) * 0.5));
+  -webkit-backdrop-filter: blur(calc(var(--g-blur) * 0.7)) saturate(var(--g-sat));
+  backdrop-filter: blur(calc(var(--g-blur) * 0.7)) saturate(var(--g-sat));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass) * 0.18)),
+    0 0 0 1px rgba(255, 255, 255, calc(var(--glass) * 0.08));
+}
+
+/* =========================================================
+ *  ⑨ 悬停反光：玻璃被"推一下"的那点感觉
+ *  ⚠ 只动 background-position 和 opacity，不碰布局
+ * ======================================================= */
+.panel-plate,
+.friend-entry {
+  transition:
+    transform .3s ease,
+    box-shadow .3s ease,
+    background-position .5s cubic-bezier(.22, .61, .36, 1),
+    border-color .3s ease;
+  background-size: 220% 100%, auto;
+  background-position: 100% 0, 0 0;
+}
+
+.panel:hover .panel-plate,
+.panel:focus-visible .panel-plate {
+  background-position: 0 0, 0 0;
+}
+
+.friend-entry:hover {
+  background-position: 0 0, 0 0;
+}
+
+/* =========================================================
+ *  ⑩ 降级与无障碍
+ *  ---------------------------------------------------------
+ *  ① 浏览器不支持 backdrop-filter → 全部退回实色（宁可不玻璃，也不能糊）
+ *  ② 系统开了「减弱透明效果」→ 同上，这是给前庭/视觉敏感用户的关键开关
+ *  ③ 系统开了「减少动态效果」→ 只关反光位移，玻璃本身保留
+ * ======================================================= */
+@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+  .topbar { background: #14162c; }
+  .tabs { background: #14162c; }
+  .panel-plate { background: #fff; }
+  .friend-entry { background: var(--bg-2); }
+  .ctxmenu { background: rgba(19, 21, 40, .97); }
+  .chaprail { background: rgba(17, 19, 38, .7); }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .topbar { background: #14162c; }
+  .tabs { background: #14162c; }
+  .panel-plate { background: #fff; }
+  .friend-entry { background: var(--bg-2); }
+  .ctxmenu { background: rgba(19, 21, 40, .97); }
+  .chaprail { background: rgba(17, 19, 38, .7); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-plate,
+  .friend-entry {
+    background-position: 100% 0, 0 0;
+    transition: box-shadow .2s ease, border-color .2s ease;
+  }
+}
+
+/* =========================================================
+ *  ⑪ 浓度调节面板（tuner）
+ *  ---------------------------------------------------------
+ *  用 ?tune=glass 打开，或按 Ctrl/⌘ + Shift + G。
+ *  访客平时看不到它 —— 它是给站主调参用的，
+ *  调好后把面板上显示的 `--glass: 0.xx;` 贴回本文件顶部即可。
+ * ======================================================= */
+.gt {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 300;
+  width: 268px;
+  padding: 16px 16px 14px;
+  border: 1px solid rgba(255, 255, 255, calc(0.12 + var(--glass) * 0.2));
+  border-radius: 18px;
+  background:
+    linear-gradient(140deg,
+      rgba(255, 255, 255, calc(0.12 + var(--glass) * 0.14)) 0%,
+      rgba(255, 255, 255, 0) 46%),
+    rgba(16, 18, 36, calc(0.94 - var(--glass) * 0.16));
+  -webkit-backdrop-filter: blur(calc(var(--g-blur) * 1.1)) saturate(var(--g-sat));
+  backdrop-filter: blur(calc(var(--g-blur) * 1.1)) saturate(var(--g-sat));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.14 + var(--glass) * 0.24)),
+    0 26px 60px rgba(0, 0, 0, .52);
+  color: var(--ink);
+  font-size: 13px;
+  display: none;
+}
+
+.gt.is-open { display: block; }
+
+.gt-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.gt-head b {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .2em;
+  color: var(--rose-2);
+}
+
+.gt-head span {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+.gt-close {
+  all: unset;
+  cursor: pointer;
+  color: var(--ink-3);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color .18s;
+}
+
+.gt-close:hover { color: var(--rose); }
+
+/* 滑杆 */
+.gt input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  background: transparent;
+  cursor: grab;
+}
+
+.gt input[type='range']:active { cursor: grabbing; }
+
+.gt input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(224, 70, 111, .85) 0%, rgba(242, 116, 154, .85) 100%) 0 / var(--fill, 62%) 100% no-repeat,
+    rgba(255, 255, 255, .12);
+}
+
+.gt input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), 0 2px 8px rgba(0, 0, 0, .45);
+}
+
+.gt input[type='range']::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+}
+
+.gt input[type='range']::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(224, 70, 111, .85), rgba(242, 116, 154, .85));
+}
+
+.gt input[type='range']::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
+}
+
+.gt-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.gt-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.gt-presets {
+  display: flex;
+  gap: 5px;
+  margin: 10px 0 9px;
+}
+
+.gt-presets button {
+  flex: 1;
+  padding: 6px 0;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .04);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color .16s, color .16s, border-color .16s;
+}
+
+.gt-presets button:hover {
+  background: var(--rose-dim);
+  border-color: rgba(224, 70, 111, .5);
+  color: var(--ink);
+}
+
+.gt-presets button.is-on {
+  background: var(--rose-dim);
+  border-color: var(--rose);
+  color: var(--rose-2);
+}
+
+.gt-css {
+  display: block;
+  width: 100%;
+  padding: 8px 0;
+  border: 1px solid rgba(224, 70, 111, .4);
+  border-radius: 8px;
+  background: rgba(224, 70, 111, .12);
+  color: var(--rose-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  cursor: pointer;
+  transition: background-color .16s, border-color .16s;
+}
+
+.gt-css:hover { background: rgba(224, 70, 111, .22); border-color: var(--rose); }
+
+.gt-hint {
+  margin: 9px 0 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.gt-hint code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .08);
+  font-family: var(--font-mono);
+  font-size: .95em;
+  color: var(--ink);
+}
+
+/* =========================================================
+ *  ⑫ 页脚里的入口
+ *  ---------------------------------------------------------
+ *  调参面板光靠快捷键/网址参数不好发现，所以在页脚放一个很小的入口。
+ *  它很轻，不抢内容；但站主和感兴趣的访客都能找到。
+ * ======================================================= */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.glass-open {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 9px;
+  border: 1px solid rgba(255, 255, 255, .10);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  color: var(--ink-3);
+  background: rgba(255, 255, 255, .03);
+  transition: color .18s, border-color .18s, background-color .18s;
+}
+
+.glass-open::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, rgba(255, 255, 255, .85), rgba(224, 70, 111, .7));
+  box-shadow: 0 0 8px rgba(224, 70, 111, var(--g-glow));
+}
+
+.glass-open:hover,
+.glass-open:focus-visible {
+  color: var(--rose-2);
+  border-color: rgba(224, 70, 111, .45);
+  background: var(--rose-dim);
+  outline: none;
+}
+
+/* 个人页是浅粉底：这个入口要换成深色字，否则又是一块隐形内容 */
+body[data-view='me'] .glass-open {
+  color: var(--paper-ink-2);
+  border-color: rgba(36, 26, 32, .16);
+  background: rgba(255, 255, 255, .5);
+}
+
+body[data-view='me'] .glass-open:hover,
+body[data-view='me'] .glass-open:focus-visible {
+  color: var(--paper-rose-deep);
+  border-color: var(--paper-rose);
+  background: rgba(200, 57, 95, .10);
+}
+
+@media (max-width: 520px) {
+  .gt { left: 14px; right: 14px; width: auto; bottom: 14px; }
+}

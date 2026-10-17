@@ -119,7 +119,28 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
       必须在 style.css 之后 —— 它用到 style.css :root 里的 --paper-* / --radius。
       它只定义自己的选择器，不覆盖既有规则，所以加载顺序变了也不会打架。 */}
   <link rel="stylesheet" href={asset('assets/css/paper.css')}>
+  {/* 液态玻璃层：全站效果由 glass.css 顶部那一个 --glass 变量推导 */}
+  <link rel="stylesheet" href={asset('assets/css/glass.css')}>
   <ClientRouter />
+  <!--
+    首屏之前先把存好的「液态浓度」写上去。
+    ⚠ 必须放在这里（同步、不 defer）：
+      如果在下面的 <script> 里等 DOMContentLoaded 才设 --glass，
+      页面会先用 CSS 里的默认值画一帧、再跳到用户调好的值 ——
+      表现就是每次刷新顶栏都"闪一下"。
+  -->
+  <script is:inline>
+    (function () {
+      try {
+        var v = localStorage.getItem('irinsho:glass');
+        if (v === null) return;
+        var n = parseFloat(v);
+        if (!isFinite(n)) return;
+        n = Math.max(0, Math.min(1, n));
+        document.documentElement.style.setProperty('--glass', String(n));
+      } catch (e) { /* 隐私模式禁用 storage：用 CSS 默认值即可 */ }
+    })();
+  </script>
   <!-- 首屏之前先把「开了动效」标记写上，避免内容闪一下再消失 -->
   <script is:inline>
     (function () {
@@ -224,6 +245,8 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
 
 <footer class="footer">
   <span>{footerText}</span>
+  {/* 液态浓度入口：点开调参面板（等价于 ?tune=glass / Ctrl+Shift+G） */}
+  <button type="button" class="glass-open" id="glassOpen" title="调节液态玻璃浓度">液态浓度</button>
 </footer>
 
 {/*
@@ -246,6 +269,46 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   <div class="ctxmenu-sep" role="separator"></div>
   <button type="button" role="menuitem" data-ctx="top"><span>回到顶部</span><kbd>↑</kbd></button>
   <button type="button" role="menuitem" data-ctx="copy"><span>复制本页链接</span><kbd>C</kbd></button>
+</div>
+
+{/*
+  液态浓度调节面板
+  ---------------------------------------------------------
+  这是给**站主调参**用的，访客平时看不到：
+    · 打开方式一：网址后面加 ?tune=glass
+    · 打开方式二：Ctrl / ⌘ + Shift + G
+  调好后点「复制 --glass 值」，把那一行贴回 glass.css 顶部，
+    就变成了全站的默认浓度（面板里改的只是本机 localStorage）。
+*/}
+<div class="gt" id="glassTuner" role="dialog" aria-label="液态浓度调节" aria-hidden="true">
+  <div class="gt-head">
+    <b>LIQUID GLASS</b>
+    <span id="gtValue">62%</span>
+    <button type="button" class="gt-close" id="gtClose" aria-label="关闭" title="关闭">✕</button>
+  </div>
+
+  <input
+    type="range"
+    id="gtRange"
+    min="0"
+    max="100"
+    step="1"
+    value="62"
+    aria-label="液态浓度"
+  />
+
+  <div class="gt-presets" id="gtPresets">
+    <button type="button" data-g="0">实体</button>
+    <button type="button" data-g="0.35">轻</button>
+    <button type="button" data-g="0.62">标准</button>
+    <button type="button" data-g="0.85">浓</button>
+    <button type="button" data-g="1">极浓</button>
+  </div>
+
+  <button type="button" class="gt-css" id="gtCopy">复制 --glass 值</button>
+  <p class="gt-hint">
+    贴回 <code>glass.css</code> 顶部就是全站默认浓度。当前改动只存在这台浏览器里。
+  </p>
 </div>
 
 <script>
@@ -541,6 +604,135 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   }
 
   /* =========================================================
+   *  ⑧ 液态浓度调节面板
+   *  ---------------------------------------------------------
+   *  全站玻璃效果只有一个旋钮：--glass（0–1，定义在 glass.css）。
+   *  这里负责：
+   *    · 拖动滑杆 → 立刻写 <html style="--glass:…"> → 全站跟着变
+   *    · 存 localStorage，下次打开自动恢复（首帧由 head 里的内联脚本补上）
+   *    · 「复制 --glass 值」复制成一行 CSS，贴回 glass.css 即成为站点默认
+   *    · 打开：?tune=glass 或 Ctrl/⌘ + Shift + G
+   *
+   *  ⚠ 快捷键监听挂在 document 上，如果每次换页都注册一遍就会越积越多。
+   *    所以用 <html> 上的标记确保只注册一次，并在触发时**重新查找**面板
+   *    （换页后 DOM 是新的，闭包里那个旧引用已经没用了）。
+   * ======================================================= */
+  function initGlassTuner() {
+    try {
+      const root = document.documentElement;
+      const box = document.getElementById('glassTuner');
+
+      /* 快捷键只注册一次（与面板元素是否重建无关） */
+      if (root.dataset.gtShortcut !== '1') {
+        root.dataset.gtShortcut = '1';
+        document.addEventListener('keydown', (e) => {
+          if (!(e.ctrlKey || e.metaKey) || !e.shiftKey) return;
+          if (e.key !== 'g' && e.key !== 'G') return;
+          const el = document.getElementById('glassTuner');
+          if (!el) return;
+          e.preventDefault();
+          el.classList.toggle('is-open');
+          el.setAttribute('aria-hidden', el.classList.contains('is-open') ? 'false' : 'true');
+        });
+      }
+
+      /* 页脚「液态浓度」入口：委托在 document 上，
+         这样换页把按钮重建掉之后也不用重新绑定。 */
+      if (root.dataset.gtOpenBound !== '1') {
+        root.dataset.gtOpenBound = '1';
+        document.addEventListener('click', (e) => {
+          if (!e.target.closest || !e.target.closest('#glassOpen')) return;
+          const el = document.getElementById('glassTuner');
+          if (!el) return;
+          el.classList.toggle('is-open');
+          el.setAttribute('aria-hidden', el.classList.contains('is-open') ? 'false' : 'true');
+        });
+      }
+
+      if (!box || box.dataset.gtBound === '1') return;
+      box.dataset.gtBound = '1';
+      const range = document.getElementById('gtRange');
+      const valueEl = document.getElementById('gtValue');
+      const presets = document.getElementById('gtPresets');
+      const copyBtn = document.getElementById('gtCopy');
+      const closeBtn = document.getElementById('gtClose');
+      if (!range || !valueEl) return;
+
+      const current = () => {
+        const v = parseFloat(getComputedStyle(root).getPropertyValue('--glass'));
+        return isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.62;
+      };
+
+      const paint = (v) => {
+        const pct = Math.round(v * 100);
+        valueEl.textContent = pct + '%';
+        if (String(range.value) !== String(pct)) range.value = String(pct);
+        range.style.setProperty('--fill', pct + '%');
+        if (presets) {
+          presets.querySelectorAll('button[data-g]').forEach((b) => {
+            const g = parseFloat(b.dataset.g);
+            b.classList.toggle('is-on', isFinite(g) && Math.abs(g - v) < 0.005);
+          });
+        }
+      };
+
+      const apply = (v, save) => {
+        const n = Math.max(0, Math.min(1, v));
+        root.style.setProperty('--glass', n.toFixed(2));
+        paint(n);
+        if (save) {
+          try { localStorage.setItem('irinsho:glass', n.toFixed(2)); } catch (err) {}
+        }
+      };
+
+      /* 进来先对齐：当前值可能来自 localStorage，也可能是 glass.css 的默认 */
+      paint(current());
+
+      range.addEventListener('input', () => apply(Number(range.value) / 100, true));
+
+      if (presets) {
+        presets.addEventListener('click', (e) => {
+          const btn = e.target.closest('button[data-g]');
+          if (btn) apply(parseFloat(btn.dataset.g), true);
+        });
+      }
+
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          const line = `--glass: ${current().toFixed(2)};`;
+          const done = () => {
+            const old = copyBtn.textContent;
+            copyBtn.textContent = '已复制  ' + line;
+            setTimeout(() => { copyBtn.textContent = old; }, 1800);
+          };
+          try {
+            navigator.clipboard.writeText(line).then(done, () => {});
+          } catch (err) { /* 剪贴板被禁用就只当没点 */ }
+        });
+      }
+
+      const open = () => {
+        box.classList.add('is-open');
+        box.setAttribute('aria-hidden', 'false');
+        paint(current());
+        try { range.focus({ preventScroll: true }); } catch (err) {}
+      };
+      const close = () => {
+        box.classList.remove('is-open');
+        box.setAttribute('aria-hidden', 'true');
+      };
+
+      if (closeBtn) closeBtn.addEventListener('click', close);
+      box.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+
+      /* ?tune=glass 直接打开，省得每次记快捷键 */
+      try {
+        if (/[?&]tune=glass\b/.test(location.search)) open();
+      } catch (err) { /* 某些内嵌浏览器拿不到 location.search */ }
+    } catch (e) { /* 调参面板坏掉也不影响站点本身 */ }
+  }
+
+  /* =========================================================
    *  ④ 换页后重启
    *  ---------------------------------------------------------
    *  开了页面过渡（ClientRouter）后，Astro 换页时会把旧 DOM 整个换掉。
@@ -593,6 +785,7 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
     startScrollProgress();
     startScrollFlag();
     initContextMenu();
+    initGlassTuner();
   }
 
   document.addEventListener('astro:page-load', bootMotion);
