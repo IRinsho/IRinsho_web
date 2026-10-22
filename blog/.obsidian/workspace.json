@@ -13,9 +13,9 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Maya.md",
+                "file": "水仙花数.md",
                 "mode": "preview",
-                "source": true,
+                "source": false,
                 "backlinks": true,
                 "backlinkOpts": {
                   "collapseAll": false,
@@ -28,7 +28,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "Maya"
+              "title": "水仙花数"
             }
           }
         ]
@@ -184,7 +184,7 @@
             "state": {
               "type": "file-properties",
               "state": {
-                "file": "Maya.md"
+                "file": "水仙花数.md"
               },
               "icon": "lucide-info",
               "title": "笔记属性"
@@ -212,19 +212,22 @@
   },
   "active": "e75b1ae276593724",
   "lastOpenFiles": [
-    "求最大公约数以及最小公倍数.md",
-    "Maya.md",
-    "使用 C 语言实现的“输入某一时刻，输出下一秒”.md",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
+    "c语言学习/如何输出字符串位数.md",
+    "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164034.png",
+    "求最大公约数以及最小公倍数.md",
     "去掉末尾的空格.md",
-    "c语言学习/特殊换行代码.md",
+    "使用 C 语言实现的“输入某一时刻，输出下一秒”.md",
+    "水仙花数.md",
+    "c语言练习总结.md",
+    "冒泡排顺序.md",
+    "_模板.md",
     "_怎么用.md",
     "练习.md",
-    "c语言练习总结.md",
+    "Maya.md",
+    "c语言学习/特殊换行代码.md",
     "AI实现AE输入法自动切换.md",
-    "c语言学习/如何输出字符串位数.md",
     "c语言学习/实现倒序输出（for循环）.md",
-    "_模板.md",
     "c语言学习/c语言练习总结.md",
     "如何输出字符串位数.md",
     "特殊换行代码.md",
@@ -238,7 +241,6 @@
     "c语言学习/代码截图/Pasted image 20260922162534.png",
     "c语言学习/代码截图/Pasted image 20260922162448.png",
     "c语言学习/代码截图/Pasted image 20260922162223.png",
-    "c语言学习/代码截图/Pasted image 20260922161730.png",
     "c语言学习/代码截图",
     "c语言学习",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法",

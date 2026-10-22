@@ -28,7 +28,7 @@ draft:
 - 按 `HH:MM:SS` 格式输出，不足两位补前导 0。
 
 
-```
+```c
 #include <stdio.h>
 
 // 定义时间结构体
@@ -104,7 +104,7 @@ text
 
 - 如果题目要求输入用空格分隔（如 `12 34 56`），只需把 `scanf` 改为：
     
-```
+```c
     scanf("%d %d %d", &t.hour, &t.minute, &t.second);
 ```
     
@@ -114,7 +114,7 @@ text
 
 
 ### 简写为以下代码依然可以运行（仅供参考）
-```
+```c
 #include <stdio.h>
 int main() {
     int hour;
