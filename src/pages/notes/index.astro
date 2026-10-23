@@ -26,10 +26,13 @@ const countOf = (c) => (c === ALL ? notes.length : notes.filter((n) => n.categor
     {notes.map((n, i) => (
       <a
         class="post"
+        data-fam={i % 3}
         href={asset('notes/' + n.id + '/')}
         data-category={n.category}
         data-search={[n.title, n.summary, n.category, (n.tags || []).join(' ')].join(' ').toLowerCase()}
       >
+        {/* 画框：SYNAPSE 下是「上宽下窄的阶梯切角」那块媒体区，
+            悬停时长高并让封面浮现；KISARA 下还是原来的封面图。 */}
         {n.cover ? (
           <div class="post-cover">
             <img src={asset(coverOf(n.cover))} alt={n.title} loading="lazy" />
@@ -42,13 +45,21 @@ const countOf = (c) => (c === ALL ? notes.length : notes.filter((n) => n.categor
           </div>
         )}
 
-        <div class="post-meta">
-          <span>{pad2(i + 1)} SIGNAL</span>
-          <span class="pm-cat">{n.category || '未分类'}</span>
-          <time>{fmtSlash(n.date)}</time>
+        <div class="post-body">
+          <span class="post-no" aria-hidden="true">{pad2(i + 1)}</span>
+          <span class="post-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+              stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8" /></svg>
+          </span>
+
+          <div class="post-meta">
+            <span class="pm-idx">{pad2(i + 1)} SIGNAL</span>
+            <span class="pm-cat">{n.category || '未分类'}</span>
+            <time>{fmtSlash(n.date)}</time>
+          </div>
+          <h3 class="post-title">{n.pinned ? '📌 ' : ''}{n.title}</h3>
+          {n.summary && <p class="post-sum">{n.summary}</p>}
         </div>
-        <h3 class="post-title">{n.pinned ? '📌 ' : ''}{n.title}</h3>
-        {n.summary && <p class="post-sum">{n.summary}</p>}
       </a>
     ))}
   </div>

@@ -992,7 +992,9 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
       void el.offsetWidth;
       el.classList.add('is-covering');
 
-      window.setTimeout(() => { location.href = url.href; }, 260);
+      /* 180ms：面板 .15s 盖满 + 一帧余量再走。
+         整段擦除（盖 0.15 + 抽 0.18）≈ 0.33s，原来是 260+220+460 ≈ 1s。 */
+      window.setTimeout(() => { location.href = url.href; }, 180);
     }, true);
   }
 

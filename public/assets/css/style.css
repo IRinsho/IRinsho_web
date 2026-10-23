@@ -724,6 +724,13 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 .post-sum { margin: 8px 0 0; color: var(--ink-2); font-size: 12.5px; line-height: 1.8;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
+/* 新结构：卡片正文包了一层 .post-body，里面多了大号序号和箭头。
+   KISARA 保持原样 —— 这层用 display:contents 等于不存在，
+   meta / 标题 / 摘要还是 .post 的直接子元素。序号和箭头只在
+   SYNAPSE 下出现（见 theme.css ⑩）。 */
+.post-body { display: contents; }
+.post-no, .post-arrow { display: none; }
+
 /* =========================================================
  *  Blog 阅读页
  * ======================================================= */

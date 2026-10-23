@@ -277,6 +277,14 @@ html[data-theme='synapse'] .theme-btn[aria-pressed='true'] {
 html[data-theme='synapse'] .gate {
   background: #0b0714;
 }
+/* 内页首屏：顶栏是悬浮胶囊，占了顶部 ~110px。原来 gate 还是整 100svh，
+   结果首屏底边掉到视口外面，标题贴着折线、下面留一条黑带。
+   收掉这一截，首屏正好落在第一屏之内。 */
+html[data-theme='synapse'] .gate--page,
+html[data-theme='synapse'] .gate--page .gate-inner {
+  min-height: 100vh;
+  min-height: calc(100svh - 110px);
+}
 /* ⚠ 主视觉保持原色（用户要求）：不再做紫罗兰双色调。
    紫只从「光」来 —— 左上角一团紫光、底部压暗，插画本身的颜色不动。 */
 html[data-theme='synapse'] .gate-hero {
@@ -833,8 +841,13 @@ html[data-theme='synapse'] .gate--home {
 html[data-theme='synapse'] .syn-wipe {
   display: block;
   position: fixed;
-  inset: 0;
-  z-index: 100;                /* 盖住顶栏：Astro 的换页残影会从顶栏露出来 */
+  /* 上边多出 40px：面板落到位时圆角跑到视口外面，
+     顶角不会露出底下的页面（滑动过程中那条圆角边还在，是"入场"的那一刀） */
+  inset: -40px 0 0 0;
+  /* 55 < 顶栏的 60：面板从胶囊底下滑过去，导航全程露着（对齐参考站）。
+     以前设 100 是为了压住 Astro 的换页残影 —— 现在 SYNAPSE 已经改成
+     整页跳转，没有快照层了，这条限制可以撤掉。 */
+  z-index: 55;
   pointer-events: none;
   background:
     radial-gradient(80% 60% at 20% 0%, #4c1d95 0%, transparent 62%),
@@ -846,17 +859,20 @@ html[data-theme='synapse'] .syn-wipe {
   box-shadow: 0 -30px 80px rgba(0, 0, 0, .55);
 }
 
+/* 顶栏抬到面板之上：换页时胶囊不动，紫色面板从它下面穿过去 */
+html[data-theme='synapse'] .topbar { z-index: 70; }
+
 html[data-theme='synapse'] .syn-wipe.is-covering {
-  /* 盖上去要快：慢的话底下的 Astro 换页交叉淡入会从边缘露出来 */
+  /* 一上一下各 0.15s 左右，整段擦除 ≈ 0.33s（参考站 13.5s 那个换页的节奏） */
   transform: translateY(0);
-  transition: transform .22s cubic-bezier(.5, 0, .3, 1);
+  transition: transform .15s cubic-bezier(.5, 0, .3, 1);
 }
 
 
 
 html[data-theme='synapse'] .syn-wipe.is-out {
   transform: translateY(-101%);
-  transition: transform .46s cubic-bezier(.65, 0, .35, 1);
+  transition: transform .18s cubic-bezier(.5, 0, .3, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1081,6 +1097,331 @@ html[data-theme='synapse'] ::-webkit-scrollbar-thumb {
 }
 html[data-theme='synapse'] ::-webkit-scrollbar-thumb:hover {
   background: var(--rose);
+}
+
+/* =========================================================
+ *  ⑩ 笔记列表：阶梯切角卡（对齐 Scrolltide 那张 01/02/03）
+ *  ---------------------------------------------------------
+ *  参考组件拆开看只有四件事：
+ *
+ *  ① 画框不是矩形。上沿宽、下沿窄：媒体区左边停在 20% 高度，
+ *     右边多垂一块 34px 的「舌头」，两个转角都是内凹圆角。
+ *     实现不用 SVG：媒体吃满整块，再拿一块和卡底色相同的
+ *     ::after 从底部盖住左边 57% —— 切角、缺口、S 弯一次成型。
+ *
+ *  ② 序号在媒体下面，媒体长高它就往下走；标题固定在底部。
+ *     用一个 --mh 变量同时驱动媒体高度和正文的 top，两边永远同步。
+ *
+ *  ③ 悬停时媒体从 20% 长到 46%，封面图从 0 淡到 1（放大 1.08 → 1）。
+ *     卡片本身不动 —— 参考站全程没有位移，动的是画框和照片。
+ *
+ *  ④ 三张一循环：紫 / 米白 / 近黑，和三张参考卡一一对应。
+ *     颜色走 --note-*，图片一律不加滤镜（保持原色）。
+ *
+ *  ⚠ --mh 用 @property 注册成 <percentage>，否则 CSS 变量不能过渡，
+ *    悬停会变成瞬间跳变（Chrome 85+ / Safari 16.4+ / FF 128+ 都支持）。
+ * ======================================================= */
+@property --mh {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 28.5%;
+}
+
+html[data-theme='synapse'] .blog-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
+}
+
+/* 筛选条：搜索框和分类都收成胶囊，和顶栏同一套语言 */
+html[data-theme='synapse'] .blog-bar {
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom-color: rgba(255, 255, 255, .08);
+}
+html[data-theme='synapse'] .blog-search {
+  background: rgba(255, 255, 255, .04);
+  border-color: rgba(255, 255, 255, .1);
+  padding: 10px 16px;
+}
+html[data-theme='synapse'] .blog-search:focus-within {
+  border-color: rgba(196, 170, 255, .55);
+  background: rgba(255, 255, 255, .07);
+}
+html[data-theme='synapse'] .blog-filters { gap: 4px; }
+html[data-theme='synapse'] .blog-filters button {
+  padding: 7px 13px;
+  border-radius: 999px;
+  text-transform: none;
+}
+html[data-theme='synapse'] .blog-filters button::after { display: none; }
+html[data-theme='synapse'] .blog-filters button.active {
+  color: #140d1f;
+  background: #fff;
+  box-shadow: 0 0 22px rgba(255, 255, 255, .16);
+}
+
+html[data-theme='synapse'] .post {
+  --note-bg: #1b1140;
+  --note-ink: #fff;
+  --note-ink-2: rgba(255, 255, 255, .62);
+  --note-line: rgba(255, 255, 255, .12);
+  --poster:
+    radial-gradient(120% 90% at 78% 0%, rgba(255, 255, 255, .45), transparent 58%),
+    linear-gradient(158deg, #c3aaff 0%, #7c3aed 42%, #3d1a94 78%, #2a1470 100%);
+  --mh: 28.5%;
+  --tab: 34px;
+
+  position: relative;
+  display: block;
+  container-type: inline-size;
+  aspect-ratio: 296 / 411;
+  padding: 0;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 26px;
+  background: var(--note-bg);
+  color: var(--note-ink);
+  box-shadow: 0 20px 54px rgba(0, 0, 0, .4);
+  text-decoration: none;
+  /* --mh 是唯一的时间轴：画框高度和正文 top 都读它，所以只要过渡它一个。
+     参考站那段约 0.17s（30fps 5 帧），这里取 0.2s —— 鼠标扫过一排卡
+     时不会追不上，也不至于像闪一下。 */
+  transition: --mh .2s cubic-bezier(.22, .61, .36, 1), box-shadow .45s ease;
+}
+
+/* ⚠ display:block 会把 UA 的 [hidden]{display:none} 盖掉 ——
+   搜索 / 分类筛选靠 el.hidden 隐藏卡片，必须显式补一条，
+   否则在 SYNAPSE 下筛完还是满屏卡片。 */
+html[data-theme='synapse'] .post[hidden] { display: none; }
+
+/* 三套配色：紫 / 米白 / 近黑（顺序循环，和参考站三张卡一致） */
+html[data-theme='synapse'] .post[data-fam='0'] {
+  --note-bg: #1b1140;
+  --note-ink: #fff;
+  --note-ink-2: rgba(255, 255, 255, .6);
+  --note-line: rgba(255, 255, 255, .12);
+  --poster:
+    radial-gradient(110% 80% at 76% 0%, rgba(255, 255, 255, .5), transparent 56%),
+    linear-gradient(158deg, #c3aaff 0%, #8b5cf6 38%, #6d28d9 72%, #5b21b6 100%);
+}
+html[data-theme='synapse'] .post[data-fam='1'] {
+  --note-bg: #f2efea;
+  --note-ink: #141216;
+  --note-ink-2: rgba(20, 18, 22, .58);
+  --note-line: rgba(20, 18, 22, .14);
+  --poster:
+    radial-gradient(110% 85% at 82% 4%, rgba(255, 255, 255, .55), transparent 54%),
+    linear-gradient(158deg, #ffb9a1 0%, #e8798a 34%, #b04a8c 68%, #7d2f78 100%);
+}
+html[data-theme='synapse'] .post[data-fam='2'] {
+  --note-bg: #101216;
+  --note-ink: #fff;
+  --note-ink-2: rgba(255, 255, 255, .58);
+  --note-line: rgba(255, 255, 255, .12);
+  --poster:
+    radial-gradient(110% 85% at 80% 2%, rgba(255, 255, 255, .75), transparent 58%),
+    linear-gradient(158deg, #eef4fa 0%, #c2d0de 34%, #93a6bd 70%, #6b7f97 100%);
+}
+
+/* ---------- 画框：阶梯切角 ---------- */
+html[data-theme='synapse'] .post-cover,
+html[data-theme='synapse'] .post-cover:has(img) {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  width: auto;
+  height: var(--mh);
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--poster);
+  box-shadow: none;
+  transform: none;
+  /* 高度跟着 --mh 走，这里不能再给 height 加过渡 ——
+     那会变成「追一个正在变的数」，比参考站慢一倍。 */
+}
+
+/* ⚠ KISARA 的 .post:hover .post-cover 会加"掀起"位移 + 大片投影，
+   选择器比上面这条更具体，必须在这里显式压掉 —— 否则悬停时会看到
+   画框整体上移 5px、还带一层漫画书式的阴影。 */
+html[data-theme='synapse'] .post:hover .post-cover,
+html[data-theme='synapse'] .post:focus-visible .post-cover {
+  transform: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* 封面图：默认藏着，悬停才浮出来（原色，不加任何滤镜） */
+html[data-theme='synapse'] .post-cover img,
+html[data-theme='synapse'] .post-cover:has(img) img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transform: scale(1.08);
+  filter: none !important;
+  transition: opacity .18s ease, transform .45s cubic-bezier(.22, .61, .36, 1);
+}
+
+/* 切角：卡底色从底部盖住左边 57%，右上角内凹 → 就是那块「舌头」 */
+html[data-theme='synapse'] .post-cover::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  width: 57%;
+  height: var(--tab);
+  background: var(--note-bg);
+  background-image: none;
+  mix-blend-mode: normal;
+  opacity: 1;
+  border-top-right-radius: 15px;
+}
+/* 舌头左下角的内凹补角（一个小方块的径向渐变，颜色跟卡底走）
+   ⚠ inset 必须整条重置：上面 KISARA 那条 ::before 是 inset:0，
+     只覆盖 left/bottom 会留下 top:0，方块会被钉在画框顶上。 */
+html[data-theme='synapse'] .post-cover::before {
+  content: '';
+  position: absolute;
+  inset: auto auto 0 57%;
+  width: 16px;
+  height: 16px;
+  border-radius: 0;
+  box-shadow: none;
+  background: radial-gradient(circle at 100% 0%, transparent 15px, var(--note-bg) 15.4px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ---------- 正文：贴着切角站，标题沉到底 ---------- */
+html[data-theme='synapse'] .post-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--mh) - var(--tab) + 6px + clamp(20px, 6.2cqw, 32px));
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 clamp(18px, 6cqw, 26px) clamp(18px, 6cqw, 26px);
+  color: var(--note-ink);
+}
+
+html[data-theme='synapse'] .post-no {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 19.5cqw;
+  font-weight: 700;
+  line-height: .84;
+  letter-spacing: -.045em;
+  font-variant-numeric: tabular-nums;
+  color: var(--note-ink);
+}
+
+html[data-theme='synapse'] .post-arrow {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  right: clamp(18px, 6cqw, 26px);
+  top: calc(var(--tab) + 10px);
+  width: 18px;
+  height: 18px;
+  color: var(--note-ink);
+  opacity: .75;
+  transition: transform .4s cubic-bezier(.22, .61, .36, 1), opacity .3s;
+}
+html[data-theme='synapse'] .post-arrow svg { width: 100%; height: 100%; }
+
+html[data-theme='synapse'] .post-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: auto 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--note-ink-2);
+}
+html[data-theme='synapse'] .post-meta .pm-idx { display: none; }
+html[data-theme='synapse'] .post-meta .pm-cat {
+  color: var(--note-ink);
+  opacity: .82;
+}
+html[data-theme='synapse'] .post-meta time { margin-left: auto; }
+
+html[data-theme='synapse'] .post-title {
+  margin: 8px 0 0;
+  font-family: var(--font-sans);
+  font-size: 15.5px;
+  font-weight: 650;
+  line-height: 1.45;
+  letter-spacing: -.005em;
+  color: var(--note-ink);
+  transition: none;
+}
+html[data-theme='synapse'] .post:hover .post-title { color: var(--note-ink); }
+html[data-theme='synapse'] .post-title::after { display: none; }
+
+html[data-theme='synapse'] .post-sum {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--note-ink-2);
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* 生成底图（没有封面图的笔记）：序号和角标都收起来，
+   画框只留渐变海报 —— 参考站没用封面图的卡就是这样。 */
+html[data-theme='synapse'] .post-cover--gen b,
+html[data-theme='synapse'] .post-cover .cover-tag { display: none; }
+html[data-theme='synapse'] .post-cover--gen {
+  display: block;
+  background: var(--poster);
+}
+
+/* ---------- 悬停：画框长高 + 照片浮现 ---------- */
+@media (hover: hover) {
+  html[data-theme='synapse'] .post:hover {
+    --mh: 52%;
+    box-shadow: 0 26px 70px rgba(0, 0, 0, .5);
+  }
+  html[data-theme='synapse'] .post:hover .post-cover img,
+  html[data-theme='synapse'] .post:hover .post-cover:has(img) img {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  html[data-theme='synapse'] .post:hover .post-arrow {
+    transform: translate(3px, -3px);
+    opacity: 1;
+  }
+}
+html[data-theme='synapse'] .post:focus-visible {
+  --mh: 52%;
+  outline: 2px solid rgba(196, 170, 255, .9);
+  outline-offset: 3px;
+}
+html[data-theme='synapse'] .post:focus-visible .post-cover img { opacity: 1; transform: none; }
+
+/* 两列 / 一列：媒体比例不变，字号跟着卡宽走（cqw） */
+@media (max-width: 900px) {
+  html[data-theme='synapse'] .blog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+}
+@media (max-width: 620px) {
+  html[data-theme='synapse'] .blog-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  html[data-theme='synapse'] .post { aspect-ratio: 4 / 3.6; border-radius: 22px; }
+}
+
+/* 减少动效：画框直接切状态，不做过渡 */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme='synapse'] .post-cover,
+  html[data-theme='synapse'] .post-cover img { transition: none !important; }
 }
 
 /* 减少动效 */
