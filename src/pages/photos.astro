@@ -33,53 +33,84 @@ const dimAttrs = (p) => (p.w > 0 && p.h > 0 ? { width: p.w, height: p.h } : {});
     ))}
   </div>
 
-  <div class="photo-grid" id="photoGrid">
-    {photos.map((p, i) => (
-      <figure
-        class="photo-card"
-        data-index={i}
-        data-album={p.album}
-        data-src={asset(p.src)}
-        data-w={p.w || ''}
-        data-h={p.h || ''}
-        data-title={p.title}
-        data-desc={[p.desc, p.album, fmtCN(p.date)].filter(Boolean).join(' · ')}
-        tabindex="0"
-        role="button"
-        aria-label={'查看 ' + p.title}
-      >
-        <span class="card-no">{pad2(i + 1)} PORTRAIT LOG</span>
-        {/*
-          注意：这里不能给 <img> 加 loading="lazy"。
-          相册是多列瀑布流（CSS columns），Chrome 里 lazy 图在这个布局下
-          经常一直不进视口、永远停在「没加载」状态 —— 表现就是一整片空白卡片。
-          前 9 张直接加载，后面的交给浏览器自己决定。
+  {/*
+    相册舞台（SYNAPSE 是 3D 环，KISARA 退化成整齐的三栏网格）
+    ---------------------------------------------------------
+    同一个 DOM 两种排法：
+      · KISARA   —— .pg-stage 是普通网格，卡片照旧带边框、悬停出说明
+      · SYNAPSE  —— .pg-stage 变成 perspective 舞台，卡片绝对定位，
+                    按 --d（离当前第几张的带符号距离）算位置 / 转角 / 景深；
+                    --d = 0 那张就是"当期"，最大、最亮、正对镜头。
+    参考站那面「浮在黑里的照片墙」就是靠这套变量还原的：
+    两侧的卡不只是缩小，还要 rotateY 转开、往后退、压暗 —— 少一样都不像。
+  */}
+  <section class="pg" id="gallery">
+    {/* 背景里几张虚化的回声：让照片墙有"延伸出去"的错觉（纯装饰） */}
+    <div class="pg-field" aria-hidden="true">
+      {[0, 1, 2, 3].map((k) => {
+        const p = photos[k % photos.length];
+        return <span class="pg-echo" style={`--k:${k};--src:url(${asset(p.src)})`} />;
+      })}
+    </div>
 
-          width / height 用成品图的真实像素（见上方 dimAttrs）：
-          只为了让浏览器提前占位、并知道图片的比例；
-          实际显示尺寸由 CSS 决定（width:100%; height:auto），所以不会被裁或被拉扁。
-        */}
-        <img
-          src={asset(p.src)}
-          alt={p.title}
-          {...dimAttrs(p)}
-          loading={i < 9 ? 'eager' : 'lazy'}
-          decoding="async"
-          onerror="this.closest('.photo-card').classList.add('is-broken')"
-        />
-        <span class="card-corner">{p.album} LOG</span>
-        <figcaption>
-          <strong>{p.title}</strong>
-          {p.desc && <span>{p.desc}</span>}
-          {p.tags.length > 0 && (
-            <div class="chips">
-              {p.tags.map((t) => <span class="chip">#{t}</span>)}
-            </div>
-          )}
-        </figcaption>
-      </figure>
-    ))}
-  </div>
+    <div class="pg-stage" id="pgStage">
+      {photos.map((p, i) => (
+        <figure
+          class="photo-card"
+          data-index={i}
+          data-album={p.album}
+          data-src={asset(p.src)}
+          data-w={p.w || ''}
+          data-h={p.h || ''}
+          data-title={p.title}
+          data-desc={[p.desc, p.album, fmtCN(p.date)].filter(Boolean).join(' · ')}
+          data-tags={(p.tags || []).join(' ')}
+          style={`--i:${i}`}
+          tabindex="0"
+          role="button"
+          aria-label={'查看 ' + p.title}
+        >
+          <span class="card-no">{pad2(i + 1)} PORTRAIT LOG</span>
+          {/*
+            ⚠ 不能给 <img> 加 loading="lazy"：3D 舞台里所有图一开始就在
+            视口内，lazy 反而会让它们卡在"没加载"的空白状态。
+            width/height 用成品图真实像素，浏览器先占位、也知道比例。
+          */}
+          <img
+            src={asset(p.src)}
+            alt={p.title}
+            {...dimAttrs(p)}
+            loading="eager"
+            decoding="async"
+            onerror="this.closest('.photo-card').classList.add('is-broken')"
+          />
+          <span class="card-corner">{p.album} LOG</span>
+          <figcaption>
+            <strong>{p.title}</strong>
+            {p.desc && <span>{p.desc}</span>}
+            {p.tags.length > 0 && (
+              <div class="chips">
+                {p.tags.map((t) => <span class="chip">#{t}</span>)}
+              </div>
+            )}
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+
+    {/* 舞台下方那条：标题 / 说明 / 计数 / 翻页（KISARA 下整条隐藏） */}
+    <div class="pg-bar">
+      <button class="pg-btn" type="button" data-pg="prev" aria-label="上一张">‹</button>
+      <div class="pg-meta">
+        <strong id="pgTitle"></strong>
+        <span id="pgSub"></span>
+      </div>
+      <span class="pg-count" id="pgCount">01 / 0{photos.length}</span>
+      <button class="pg-btn" type="button" data-pg="next" aria-label="下一张">›</button>
+    </div>
+
+    <p class="pg-hint" aria-hidden="true">滚轮 / ← → 换一张 · 点开看大图</p>
+  </section>
 
   {photos.length === 0 && (
     <p class="empty">
@@ -108,11 +139,17 @@ const dimAttrs = (p) => (p.w > 0 && p.h > 0 ? { width: p.w, height: p.h } : {});
     const titleEl = document.getElementById('lbTitle');
     const descEl = document.getElementById('lbDesc');
     const counterEl = document.getElementById('lbCounter');
-    let current = -1;
+    const stage = document.getElementById('pgStage');
+    const pgTitle = document.getElementById('pgTitle');
+    const pgSub = document.getElementById('pgSub');
+    const pgCount = document.getElementById('pgCount');
+    let current = -1;      // 灯箱里第几张
+    let active = 0;        // 舞台上"正对镜头"那张
 
-    const visible = () =>
-      Array.from(document.querySelectorAll('.photo-card')).filter((el) => !el.hidden);
+    const pad = (n) => String(n).padStart(2, '0');
+    const visible = () => Array.from(stage.querySelectorAll('.photo-card')).filter((el) => !el.hidden);
 
+    /* ---------- 灯箱 ---------- */
     function open(i) {
       const list = visible();
       if (i < 0 || i >= list.length) return;
@@ -126,7 +163,7 @@ const dimAttrs = (p) => (p.w > 0 && p.h > 0 ? { width: p.w, height: p.h } : {});
       imgEl.alt = el.dataset.title || '';
       titleEl.textContent = el.dataset.title || '';
       descEl.textContent = el.dataset.desc || '';
-      counterEl.textContent = String(i + 1).padStart(2, '0') + ' / ' + String(list.length).padStart(2, '0');
+      counterEl.textContent = pad(i + 1) + ' / ' + pad(list.length);
       box.hidden = false;
       document.body.style.overflow = 'hidden';
     }
@@ -144,68 +181,123 @@ const dimAttrs = (p) => (p.w > 0 && p.h > 0 ? { width: p.w, height: p.h } : {});
       open((current + d + list.length) % list.length);
     }
 
-    // 分类筛选（带编排式过渡：旧图缩小模糊退场 → 新图错峰放大入场）
+    /* =========================================================
+     *  舞台排位
+     *  ---------------------------------------------------------
+     *  每张卡只拿到两个数：
+     *    --d    离"当期"第几张（带符号：左负右正）
+     *    --abs  |--d|
+     *  位置、转角、景深、亮度全部由 CSS 用这两个数算 —— JS 不写坐标。
+     *  这样断点、字号、卡片尺寸怎么改，排位都不用重新标定。
+     *
+     *  ⚠ 只铺 ±2 层。再远的就是糊成一团的背景，没有信息量，
+     *    直接不显示（DISPLAY_LIMIT），省得 30 张图挤在一个舞台上。
+     * ======================================================= */
+    const LIMIT = 2;
+
+    function layout() {
+      const list = visible();
+      if (!list.length) return;
+      if (active > list.length - 1) active = list.length - 1;
+      if (active < 0) active = 0;
+
+      list.forEach((el, i) => {
+        /* ⚠ 这里算的是「环形最短距离」，不是简单的 i - active。
+           3 张图时 i-active 会是 0/1/2，第三张被推到 +2 层就基本看不见了；
+           环绕到 -1 才是"左边那张"。取一半宽度当分界，一改就对上。 */
+        let raw = i - active;
+        if (list.length > 2) {
+          if (raw > list.length / 2) raw -= list.length;
+          if (raw < -list.length / 2) raw += list.length;
+        }
+        const d = Math.max(-LIMIT, Math.min(LIMIT, raw));
+        el.style.setProperty('--d', d);
+        el.style.setProperty('--abs', Math.min(LIMIT + 0.6, Math.abs(raw)));
+        el.dataset.active = d === 0 ? '1' : '';
+        const far = Math.abs(raw) > LIMIT;
+        el.style.visibility = far ? 'hidden' : '';
+        el.style.pointerEvents = far ? 'none' : '';
+      });
+
+      const cur = list[active];
+      if (cur) {
+        if (pgTitle) pgTitle.textContent = cur.dataset.title || '';
+        if (pgSub) pgSub.textContent = cur.dataset.desc || '';
+      }
+      if (pgCount) pgCount.textContent = pad(active + 1) + ' / ' + pad(list.length);
+    }
+
+    function setActive(i) {
+      const list = visible();
+      if (!list.length) return;
+      active = (i + list.length) % list.length;
+      layout();
+    }
+
+    /* 指针视差：整面墙跟着指针轻微转一点（幅度很小，只是让画面"活"起来） */
     const reduceMotion = window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+    if (!reduceMotion) {
+      const galleryEl = document.getElementById('gallery');
+      if (galleryEl) {
+        galleryEl.addEventListener('pointermove', (e) => {
+          const r = galleryEl.getBoundingClientRect();
+          if (!r.width) return;
+          const mx = (e.clientX - r.left) / r.width - 0.5;
+          const my = (e.clientY - r.top) / r.height - 0.5;
+          galleryEl.style.setProperty('--mx', mx.toFixed(3));
+          galleryEl.style.setProperty('--my', my.toFixed(3));
+        }, { passive: true });
+        galleryEl.addEventListener('pointerleave', () => {
+          galleryEl.style.setProperty('--mx', '0');
+          galleryEl.style.setProperty('--my', '0');
+        });
+      }
+    }
+
+    /* 分类筛选：只改 hidden，排位交给 layout() 重算。
+       （原先是瀑布流，靠错峰动画进出；3D 舞台上位置本来就是算出来的，
+         再叠一层动画会互相打架，所以这里只保留"立刻算新排位"这一条路径。） */
     document.getElementById('filters').addEventListener('click', (e) => {
       const btn = e.target.closest('.filter');
       if (!btn) return;
       document.querySelectorAll('#filters .filter').forEach((b) => b.classList.toggle('active', b === btn));
       const album = btn.dataset.album;
-      const cards = [...document.querySelectorAll('.photo-card')];
-
-      // 没有动效需求 / 系统要求减少动效 → 直接切，保持原来的行为
-      if (reduceMotion) {
-        cards.forEach((el) => { el.hidden = album !== '全部' && el.dataset.album !== album; });
-        close();
-        return;
-      }
-
-      const willShow = (el) => album === '全部' || el.dataset.album === album;
-      const toHide = cards.filter((el) => !el.hidden && !willShow(el));
-      const toShow = cards.filter((el) => el.hidden && willShow(el));
-
-      // 1) 退场：正在显示的旧图先缩一下再藏起来
-      toHide.forEach((el) => {
-        el.classList.remove('is-entering');
-        el.classList.add('is-leaving');
+      [...stage.querySelectorAll('.photo-card')].forEach((el) => {
+        el.classList.remove('is-entering', 'is-leaving');
+        el.hidden = album !== '全部' && el.dataset.album !== album;
       });
-
-      // 2) 入场：等旧图让开位置，新图按顺序错峰进来
-      const STAGGER = 45;                                    // 每张间隔（毫秒）
-      const LEAD = toHide.length ? 190 : 0;                  // 有退场就先等一小会儿
-
-      window.setTimeout(() => {
-        toHide.forEach((el) => {
-          el.hidden = true;
-          el.classList.remove('is-leaving');
-        });
-
-        toShow.forEach((el, i) => {
-          el.hidden = false;
-          el.classList.remove('is-leaving');
-          el.style.setProperty('--stagger', Math.min(i * STAGGER, 520) + 'ms');
-          el.classList.add('is-entering');
-          el.addEventListener('animationend', () => {
-            el.classList.remove('is-entering');
-            el.style.removeProperty('--stagger');
-          }, { once: true });
-        });
-      }, LEAD);
-
+      active = 0;
+      layout();
       close();
     });
 
-    // 打开灯箱
-    document.getElementById('photoGrid').addEventListener('click', (e) => {
-      const card = e.target.closest('.photo-card');
-      if (card) open(visible().indexOf(card));
+    // 翻页按钮
+    document.querySelectorAll('[data-pg]').forEach((b) => {
+      b.addEventListener('click', () => setActive(active + (b.dataset.pg === 'next' ? 1 : -1)));
     });
-    document.getElementById('photoGrid').addEventListener('keydown', (e) => {
+
+    // 点卡：正对镜头那张打开灯箱，其余的先把它转到中间
+    stage.addEventListener('click', (e) => {
+      const card = e.target.closest('.photo-card');
+      if (!card) return;
+      const list = visible();
+      const i = list.indexOf(card);
+      if (i < 0) return;
+      if (i === active) open(i);
+      else setActive(i);
+    });
+    stage.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       const card = e.target.closest('.photo-card');
-      if (card) { e.preventDefault(); open(visible().indexOf(card)); }
+      if (!card) return;
+      e.preventDefault();
+      const list = visible();
+      const i = list.indexOf(card);
+      if (i < 0) return;
+      if (i === active) open(i);
+      else setActive(i);
     });
 
     box.addEventListener('click', (e) => {
@@ -220,10 +312,20 @@ const dimAttrs = (p) => (p.w > 0 && p.h > 0 ? { width: p.w, height: p.h } : {});
     });
 
     document.addEventListener('keydown', (e) => {
-      if (box.hidden) return;
-      if (e.key === 'Escape') close();
-      if (e.key === 'ArrowLeft') step(-1);
-      if (e.key === 'ArrowRight') step(1);
+      // 灯箱开着时，方向键归灯箱用
+      if (!box.hidden) {
+        if (e.key === 'Escape') close();
+        if (e.key === 'ArrowLeft') step(-1);
+        if (e.key === 'ArrowRight') step(1);
+        return;
+      }
+      if (e.key === 'ArrowLeft') setActive(active - 1);
+      if (e.key === 'ArrowRight') setActive(active + 1);
     });
+
+    /* 换主题时重排一次：KISARA 下舞台是普通网格，变量不参与布局，
+       但 active 还是要对 —— 切回 SYNAPSE 时位置才不会跳。 */
+    document.addEventListener('theme-swap', layout);
+    layout();
   </script>
 </Base>

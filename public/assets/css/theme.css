@@ -1670,3 +1670,213 @@ html[data-theme='synapse'] .post:focus-visible .post-cover img { opacity: 1; tra
   .theme-btn .theme-glyph { transition: none !important; }
   .theme-btn:hover .theme-glyph { transform: none; }
 }
+
+/* =========================================================
+ *  ⑫ 相册：浮在黑里的照片墙（3D 环）
+ *  ---------------------------------------------------------
+ *  拆自 Scrolltide 那段 10 秒的片子。它其实只有三条规则：
+ *
+ *  ① 照片**不带框**。黑底上直接浮着，只有自己的边和一点投影 ——
+ *     所以图必须 object-fit: contain，任何裁切都会立刻露馅。
+ *  ② 两侧的卡不是"缩小"，是 **rotateY 转开 + 往后退 + 压暗**。
+ *     少任何一样，看起来都只是"三个格子"而不是"一面墙"。
+ *  ③ 正对镜头那张最大、最亮、完全不转；它一变，整面墙跟着重排。
+ *
+ *  位置全由 --d / --abs 两个数算（JS 只写这两个数，不写坐标），
+ *  所以卡片尺寸、断点怎么改都不用重新标定。
+ * ======================================================= */
+@media (min-width: 900px) {
+  html[data-theme='synapse'] .pg {
+    position: relative;
+    margin-top: clamp(8px, 1.4vw, 20px);
+  }
+
+  /* 背景回声：四张虚化的照片，让"墙"看着还在往外延伸 */
+  html[data-theme='synapse'] .pg-field {
+    display: block;
+    position: absolute;
+    inset: -6% -4% 8%;
+    pointer-events: none;
+    z-index: 0;
+  }
+  html[data-theme='synapse'] .pg-echo {
+    position: absolute;
+    width: 26%;
+    aspect-ratio: 3 / 2;
+    border-radius: 16px;
+    background-image: var(--src);
+    background-size: cover;
+    background-position: center;
+    filter: blur(22px) brightness(.36) saturate(.65);
+    opacity: .34;
+    transform: rotate(-8deg);
+  }
+  html[data-theme='synapse'] .pg-echo:nth-child(1) { left: -2%;  top: 2%;   transform: rotate(-9deg)  scale(.9); }
+  html[data-theme='synapse'] .pg-echo:nth-child(2) { right: -3%; top: -4%;  transform: rotate(7deg)   scale(.86); }
+  html[data-theme='synapse'] .pg-echo:nth-child(3) { left: 6%;   bottom: -6%; transform: rotate(6deg) scale(.8); opacity: .34; }
+  html[data-theme='synapse'] .pg-echo:nth-child(4) { right: 4%;  bottom: -2%; transform: rotate(-6deg) scale(.94); opacity: .4; }
+
+  html[data-theme='synapse'] .pg-stage {
+    display: block;
+    position: relative;
+    height: min(56vh, 500px);
+    perspective: 1200px;
+    perspective-origin: 50% 46%;
+    transform-style: preserve-3d;
+    z-index: 1;
+    /* 指针视差：整面墙最多转 4°，再多就"晃"了 */
+    transform:
+      rotateY(calc(var(--mx, 0) * 4deg))
+      rotateX(calc(var(--my, 0) * -3deg));
+    transition: transform .5s cubic-bezier(.22, .61, .36, 1);
+  }
+
+  html[data-theme='synapse'] .pg-stage .photo-card {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(40vw, 600px);
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    overflow: visible;
+    cursor: zoom-in;
+    transform-style: preserve-3d;
+    will-change: transform, opacity;
+    /* --d 决定往哪边站、转多少；--abs 决定退多远、暗多少 */
+    transform:
+      translate(-50%, -50%)
+      translate3d(calc(var(--d, 0) * 70%), 0, calc(var(--abs, 0) * -260px))
+      rotateY(calc(var(--d, 0) * -32deg))
+      scale(calc(1 - var(--abs, 0) * .14));
+    transition:
+      transform .72s cubic-bezier(.22, .61, .36, 1),
+      opacity .5s ease;
+  }
+  /* 正对镜头那张往前再顶一点，压住两侧 */
+  html[data-theme='synapse'] .pg-stage .photo-card[data-active='1'] {
+    transform:
+      translate(-50%, -50%)
+      translate3d(0, 0, 40px)
+      rotateY(0deg)
+      scale(1);
+  }
+  html[data-theme='synapse'] .pg-stage .photo-card:hover { border: 0; }
+
+  /* 照片本体：不裁、不拉伸，投影跟着画面轮廓走 */
+  html[data-theme='synapse'] .pg-stage .photo-card img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 40px 60px rgba(0, 0, 0, .75)) brightness(calc(1 - var(--abs, 0) * .55));
+    opacity: calc(1 - var(--abs, 0) * .35);
+    transform: none;
+    transition: opacity .5s ease, transform .6s cubic-bezier(.22, .61, .36, 1);
+  }
+  html[data-theme='synapse'] .pg-stage .photo-card[data-active='1'] img { opacity: 1; }
+  html[data-theme='synapse'] .pg-stage .photo-card:hover img { transform: scale(1.012); }
+
+  /* 卡面那些角标 / 说明在舞台上全部退场：信息交给下面那条 bar */
+  html[data-theme='synapse'] .pg-stage .photo-card .card-no,
+  html[data-theme='synapse'] .pg-stage .photo-card .card-corner,
+  html[data-theme='synapse'] .pg-stage .photo-card figcaption { display: none; }
+
+  /* ---------- 舞台下方那条 ---------- */
+  html[data-theme='synapse'] .pg-bar {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    position: relative;
+    z-index: 2;
+    margin-top: clamp(10px, 1.6vw, 22px);
+    padding: 0 clamp(4px, 1vw, 12px);
+  }
+  html[data-theme='synapse'] .pg-btn {
+    flex: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .16);
+    background: rgba(255, 255, 255, .04);
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .25s, border-color .25s, transform .25s;
+  }
+  html[data-theme='synapse'] .pg-btn:hover {
+    background: rgba(255, 255, 255, .12);
+    border-color: rgba(255, 255, 255, .3);
+    transform: translateY(-1px);
+  }
+  html[data-theme='synapse'] .pg-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  html[data-theme='synapse'] .pg-meta strong {
+    font-size: 15px;
+    font-weight: 650;
+    color: #fff;
+    letter-spacing: -.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  html[data-theme='synapse'] .pg-meta span {
+    font-size: 11.5px;
+    color: rgba(236, 226, 255, .55);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  html[data-theme='synapse'] .pg-count {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: .18em;
+    color: rgba(236, 226, 255, .6);
+  }
+  html[data-theme='synapse'] .pg-hint {
+    display: block;
+    margin: 10px 0 0;
+    padding-left: clamp(4px, 1vw, 12px);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: .16em;
+    color: rgba(236, 226, 255, .34);
+  }
+
+  /* 减少动效：不做 3D，直接退化成整齐三栏（位置仍然对） */
+  @media (prefers-reduced-motion: reduce) {
+    html[data-theme='synapse'] .pg-stage {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+      height: auto;
+      perspective: none;
+      transform: none;
+    }
+    html[data-theme='synapse'] .pg-stage .photo-card,
+    html[data-theme='synapse'] .pg-stage .photo-card[data-active='1'] {
+      position: static;
+      width: auto;
+      height: auto;
+      transform: none;
+    }
+    html[data-theme='synapse'] .pg-stage .photo-card img {
+      position: static;
+      width: 100%;
+      height: auto;
+      opacity: 1;
+    }
+    html[data-theme='synapse'] .pg-field { display: none; }
+  }
+}

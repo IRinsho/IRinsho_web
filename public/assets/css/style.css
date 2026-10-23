@@ -462,6 +462,37 @@ body[data-view='me'] .footer { color: var(--paper-ink-2); border-top-color: var(
 }
 
 /* =========================================================
+ *  相册舞台的「默认形态」——整齐三栏
+ *  ---------------------------------------------------------
+ *  SYNAPSE 下同一份 DOM 会变成 3D 环（见 theme.css ⑫），
+ *  这里只保证：不认那套 3D 的时候，它是一排对齐的网格。
+ * ======================================================= */
+.pg { position: relative; }
+.pg-stage {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  /* 三张图比例各不相同（横的竖的都有）。顶对齐 + 统一封顶高度，
+     比原来的瀑布流"一张巨大、一张很小"稳得多。 */
+  align-items: start;
+}
+.pg-stage .photo-card { margin: 0; }
+/* 竖图别把整页撑到两屏高：封顶看视口，宽度自己收 */
+.pg-stage .photo-card img {
+  width: auto;
+  max-width: 100%;
+  max-height: 58vh;
+  margin-inline: auto;
+}
+.pg-field, .pg-bar, .pg-hint { display: none; }
+@media (max-width: 900px) {
+  .pg-stage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .pg-stage { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* =========================================================
  *  视频
  * ======================================================= */
 .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 24px; }
