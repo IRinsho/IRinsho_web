@@ -112,7 +112,7 @@ const isSynapse = () =>
   document.documentElement.getAttribute('data-theme') === 'synapse';
 
 const isDesktop = () =>
-  window.matchMedia && window.matchMedia('(min-width: 900px)').matches;
+  window.matchMedia && window.matchMedia('(min-width: 1100px)').matches;
 
 const prefersReduced = () =>
   window.matchMedia &&
@@ -152,7 +152,7 @@ export function initSynField() {
   window.addEventListener('irinsho:theme', onTheme);
 
   /* 从窄屏拉宽到桌面端时，如果当前正好是 SYNAPSE，也补一次启动 */
-  const mq = window.matchMedia ? window.matchMedia('(min-width: 900px)') : null;
+  const mq = window.matchMedia ? window.matchMedia('(min-width: 1100px)') : null;
   const onMq = () => boot();
   if (mq && mq.addEventListener) mq.addEventListener('change', onMq);
 

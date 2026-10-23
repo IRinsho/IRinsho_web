@@ -304,9 +304,11 @@ html[data-theme='synapse'] .gate-sub { color: rgba(236, 226, 255, .78); }
 html[data-theme='synapse'] .gate-inner::before {
   content: '';
   position: absolute;
-  right: clamp(24px, 8vw, 120px);
+  /* 星放在左上，避开右侧的 Live session 卡 */
+  left: clamp(24px, 8vw, 120px);
+  right: auto;
   top: clamp(90px, 14vh, 180px);
-  width: clamp(54px, 7vw, 96px);
+  width: clamp(42px, 5.4vw, 78px);
   aspect-ratio: 1;
   background: radial-gradient(circle at 50% 50%, #fff 0%, #e9d5ff 34%, rgba(185, 140, 255, .35) 62%, transparent 72%);
   clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
@@ -334,19 +336,22 @@ html[data-theme='synapse'] .gate-inner::before {
 html[data-theme='synapse'] .syn-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   position: absolute;
   z-index: 3;
-  top: 50%;
-  right: clamp(16px, 4.6vw, 70px);
-  width: clamp(234px, 23vw, 318px);
+  top: 46%;
+  /* 贴着主视觉卡片的右边缘放，而不是贴视口右边。
+     ⚠ 用 right:3% 的话，大屏上卡片会比右侧留白还宽，又压回人物脸上。 */
+  left: calc(79% + 6px);
+  right: auto;
+  width: clamp(196px, 17vw, 246px);
   aspect-ratio: .70;
-  padding: 16px;
-  border-radius: 26px;
+  padding: 14px;
+  border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, .16);
   background:
-    radial-gradient(120% 70% at 40% 0%, rgba(255, 255, 255, .12), transparent 55%),
-    linear-gradient(165deg, rgba(42, 18, 72, .70), rgba(10, 5, 18, .86));
+    radial-gradient(120% 70% at 40% 0%, rgba(255, 255, 255, .10), transparent 55%),
+    linear-gradient(165deg, rgba(42, 18, 72, .90), rgba(10, 5, 18, .97));
   box-shadow:
     0 50px 110px rgba(0, 0, 0, .60),
     0 0 70px rgba(124, 58, 237, .22),
@@ -525,7 +530,7 @@ html[data-theme='synapse'] .syn-card::before {
 }
 
 /* 窄屏：它是桌面端的陪衬，压到正文上只会碍事 */
-@media (max-width: 1080px) {
+@media (max-width: 1099px) {
   html[data-theme='synapse'] .syn-card { display: none; }
 }
 
@@ -565,9 +570,9 @@ html[data-theme='synapse'] .syn-field {
   pointer-events: none;
 }
 
-/* < 900px 不跑 shader：首屏回归整张插画，canvas 也没必要留着。
+/* < 1100px 不跑 shader：首屏回归整张插画，canvas 也没必要留着。
    ⚠ 这条必须写在 display:block 之后，否则会被它盖掉。 */
-@media (max-width: 899px) {
+@media (max-width: 1099px) {
   html[data-theme='synapse'] .syn-field { display: none; }
 }
 
@@ -579,13 +584,21 @@ html[data-theme='synapse'] .gate--home {
     #0a0414;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 1100px) {
+  /* 首屏高度要扣掉顶栏和 main 的上边距，否则 100vh 的底部会被推出视口，
+     卡片的圆角下沿永远看不到（Zen 里最明显）。 */
+  html[data-theme='synapse'] .gate--home {
+    min-height: calc(100vh - 110px);
+    min-height: calc(100svh - 110px);
+    height: calc(100svh - 110px);
+  }
+
   /* 主视觉变成右侧的大卡片：原色、圆角、细亮边、大投影 */
   html[data-theme='synapse'] .gate--home .gate-bg {
     left: 31%;
-    right: 17%;
-    top: 9%;
-    bottom: 13%;
+    right: 21%;
+    top: 7%;
+    bottom: 7%;
     border-radius: 26px;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, .14);
@@ -613,6 +626,11 @@ html[data-theme='synapse'] .gate--home {
       radial-gradient(80% 70% at 30% 0%, rgba(124, 58, 237, .22), transparent 66%),
       linear-gradient(180deg, rgba(12, 5, 24, .04) 0%, rgba(12, 5, 24, .10) 46%, rgba(7, 5, 12, .42) 100%);
   }
+}
+
+/* 1100–1199 这一档，卡片再往右让一点，别顶到标题的最后一个字 */
+@media (min-width: 1100px) and (max-width: 1199px) {
+  html[data-theme='synapse'] .gate--home .gate-bg { left: 34%; }
 }
 
 /* 分格区：插画随滚动轻微漂移（Chrome / 新版 Safari 原生支持，其余浏览器静止） */
@@ -695,6 +713,12 @@ html[data-theme='synapse'] .p-sub { color: var(--ink-3); }
 /* 章节条：细线 + 紫罗兰编号 */
 html[data-theme='synapse'] .chapters { border-color: var(--line); }
 html[data-theme='synapse'] .chapters-label { color: var(--rose-2); }
+
+/* 1280 这一档，首屏右侧的 Live 卡会和章节竖轨抢位置；
+   竖轨只是辅助，先让位（只影响首页，因为竖轨只出现在首页）。 */
+@media (max-width: 1360px) {
+  html[data-theme='synapse'] .chaprail { display: none; }
+}
 
 /* 右侧章节竖轨：玻璃底色也跟着换成紫黑 */
 html[data-theme='synapse'] .chaprail {
