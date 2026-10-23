@@ -1,0 +1,760 @@
+/* =========================================================
+ *  theme.css —— 主题层（切换按钮 + SYNAPSE 皮肤）
+ *  ---------------------------------------------------------
+ *  两套主题，同一个 DOM、同一套布局：
+ *
+ *    · 默认（KISARA）—— 深藏青 + 玫红，原有设计，一像素不动
+ *    · SYNAPSE        —— 深空紫罗兰 + 白字 + 玻璃卡片
+ *
+ *  参考：scrolltide.co/templates/synapse（模板预览视频 + 海报）
+ *    · 紫罗兰渐变场 / 近黑段落 / 一段米白亮场，三段交替
+ *    · 超大无衬线标题（紧字距、负字距），小字用等宽
+ *    · 卡片是半透明玻璃 + 一圈很细的亮边 + 柔和大投影
+ *    · 强调色只出现两种：紫罗兰 #7c3aed / 洋红 #c026d3
+ *  这里只取「气质」不抄 3D：本站没有 three.js，动效仍然走
+ *  CSS + 现有滚动变量，版本轻、不会拖慢。
+ *
+ *  怎么切换：
+ *    顶栏右上角那个胶囊按钮。点一下换主题，选择存在
+ *    localStorage 的 `irinsho:theme` 里，下次打开还是它。
+ *    也可以 ?theme=synapse / ?theme=kisara 直接进。
+ *
+ *  ⚠ 首帧不闪：
+ *    Base.astro 的 <head> 里有一段内联脚本，在 CSS 之前就把
+ *    data-theme 写到 <html> 上了。
+ *
+ *  ⚠ 本文件必须最后加载（放在 glass.css 之后）：
+ *    所有覆盖都带 html[data-theme="synapse"] 前缀，
+ *    默认主题下本文件只有顶栏那个按钮的样式生效。
+ * ========================================================= */
+
+/* =========================================================
+ *  ① 切换按钮（两套主题共用）
+ *  ---------------------------------------------------------
+ *  胶囊里写的是「点下去会切到哪」：现在 KISARA，就显示 SYNAPSE。
+ *  窄屏只留图标，省出顶栏宽度。
+ * ======================================================= */
+.theme-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .16em;
+  line-height: 1;
+  cursor: pointer;
+  flex: none;
+  transition: color .22s ease, border-color .22s ease, background .22s ease,
+    box-shadow .22s ease;
+}
+
+.theme-btn .theme-glyph {
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  color: var(--rose);
+  font-size: 12px;
+  line-height: 1;
+  transition: transform .55s cubic-bezier(.22, .61, .36, 1);
+}
+
+/* 悬停时那个小方块转半圈 —— 只是"这个按钮能换形状"的暗示，不抢戏 */
+@media (hover: hover) {
+  .theme-btn:hover {
+    color: var(--ink);
+    border-color: var(--rose);
+    box-shadow: 0 0 0 3px var(--rose-dim);
+  }
+  .theme-btn:hover .theme-glyph { transform: rotate(180deg); }
+}
+.theme-btn:active .theme-glyph { transform: rotate(180deg) scale(.86); }
+.theme-btn:focus-visible {
+  outline: 2px solid var(--rose);
+  outline-offset: 2px;
+}
+
+/* 窄屏：只留圆形的图标按钮 */
+@media (max-width: 720px) {
+  .theme-btn {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  .theme-btn .theme-label { display: none; }
+}
+
+/* 换主题的一瞬间，给背景和文字一个很短的过渡，
+   免得大面积换色像"啪"地闪屏。只作用在最外层，不动组件自己的动效。 */
+html.theme-swap,
+html.theme-swap body {
+  transition: background-color .4s ease, color .4s ease;
+}
+
+/* =========================================================
+ *  ② SYNAPSE 的设计 token
+ *  ---------------------------------------------------------
+ *  只改「颜色 / 字体角色」这一层：布局、间距、动效全部沿用。
+ *  参考站的三段明度：紫罗兰场 → 近黑 → 米白；
+ *  这里把「紫罗兰场」放在首页首屏和深色页，
+ *  「米白」留给首页的纸面段落与个人页。
+ * ======================================================= */
+html[data-theme='synapse'] {
+  color-scheme: dark;
+
+  --bg:        #07050c;
+  --bg-2:      #0b0714;
+  --bg-3:      rgba(20, 12, 32, .72);
+  --panel:     #100a1c;
+  --ink:       #f6f2ff;
+  --ink-2:     #b4a8c9;
+  --ink-3:     #7f7396;
+  --line:      rgba(196, 170, 255, .16);
+  --line-2:    rgba(196, 170, 255, .08);
+
+  /* 强调色：紫罗兰 / 洋红。--rose 在深底上要够亮，所以取浅一档 */
+  --rose:      #b98cff;
+  --rose-2:    #dcc9ff;
+  --rose-deep: #7c3aed;
+  --rose-dim:  rgba(167, 120, 255, .14);
+
+  /* 米白纸面（参考站第四段那种暖白，不是冷白） */
+  --paper-ink:   #17121f;
+  --paper-ink-2: #6f677c;
+  --paper-line:  rgba(23, 18, 31, .13);
+  --paper-rose:  #7c3aed;
+
+  /* 标题字体：衬线 → 紧字距的无衬线（Bricolage / Inter 那种）
+     ⚠ 本站没有自托管这两款字体，先走系统里最接近的；
+       将来想完全一致，把字体文件放进 public/assets/fonts/ 再换这里。 */
+  --font-serif: 'Bricolage Grotesque', 'Inter Display', 'Segoe UI Variable Display',
+    'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+}
+
+/* 选中文字：紫罗兰底 + 白字 */
+html[data-theme='synapse'] ::selection {
+  background: #7c3aed;
+  color: #fff;
+}
+
+/* =========================================================
+ *  ③ 整页底：近黑 + 左上一团紫罗兰光
+ *  ---------------------------------------------------------
+ *  参考站的紫不是平涂，是「光从左上打进来」的径向渐变。
+ *  全部用 background-image 叠层，没有额外元素；
+ *  fixed 让光停在视口里，内容从它前面滚过去。
+ * ======================================================= */
+html[data-theme='synapse'] body {
+  background-color: #07050c;
+  background-image:
+    radial-gradient(72% 52% at 12% -12%, rgba(124, 58, 237, .42), transparent 72%),
+    radial-gradient(46% 38% at 92% -4%, rgba(192, 38, 211, .22), transparent 74%),
+    radial-gradient(40% 34% at 52% 38%, rgba(91, 33, 182, .12), transparent 76%);
+  background-size: auto, auto, auto;
+  background-attachment: fixed;
+}
+
+/* 个人页（/me/）：换成参考站那种米白亮场（第四段） */
+html[data-theme='synapse'] body[data-view='me'] {
+  background-color: #f2eeee;
+  background-image:
+    radial-gradient(64% 48% at 10% 0%, #ffffff 0%, rgba(255, 255, 255, 0) 62%),
+    radial-gradient(52% 42% at 96% 6%, rgba(167, 120, 255, .20), transparent 72%),
+    linear-gradient(165deg, #f6f2f1 0%, #f1eceb 54%, #ebe5e4 100%);
+  background-size: auto, auto, auto;
+  background-attachment: fixed;
+}
+
+/* =========================================================
+ *  ④ 顶栏：改成参考站那种「悬浮黑色胶囊」
+ *  ---------------------------------------------------------
+ *  原来是一条贴边的长条；SYNAPSE 下收成居中的圆角胶囊，
+ *  离顶部 12px，滚动时悬在内容上方。宽度、内边距都在这里调，
+ *  不动 .topbar-inner 的布局属性（那些是两套主题共用的）。
+ * ======================================================= */
+html[data-theme='synapse'] .topbar {
+  position: sticky;
+  top: 12px;
+  width: min(1240px, calc(100% - 32px));
+  margin: 12px auto 0;
+  border-radius: 999px;
+  background:
+    linear-gradient(102deg,
+      rgba(255, 255, 255, .06) 0%,
+      rgba(255, 255, 255, .015) 40%,
+      rgba(192, 38, 211, .05) 100%),
+    rgba(9, 6, 15, .78);
+  border: 1px solid rgba(255, 255, 255, .09);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .10),
+    0 20px 60px rgba(0, 0, 0, .55);
+}
+html[data-theme='synapse'] .topbar-inner {
+  max-width: none;
+  padding: 0 10px 0 18px;
+  gap: 18px;
+}
+html[data-theme='synapse'] .brand-text b {
+  font-family: var(--font-serif);
+  font-weight: 800;
+  letter-spacing: -.01em;
+}
+/* 品牌图标：菱形 → 参考站那颗四角星 */
+html[data-theme='synapse'] .brand-mark {
+  font-size: 0;
+  color: var(--rose-2);
+  filter: drop-shadow(0 0 10px rgba(185, 140, 255, .65));
+}
+html[data-theme='synapse'] .brand-mark::before {
+  content: '✦';
+  font-size: 17px;
+}
+html[data-theme='synapse'] .brand-text b em { color: var(--rose-2); }
+html[data-theme='synapse'] .brand-sub { color: var(--ink-3); }
+
+/* 导航：参考站没有下划线，当前项靠亮度区分 */
+html[data-theme='synapse'] .nav-ind { display: none; }
+html[data-theme='synapse'] .tab { padding: 7px 10px; border-radius: 999px; }
+html[data-theme='synapse'] .tab.active {
+  color: #fff;
+  background: rgba(255, 255, 255, .08);
+}
+html[data-theme='synapse'] .tab-no { color: var(--ink-3); }
+html[data-theme='synapse'] .tab:hover .tab-no,
+html[data-theme='synapse'] .tab.active .tab-no { color: var(--rose-2); }
+
+/* 窄屏下拉菜单：黑玻璃面板，圆角下沿 */
+@media (max-width: 860px) {
+  html[data-theme='synapse'] .tabs {
+    background: rgba(9, 6, 15, .95);
+    border: 1px solid rgba(196, 170, 255, .16);
+    border-radius: 20px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .08),
+      0 24px 60px rgba(0, 0, 0, .6);
+  }
+  html[data-theme='synapse'] .tab { border-radius: 12px; }
+}
+
+/* 头像圆环：紫罗兰细圈 */
+html[data-theme='synapse'] .avatar-btn {
+  border-color: rgba(185, 140, 255, .45);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .10),
+    0 0 18px rgba(124, 58, 237, .25);
+}
+@media (hover: hover) {
+  html[data-theme='synapse'] .avatar-btn:hover {
+    border-color: var(--rose-2);
+    box-shadow:
+      0 0 0 3px rgba(185, 140, 255, .14),
+      0 0 26px rgba(124, 58, 237, .4);
+  }
+}
+
+/* 切换按钮在 SYNAPSE 下：当前主题是深色，按钮做浅一档 */
+html[data-theme='synapse'] .theme-btn[aria-pressed='true'] {
+  color: var(--ink);
+  border-color: rgba(196, 170, 255, .35);
+  background: rgba(255, 255, 255, .06);
+}
+
+/* =========================================================
+ *  ⑤ 首屏：紫罗兰场
+ *  ---------------------------------------------------------
+ *  主视觉还是那张插画，但压成紫罗兰单色调（sepia + hue-rotate
+ *  是纯 CSS 最稳的「双色调」做法），上面再叠一层紫光。
+ *  标题保持白字、紧字距 —— 这是参考站最醒目的那一笔。
+ * ======================================================= */
+html[data-theme='synapse'] .gate {
+  background: #0b0714;
+}
+/* ⚠ 主视觉保持原色（用户要求）：不再做紫罗兰双色调。
+   紫只从「光」来 —— 左上角一团紫光、底部压暗，插画本身的颜色不动。 */
+html[data-theme='synapse'] .gate-hero {
+  filter: none;
+}
+html[data-theme='synapse'] .gate-veil {
+  background:
+    radial-gradient(80% 64% at 16% 0%, rgba(124, 58, 237, .34) 0%, rgba(124, 58, 237, 0) 64%),
+    radial-gradient(60% 52% at 90% 16%, rgba(192, 38, 211, .14) 0%, rgba(192, 38, 211, 0) 72%),
+    linear-gradient(180deg,
+      rgba(12, 5, 24, .06) 0%,
+      rgba(12, 5, 24, .04) 42%,
+      rgba(7, 5, 12, .66) 100%);
+}
+html[data-theme='synapse'] .gate-title {
+  font-family: var(--font-serif);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  text-shadow: 0 12px 60px rgba(0, 0, 0, .45);
+}
+html[data-theme='synapse'] .gate-kicker { color: var(--rose-2); }
+html[data-theme='synapse'] .gate-sub { color: rgba(236, 226, 255, .78); }
+
+/* 参考站那颗发光的四角星：放在首屏右上，纯 CSS 星形 + 辉光 */
+html[data-theme='synapse'] .gate-inner::before {
+  content: '';
+  position: absolute;
+  right: clamp(24px, 8vw, 120px);
+  top: clamp(90px, 14vh, 180px);
+  width: clamp(54px, 7vw, 96px);
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 50% 50%, #fff 0%, #e9d5ff 34%, rgba(185, 140, 255, .35) 62%, transparent 72%);
+  clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
+  filter: drop-shadow(0 0 34px rgba(167, 120, 255, .55));
+  pointer-events: none;
+}
+
+/* =========================================================
+ *  ⑤b 「Live session」玻璃卡（仅 SYNAPSE）
+ *  ---------------------------------------------------------
+ *  参考站首屏右侧那张卡，本站的对应物：
+ *    · 黑玻璃 + 一圈很细的亮边 + 大投影
+ *    · 中间一团洋红呼吸光（.syn-orb + .syn-card::before 两条关键帧）
+ *    · 一条会自动换词的 prompt 条（JS 在 index.astro 底部）
+ *    · 波形线 + Context assembled + 42 ms 小字
+ *    · CSS 3D：向内侧转一点，指针移动时跟着倾（变量由 JS 写）
+ *
+ *  ⚠ 纯 CSS 3D，没有 three.js，也不占首屏加载：
+ *    这块只是一个 <aside> + 几十行 CSS，没有 canvas、没有贴图。
+ *  ⚠ 纯装饰：aria-hidden + pointer-events:none，
+ *    不抢首屏的点击，也不进读屏顺序。
+ * ======================================================= */
+.syn-card { display: none; }
+
+html[data-theme='synapse'] .syn-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  right: clamp(16px, 4.6vw, 70px);
+  width: clamp(234px, 23vw, 318px);
+  aspect-ratio: .70;
+  padding: 16px;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  background:
+    radial-gradient(120% 70% at 40% 0%, rgba(255, 255, 255, .12), transparent 55%),
+    linear-gradient(165deg, rgba(42, 18, 72, .70), rgba(10, 5, 18, .86));
+  box-shadow:
+    0 50px 110px rgba(0, 0, 0, .60),
+    0 0 70px rgba(124, 58, 237, .22),
+    inset 0 1px 0 rgba(255, 255, 255, .18);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  overflow: hidden;
+  transform:
+    translateY(-50%)
+    perspective(1200px)
+    rotateY(var(--syn-ry, -11deg))
+    rotateX(var(--syn-rx, 4deg));
+  transform-origin: 100% 50%;
+  transition: transform .6s cubic-bezier(.22, .61, .36, 1);
+  pointer-events: none;
+}
+
+/* 顶部那层呼吸光：比 orb 更大、更散，压在卡片上层但很淡 */
+html[data-theme='synapse'] .syn-card::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -20%;
+  width: 130%;
+  aspect-ratio: 1;
+  translate: -50% 0;
+  background: radial-gradient(closest-side,
+    rgba(216, 70, 239, .40),
+    rgba(124, 58, 237, .16) 48%,
+    transparent 72%);
+  filter: blur(18px);
+  animation: synBreath 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.syn-card-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.syn-card-badge,
+.syn-card-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(12, 6, 22, .55);
+  border: 1px solid rgba(255, 255, 255, .10);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  color: rgba(244, 236, 255, .92);
+  white-space: nowrap;
+}
+.syn-card-badge i { font-style: normal; color: #f0abfc; }
+.syn-card-live { padding: 5px 8px; }
+.syn-card-live i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #a3e635;
+  box-shadow: 0 0 8px #a3e635;
+}
+
+.syn-card-stage {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.syn-orb {
+  position: absolute;
+  left: 50%;
+  top: 2%;
+  width: 128%;
+  aspect-ratio: 1;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side,
+    rgba(232, 121, 249, .55),
+    rgba(124, 58, 237, .22) 46%,
+    transparent 72%);
+  filter: blur(16px);
+  opacity: .75;
+  animation: synBreath 9s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.syn-prompt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 14px;
+  background: rgba(16, 8, 28, .70);
+  border: 1px solid rgba(255, 255, 255, .10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.syn-prompt-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  letter-spacing: .01em;
+  color: #f1e8ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity .32s ease, transform .32s ease;
+}
+.syn-prompt.is-out .syn-prompt-text { opacity: 0; transform: translateY(6px); }
+.syn-send {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: #180b2a;
+  font-size: 12px;
+  line-height: 1;
+}
+.syn-send svg { width: 12px; height: 12px; display: block; }
+
+.syn-wave { display: flex; gap: 4px; padding: 0 2px; }
+.syn-wave i {
+  flex: 1;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .80);
+}
+.syn-wave i:nth-child(2) { background: rgba(255, 255, 255, .50); }
+.syn-wave i:nth-child(3) { background: rgba(255, 255, 255, .30); }
+.syn-wave i:nth-child(4) { background: rgba(255, 255, 255, .16); }
+
+.syn-caption { margin: 0; display: flex; flex-direction: column; gap: 3px; }
+.syn-caption b {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  color: #fff;
+}
+.syn-caption span {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .06em;
+  color: rgba(216, 196, 245, .72);
+}
+
+.syn-fine {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  line-height: 1.7;
+  letter-spacing: .05em;
+  color: rgba(210, 190, 240, .50);
+  text-align: right;
+}
+
+@keyframes synBreath {
+  0%, 100% { transform: scale(.90); opacity: .55; }
+  50%      { transform: scale(1.08); opacity: .95; }
+}
+
+/* 窄屏：它是桌面端的陪衬，压到正文上只会碍事 */
+@media (max-width: 1080px) {
+  html[data-theme='synapse'] .syn-card { display: none; }
+}
+
+/* 窄屏的星正好压在人物脸上，收掉 —— 桌面端留着当记号 */
+@media (max-width: 760px) {
+  html[data-theme='synapse'] .gate-inner::before { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme='synapse'] .syn-card::before,
+  .syn-orb { animation: none; }
+  .syn-prompt-text { transition: none; }
+}
+
+/* =========================================================
+ *  ⑥ 分格 / 标牌：深紫玻璃卡
+ *  ---------------------------------------------------------
+ *  标牌从「白纸贴纸」换成「玻璃铭牌」：半透明深紫、细亮边、
+ *  柔和投影，和参考站的 Live session 卡一个语言。
+ * ======================================================= */
+html[data-theme='synapse'] .panel {
+  border: 1px solid rgba(196, 170, 255, .16);
+  border-radius: 24px;
+  background: linear-gradient(145deg, #140c24, #090611);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, .45);
+}
+/* 图片保持原色；只垫一层很淡的紫光 + 底部压暗，
+   让亮色插画和深色主题能接上，同时白字标牌仍然压得住。 */
+html[data-theme='synapse'] .panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(120% 80% at 18% 0%, rgba(124, 58, 237, .12), transparent 62%),
+    linear-gradient(180deg, rgba(12, 5, 24, .04) 0%, rgba(12, 5, 24, .38) 100%);
+  pointer-events: none;
+}
+html[data-theme='synapse'] .panel::after { opacity: .08; }
+html[data-theme='synapse'] .panel-art {
+  filter: none;
+  opacity: .96;
+}
+html[data-theme='synapse'] .panel:hover .panel-art {
+  filter: none;
+  opacity: 1;
+}
+
+html[data-theme='synapse'] .panel-plate {
+  background:
+    linear-gradient(118deg,
+      rgba(255, 255, 255, .07) 0%,
+      rgba(255, 255, 255, .015) 46%,
+      rgba(255, 255, 255, 0) 68%),
+    rgba(9, 5, 16, .90);
+  color: var(--ink);
+  border: 1px solid rgba(220, 200, 255, .18);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .12),
+    0 18px 44px rgba(0, 0, 0, .45);
+}
+html[data-theme='synapse'] .p-num { color: var(--ink-3); }
+html[data-theme='synapse'] .p-name {
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: -.01em;
+}
+html[data-theme='synapse'] .p-name i { color: var(--rose-2); }
+html[data-theme='synapse'] .p-sub { color: var(--ink-3); }
+
+/* 章节条：细线 + 紫罗兰编号 */
+html[data-theme='synapse'] .chapters { border-color: var(--line); }
+html[data-theme='synapse'] .chapters-label { color: var(--rose-2); }
+
+/* 右侧章节竖轨：玻璃底色也跟着换成紫黑 */
+html[data-theme='synapse'] .chaprail {
+  background: rgba(11, 6, 20, .74);
+  border: 1px solid rgba(196, 170, 255, .14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .08),
+    0 18px 44px rgba(0, 0, 0, .4);
+}
+
+/* =========================================================
+ *  ⑦ 友链接口 / 接缝条
+ *  ---------------------------------------------------------
+ *  玫红 → 紫罗兰 / 洋红的两条斜带，和参考站的光色一致。
+ * ======================================================= */
+html[data-theme='synapse'] .friend-entry {
+  border-color: rgba(196, 170, 255, .22);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, .06) 0%, rgba(255, 255, 255, .01) 42%, rgba(192, 38, 211, .06) 100%),
+    #0b0714;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .10),
+    0 22px 54px rgba(0, 0, 0, .5);
+}
+html[data-theme='synapse'] .friend-entry:hover {
+  border-color: rgba(196, 170, 255, .45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .16),
+    0 30px 70px rgba(0, 0, 0, .55),
+    0 0 40px rgba(124, 58, 237, .18);
+}
+html[data-theme='synapse'] .friend-entry::before { background: rgba(124, 58, 237, .22); }
+html[data-theme='synapse'] .friend-entry::after { background: rgba(192, 38, 211, .14); }
+
+html[data-theme='synapse'] .friend-icon {
+  border-color: rgba(196, 170, 255, .38);
+  background: linear-gradient(150deg, rgba(124, 58, 237, .22), rgba(192, 38, 211, .08));
+  color: var(--rose-2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+html[data-theme='synapse'] .friend-entry:hover .friend-icon {
+  border-color: var(--rose-2);
+  background: linear-gradient(150deg, #7c3aed, #c026d3);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .3),
+    0 10px 26px rgba(124, 58, 237, .35);
+}
+html[data-theme='synapse'] .friend-text::before {
+  background: linear-gradient(180deg, var(--rose-2), rgba(124, 58, 237, .06));
+}
+html[data-theme='synapse'] .friend-entry:hover .friend-text::before {
+  background: linear-gradient(180deg, #fff, rgba(192, 38, 211, .14));
+  box-shadow: 0 0 12px rgba(192, 38, 211, .45);
+}
+html[data-theme='synapse'] .friend-eyebrow { color: rgba(220, 201, 255, .82); }
+html[data-theme='synapse'] .friend-title {
+  background-image: linear-gradient(98deg, #ffffff 0%, #f3e8ff 40%, #c9a6ff 72%, #e879f9 100%);
+  filter: drop-shadow(0 4px 20px rgba(192, 38, 211, .22));
+}
+html[data-theme='synapse'] .friend-entry:hover .friend-title {
+  filter: drop-shadow(0 5px 26px rgba(192, 38, 211, .45));
+}
+html[data-theme='synapse'] .friend-entry:hover .friend-arrow {
+  border-color: var(--rose-2);
+  color: var(--rose-2);
+  background: rgba(124, 58, 237, .16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .14),
+    0 0 22px rgba(192, 38, 211, .3);
+}
+
+/* 终幕同样保持原色，只把上下压暗层调成紫黑 */
+html[data-theme='synapse'] .finale-art { filter: none; }
+html[data-theme='synapse'] .finale-veil {
+  background: linear-gradient(180deg, rgba(12, 5, 24, .12), transparent 34%, rgba(7, 5, 12, .68) 100%);
+}
+
+/* 接缝条：紫罗兰 / 洋红 */
+html[data-theme='synapse'] .seam {
+  --band-a: #7c3aed;
+  --band-b: #c026d3;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(124, 58, 237, .10) 44%,
+    rgba(192, 38, 211, .08) 56%,
+    transparent 100%
+  );
+}
+html[data-theme='synapse'] .seam--footer { --band-b: #a855f7; }
+
+/* =========================================================
+ *  ⑧ 米白亮场：首页「最近信号」+ 个人页
+ *  ---------------------------------------------------------
+ *  参考站的第四段是整页唯一亮场：暖白底、近黑大字。
+ *  本站首页本来就有这一段（paper-band），正好对应。
+ * ======================================================= */
+html[data-theme='synapse'] .paper-band {
+  background:
+    radial-gradient(120% 90% at 10% 0%, #ffffff 0%, rgba(255, 255, 255, 0) 58%),
+    linear-gradient(168deg, #f7f3f2 0%, #f1eceb 60%, #ebe5e4 100%);
+  color: var(--paper-ink);
+  border-radius: 28px;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    inset 0 0 0 1px rgba(23, 18, 31, .05),
+    0 30px 80px rgba(0, 0, 0, .42);
+}
+html[data-theme='synapse'] .paper-band .paper-title,
+html[data-theme='synapse'] .paper-band h2 { letter-spacing: -.02em; }
+
+/* 个人页 */
+html[data-theme='synapse'] .me-quote {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: #17121f;
+  letter-spacing: -.02em;
+}
+html[data-theme='synapse'] .me-bio { color: #4b4454; }
+html[data-theme='synapse'] body[data-view='me'] { --paper-rose-deep: #6d28d9; }
+html[data-theme='synapse'] body[data-view='me'] .me-links a,
+html[data-theme='synapse'] body[data-view='me'] .me-friend {
+  border-color: rgba(109, 40, 217, .16);
+}
+html[data-theme='synapse'] body[data-view='me'] .me-friend .mf-icon {
+  border-color: rgba(109, 40, 217, .26);
+}
+html[data-theme='synapse'] body[data-view='me'] .footer {
+  color: var(--paper-ink-2);
+  border-top-color: var(--paper-line);
+}
+
+/* =========================================================
+ *  ⑨ 控件：筛选胶囊 / 滚动条
+ *  ---------------------------------------------------------
+ *  参考站的主按钮是「白底黑字」，次按钮是半透明浅色。
+ *  filter 的激活态就用白底黑字。
+ * ======================================================= */
+html[data-theme='synapse'] .filter.active {
+  color: #140d1f;
+  background: #fff;
+  border-color: #fff;
+  box-shadow: 0 0 24px rgba(255, 255, 255, .18);
+}
+
+html[data-theme='synapse'] ::-webkit-scrollbar-thumb {
+  background: rgba(167, 120, 255, .32);
+}
+html[data-theme='synapse'] ::-webkit-scrollbar-thumb:hover {
+  background: var(--rose);
+}
+
+/* 减少动效 */
+@media (prefers-reduced-motion: reduce) {
+  .theme-btn .theme-glyph { transition: none !important; }
+  .theme-btn:hover .theme-glyph { transform: none; }
+}

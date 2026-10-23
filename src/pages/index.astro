@@ -129,6 +129,50 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       <p class="gate-sub">{config.homeMotto}</p>
       <span class="gate-scroll" aria-hidden="true"><i></i></span>
     </div>
+
+    {/*
+      SYNAPSE 主题的「Live session」玻璃卡
+      ---------------------------------------------------------
+      只在 html[data-theme="synapse"] 下显示（见 theme.css）；
+      默认的 KISARA 主题里它是 display:none，DOM 留着不占位、不抢焦点。
+      整块是装饰（aria-hidden），里面的文字不参与阅读顺序：
+        · 呼吸的紫光        —— .syn-orb + .syn-card::before 两条关键帧
+        · 滚动的 prompt 条  —— JS 每 4.6s 换一句（index.astro 底部）
+        · 42 ms 小字        —— JS 每几秒在 38–47 之间跳一下
+        · CSS 3D            —— 卡片轻微向内侧转、指针移动时跟着倾
+      窄屏直接隐藏（它本来就是桌面端的陪衬，压到正文上只会碍事）。
+    */}
+    <aside class="syn-card" aria-hidden="true" data-syn-card>
+      <div class="syn-card-head">
+        <span class="syn-card-badge"><i>✦</i> Live session</span>
+        <span class="syn-card-live"><i></i> LIVE</span>
+      </div>
+
+      <div class="syn-card-stage">
+        <span class="syn-orb" aria-hidden="true"></span>
+
+        <div class="syn-prompt" data-syn-prompt-row>
+          <span class="syn-prompt-text" data-syn-prompt>Summarise the thread</span>
+          <span class="syn-send" aria-hidden="true">
+            <svg viewBox="0 0 12 12" fill="none">
+              <path d="M2.5 6h7M6.5 2.5 10 6l-3.5 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </div>
+
+        <div class="syn-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+        <p class="syn-caption">
+          <b>Context assembled</b>
+          <span data-syn-ms>Context assembled in 42 ms</span>
+        </p>
+      </div>
+
+      <p class="syn-fine">
+        From ambient sensing to on-device inference —<br>
+        the whole loop stays under sixty milliseconds.
+      </p>
+    </aside>
   </section>
 
   {/* 接缝条：首屏 → 面板区（斜切色带，纯 CSS，零素材） */}
@@ -550,5 +594,105 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     } else {
       initRiseIn();
     }
+  </script>
+
+  <script>
+    /* =========================================================
+     *  SYNAPSE 首屏那张「Live session」卡的小动作
+     *  ---------------------------------------------------------
+     *  只做三件事，都是装饰，坏了不影响任何内容：
+     *    ① prompt 条每 4.6s 换一句（先淡出、换字、再淡入）
+     *    ② 42 ms 那个数字每 3.8s 在 38–47 之间跳一下
+     *    ③ 指针在主视觉上移动时，卡片跟着轻微转（CSS 变量）
+     *  卡片本身是 aria-hidden + pointer-events:none，
+     *  所以这里的 pointermove 是挂在 .gate 上的，不会挡住首屏点击。
+     *
+     *  ⚠ 换页后 DOM 会重建：绑定靠 dataset 做幂等，
+     *    每次 astro:page-load 都重新找一次元素。
+     * ======================================================= */
+    (function () {
+      const PROMPTS = [
+        'Summarise the thread',
+        'Draft a reply',
+        'Find the through-line',
+        'Assemble context'
+      ];
+
+      function initSynCard() {
+        const card = document.querySelector('[data-syn-card]');
+        if (!card || card.dataset.synBound === '1') return;
+        card.dataset.synBound = '1';
+
+        const row = card.querySelector('[data-syn-prompt-row]');
+        const text = card.querySelector('[data-syn-prompt]');
+        const ms = card.querySelector('[data-syn-ms]');
+        const reduce = window.matchMedia &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        /* ① prompt 轮播 */
+        if (!reduce && row && text) {
+          let i = 0;
+          const timer = window.setInterval(() => {
+            if (!card.isConnected) { window.clearInterval(timer); return; }
+            if (card.offsetParent === null) return;   // 主题不对 / 卡片被隐藏
+            row.classList.add('is-out');
+            window.setTimeout(() => {
+              i = (i + 1) % PROMPTS.length;
+              text.textContent = PROMPTS[i];
+              row.classList.remove('is-out');
+            }, 340);
+          }, 4600);
+        }
+
+        /* ② 延迟数字跳动 */
+        if (!reduce && ms) {
+          const timer = window.setInterval(() => {
+            if (!card.isConnected) { window.clearInterval(timer); return; }
+            if (card.offsetParent === null) return;
+            ms.textContent = 'Context assembled in ' +
+              (38 + Math.floor(Math.random() * 9)) + ' ms';
+          }, 3800);
+        }
+
+        /* ③ 指针视差：只在「真鼠标」上开，触屏没有 hover 就不绑 */
+        if (reduce || !window.matchMedia ||
+            !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+        const gate = document.getElementById('homeGate');
+        if (!gate) return;
+
+        let raf = 0;
+        let px = 0;
+        let py = 0;
+
+        const apply = () => {
+          raf = 0;
+          card.style.setProperty('--syn-ry', (-11 + px * 4.5).toFixed(2) + 'deg');
+          card.style.setProperty('--syn-rx', (4 - py * 3.5).toFixed(2) + 'deg');
+        };
+
+        gate.addEventListener('pointermove', (e) => {
+          if (card.offsetParent === null) return;
+          const r = gate.getBoundingClientRect();
+          if (!r.width || !r.height) return;
+          px = ((e.clientX - r.left) / r.width - .5) * 2;
+          py = ((e.clientY - r.top) / r.height - .5) * 2;
+          if (!raf) raf = window.requestAnimationFrame(apply);
+        }, { passive: true });
+
+        gate.addEventListener('pointerleave', () => {
+          px = 0;
+          py = 0;
+          if (!raf) raf = window.requestAnimationFrame(apply);
+        }, { passive: true });
+      }
+
+      document.addEventListener('astro:page-load', initSynCard);
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSynCard);
+      } else {
+        initSynCard();
+      }
+    })();
   </script>
 </Base>

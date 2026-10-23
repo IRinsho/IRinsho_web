@@ -100,6 +100,45 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   {canonical && <link rel="canonical" href={canonical}>}
   <meta name="theme-color" content={themeColor}>
 
+  <!--
+    主题：在 CSS 之前就把 data-theme 写到 <html> 上。
+    ⚠ 必须同步执行、而且必须在这里（样式表之前）：
+      等 DOMContentLoaded 再设的话，浏览器会先按默认的深藏青画一帧、
+      再跳到 SYNAPSE 的深空黑 —— 每次刷新都"闪一下"。
+    也支持 ?theme=synapse / ?theme=kisara 直接进，进完会把参数从地址里去掉，
+    并记进 localStorage（之后点顶栏按钮切换时才不会跟地址栏打架）。
+  -->
+  <script is:inline>
+    (function () {
+      try {
+        var t = null;
+        try {
+          var m = /[?&]theme=(kisara|synapse)\b/.exec(location.search);
+          if (m) {
+            t = m[1];
+            try { localStorage.setItem('irinsho:theme', t); } catch (e) {}
+            try {
+              var u = new URL(location.href);
+              u.searchParams.delete('theme');
+              history.replaceState(null, '', u.pathname + u.search + u.hash);
+            } catch (e) {}
+          }
+        } catch (e) {}
+        if (t !== 'synapse' && t !== 'kisara') {
+          try { t = localStorage.getItem('irinsho:theme'); } catch (e) {}
+        }
+        if (t !== 'synapse' && t !== 'kisara') return;
+
+        var root = document.documentElement;
+        root.setAttribute('data-theme', t);
+        if (t === 'synapse') {
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', '#05070d');
+        }
+      } catch (e) { /* 隐私模式 / 老浏览器：用默认主题即可 */ }
+    })();
+  </script>
+
   <!-- 分享（Open Graph / Twitter Card）：微信 / QQ / Twitter / 搜索引擎 -->
   <meta property="og:site_name" content={config.name}>
   <meta property="og:title" content={ogTitle}>
@@ -121,6 +160,10 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   <link rel="stylesheet" href={asset('assets/css/paper.css')}>
   {/* 液态玻璃层：全站效果由 glass.css 顶部那一个 --glass 变量推导 */}
   <link rel="stylesheet" href={asset('assets/css/glass.css')}>
+  {/* 主题层：切换按钮 + SYNAPSE 皮肤。
+      ⚠ 必须最后加载 —— 它要压过 glass.css 里那些写死玫红的玻璃层。
+      默认主题下它只有顶栏那个切换按钮的样式生效。 */}
+  <link rel="stylesheet" href={asset('assets/css/theme.css')}>
   <ClientRouter />
   <!--
     首屏之前先把存好的「液态浓度」写上去。
@@ -223,6 +266,21 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
     </nav>
 
     <div class="topbar-actions">
+      {/* 视觉主题切换：KISARA（现在的深蓝玫红）⇄ SYNAPSE（深空青紫）。
+          文字写的是「点下去会切到哪」，状态由 <html data-theme> 决定，
+          选择存在 localStorage，刷新 / 换页都保持。 */}
+      <button
+        type="button"
+        class="theme-btn"
+        id="themeToggle"
+        aria-label="切换视觉主题"
+        aria-pressed="false"
+        title="切换视觉主题"
+      >
+        <span class="theme-glyph" aria-hidden="true">◈</span>
+        <span class="theme-label">SYNAPSE</span>
+      </button>
+
       <a class="avatar-btn" href={asset('me/')} title="个人档案">
         <img src={asset(config.avatar)} alt="头像" onerror="this.classList.add('is-broken')">
       </a>
@@ -733,6 +791,111 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   }
 
   /* =========================================================
+   *  ⑨ 主题切换（KISARA ⇄ SYNAPSE）
+   *  ---------------------------------------------------------
+   *  · 顶栏按钮只管一件事：把 <html data-theme> 换成另一套，
+   *    并把选择写进 localStorage 的 irinsho:theme
+   *  · 首帧是 <head> 里那段内联脚本负责的（见那里），这里只补两件事：
+   *      换页后 <html> 的属性会被 Astro 重置 → 按存储值补回来
+   *      另一个标签页改了主题 → 这一页跟着换
+   *  · 幂等：astro:page-load 每次都会调 initTheme，
+   *    按钮绑定靠 dataset 挡重复，全局监听靠 window 上的标记只挂一次
+   * ======================================================= */
+  const THEME_KEY = 'irinsho:theme';
+
+  function readTheme() {
+    try {
+      const v = localStorage.getItem(THEME_KEY);
+      if (v === 'synapse' || v === 'kisara') return v;
+    } catch (e) {}
+    return document.documentElement.getAttribute('data-theme') === 'synapse'
+      ? 'synapse'
+      : 'kisara';
+  }
+
+  /* 手机浏览器地址栏 / 状态栏的颜色也跟着主题走 */
+  function paintThemeMeta(t) {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) return;
+    const isMe = document.body && document.body.dataset.view === 'me';
+    meta.setAttribute('content',
+      t === 'synapse' ? '#05070d' : (isMe ? '#f8ebf0' : '#12142a'));
+  }
+
+  /* 按钮上写的是「点下去会切到哪」，读屏软件读的是当前主题 + 动作 */
+  function paintThemeButton() {
+    const btn = document.getElementById('themeToggle');
+    if (!btn) return;
+    const t = readTheme();
+    const other = t === 'synapse' ? 'KISARA' : 'SYNAPSE';
+    const now = t === 'synapse' ? 'SYNAPSE' : 'KISARA';
+    const label = btn.querySelector('.theme-label');
+    if (label) label.textContent = other;
+    btn.setAttribute('aria-pressed', t === 'synapse' ? 'true' : 'false');
+    btn.setAttribute('aria-label', '视觉主题：' + now + '，点击切换到 ' + other);
+    btn.title = '视觉主题：' + now + ' → ' + other;
+  }
+
+  function applyTheme(t, persist) {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', t === 'synapse' ? 'synapse' : 'kisara');
+    if (persist) {
+      try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+    }
+    paintThemeMeta(t);
+    paintThemeButton();
+
+    /* 只在这 0.46s 里允许背景 / 文字做颜色过渡，
+       平时不要它 —— 否则别处的悬停变色会被拖慢 */
+    root.classList.add('theme-swap');
+    clearTimeout(applyTheme._swapTimer);
+    applyTheme._swapTimer = setTimeout(() => root.classList.remove('theme-swap'), 460);
+
+    try {
+      window.dispatchEvent(new CustomEvent('irinsho:theme', { detail: { theme: t } }));
+    } catch (e) {}
+  }
+
+  function initTheme() {
+    const root = document.documentElement;
+
+    /* 换页会替换 <html> 的属性，按存储值补回来（不写回 storage） */
+    const t = readTheme();
+    if (root.getAttribute('data-theme') !== t) root.setAttribute('data-theme', t);
+    paintThemeMeta(t);
+    paintThemeButton();
+
+    if (!window.__irinshoThemeSync) {
+      window.__irinshoThemeSync = true;
+
+      /* 换页过渡：先把新文档的 <html> 标好。
+         不标的话，新页面会先按默认主题画一帧，颜色跳一下。 */
+      document.addEventListener('astro:before-swap', (e) => {
+        try {
+          const next = readTheme();
+          if (e.newDocument && e.newDocument.documentElement) {
+            e.newDocument.documentElement.setAttribute('data-theme', next);
+          }
+        } catch (err) {}
+      });
+
+      /* 同一浏览器开了多个标签页时，一处切换、处处跟着换 */
+      window.addEventListener('storage', (e) => {
+        if (e.key !== THEME_KEY) return;
+        applyTheme(e.newValue === 'synapse' ? 'synapse' : 'kisara', false);
+      });
+    }
+
+    const btn = document.getElementById('themeToggle');
+    if (btn && btn.dataset.themeBound !== '1') {
+      btn.dataset.themeBound = '1';
+      btn.addEventListener('click', () => {
+        applyTheme(readTheme() === 'synapse' ? 'kisara' : 'synapse', true);
+      });
+    }
+  }
+
+  /* =========================================================
    *  ④ 换页后重启
    *  ---------------------------------------------------------
    *  开了页面过渡（ClientRouter）后，Astro 换页时会把旧 DOM 整个换掉。
@@ -786,6 +949,7 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
     startScrollFlag();
     initContextMenu();
     initGlassTuner();
+    initTheme();
   }
 
   document.addEventListener('astro:page-load', bootMotion);
