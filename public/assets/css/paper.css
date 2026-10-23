@@ -197,6 +197,11 @@
 
 .paper-card:last-child { border-right: 0; }
 
+/* 两个装饰件只在 SYNAPSE 的「文件夹卡」里出现（见 theme.css ⑪）：
+   卡顶抬起的标签页、卡底的三颗点。KISARA 保持原来的三栏货架。 */
+.paper-tab,
+.paper-dots { display: none; }
+
 .paper-card:hover { background-color: rgba(36, 26, 32, .028); }
 
 /* 封面：竖版 7:10，硬阴影 + 极轻的 1.3° 递增倾斜（参考站的标志性细节） */

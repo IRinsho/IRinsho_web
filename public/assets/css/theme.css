@@ -875,6 +875,27 @@ html[data-theme='synapse'] .syn-wipe.is-out {
   transition: transform .18s cubic-bezier(.5, 0, .3, 1);
 }
 
+/* 面板挂久了（网络慢）就点一颗呼吸的点：让「等」看起来是有意为之，
+   而不是卡死。0.35s 之后才出现，正常的 0.3s 换页根本看不到它。 */
+html[data-theme='synapse'] .syn-wipe::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 999px;
+  background: #efe4ff;
+  opacity: 0;
+  animation: synWipeWait .9s ease-in-out .35s infinite;
+}
+@keyframes synWipeWait {
+  0%   { opacity: 0;   transform: scale(.55); }
+  45%  { opacity: .8;  transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.5); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html[data-theme='synapse'] .syn-wipe { display: none !important; }
 }
@@ -1175,7 +1196,7 @@ html[data-theme='synapse'] .post {
   position: relative;
   display: block;
   container-type: inline-size;
-  aspect-ratio: 296 / 411;
+  aspect-ratio: 300 / 404;
   padding: 0;
   overflow: hidden;
   isolation: isolate;
@@ -1314,7 +1335,7 @@ html[data-theme='synapse'] .post-body {
 html[data-theme='synapse'] .post-no {
   display: block;
   font-family: var(--font-sans);
-  font-size: 19.5cqw;
+  font-size: 21cqw;
   font-weight: 700;
   line-height: .84;
   letter-spacing: -.045em;
@@ -1357,7 +1378,7 @@ html[data-theme='synapse'] .post-meta time { margin-left: auto; }
 html[data-theme='synapse'] .post-title {
   margin: 8px 0 0;
   font-family: var(--font-sans);
-  font-size: 15.5px;
+  font-size: 17px;
   font-weight: 650;
   line-height: 1.45;
   letter-spacing: -.005em;
@@ -1422,6 +1443,226 @@ html[data-theme='synapse'] .post:focus-visible .post-cover img { opacity: 1; tra
 @media (prefers-reduced-motion: reduce) {
   html[data-theme='synapse'] .post-cover,
   html[data-theme='synapse'] .post-cover img { transition: none !important; }
+}
+
+/* =========================================================
+ *  ⑪ 「最近信号」：文件夹卡（对齐 Scrolltide 那张 01/02/03）
+ *  ---------------------------------------------------------
+ *  形状和参考站一致：两张同尺寸圆角矩形错开叠 —— 后一张往右上错
+ *  (88, -43)，露出的右上角就是写分类名的标签页，左下多出来的一截
+ *  让卡看着像压在另一张上面。
+ *
+ *  ⚠ 形状用 SVG mask 一次成型，而不是拿两个 div 叠：
+ *     卡一旦「亮起来」要上对角渐变，两块独立元素的渐变会接不上，
+ *     接缝正好在标签页那个角上，很难看。mask 是把整块背景一次裁出
+ *     轮廓，渐变天然连续。
+ *     viewBox 比例 = 卡片比例（307:415），所以不会把圆角拉变形。
+ *
+ *  悬停只做三件事：抬 6px、背景从暖纸渐变成紫罗兰、文字转白。
+ *  参考站没有放大、没有外发光、其余两张也不联动 —— 这里一样。
+ * ======================================================= */
+@media (min-width: 900px) {
+  html[data-theme='synapse'] .paper-inner {
+    max-width: 1120px;
+    margin-inline: auto;
+  }
+
+  html[data-theme='synapse'] .paper-shelf {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px;
+    border-bottom: 0;
+  }
+
+  html[data-theme='synapse'] .paper-card {
+    --ink: #241a20;
+    --ink-2: rgba(36, 26, 32, .6);
+    --paper: linear-gradient(158deg, #ffffff 0%, #fbf7f2 56%, #f1eae3 100%);
+
+    position: relative;
+    display: block;
+    aspect-ratio: 307 / 415;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-right: 0;
+    border-radius: 0;
+    background: var(--paper);
+    color: var(--ink);
+    text-decoration: none;
+    transform: translateY(0);
+    transition: transform .3s cubic-bezier(.22, .61, .36, 1),
+                color .3s ease,
+                filter .3s ease;
+    /* 两张圆角矩形叠出来的「文件夹」轮廓 */
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 307 415' preserveAspectRatio='none'%3E%3Crect x='88' width='219' height='415' rx='26'/%3E%3Crect y='43' width='228' height='333' rx='26'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 307 415' preserveAspectRatio='none'%3E%3Crect x='88' width='219' height='415' rx='26'/%3E%3Crect y='43' width='228' height='333' rx='26'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    filter:
+      drop-shadow(0 0 .6px rgba(36, 26, 32, .3))
+      drop-shadow(0 12px 24px rgba(36, 26, 32, .12));
+  }
+
+  /* 亮起来的那一层：紫罗兰渐变，从左上亮到右下深，和参考站同一个方向 */
+  html[data-theme='synapse'] .paper-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: linear-gradient(158deg, #9b7bf6 0%, #6d28d9 46%, #3b1080 100%);
+    opacity: 0;
+    transition: opacity .34s ease;
+  }
+
+  html[data-theme='synapse'] .paper-card:hover {
+    --ink: #fff;
+    --ink-2: rgba(255, 255, 255, .72);
+    transform: translateY(-6px);
+    filter: drop-shadow(0 22px 40px rgba(76, 29, 149, .28));
+  }
+  html[data-theme='synapse'] .paper-card:hover::before { opacity: 1; }
+
+  /* ---------- 标签页：分类名 ---------- */
+  html[data-theme='synapse'] .paper-tab {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    position: absolute;
+    top: 0;
+    right: 7%;
+    height: 12%;
+    z-index: 2;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink);
+    opacity: .82;
+    transition: color .3s ease, opacity .3s ease;
+  }
+  html[data-theme='synapse'] .paper-tab i {
+    width: 14px;
+    height: 1px;
+    background: currentColor;
+    opacity: .7;
+  }
+  html[data-theme='synapse'] .paper-card:hover .paper-tab { opacity: 1; }
+
+  /* ---------- 画框：黑底 + 封面 ---------- */
+  html[data-theme='synapse'] .paper-card .paper-cover {
+    position: absolute;
+    left: 5.9%;
+    right: 5.9%;
+    top: 11.6%;
+    height: 48%;
+    aspect-ratio: auto;
+    z-index: 1;
+    margin: 0;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #08070b;
+    rotate: 0deg;
+    box-shadow: none;
+    transition: box-shadow .34s ease;
+  }
+  html[data-theme='synapse'] .paper-card:hover .paper-cover {
+    rotate: 0deg;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .14);
+  }
+  html[data-theme='synapse'] .paper-card .paper-cover img {
+    transform: scale(1);
+    transition: transform .5s cubic-bezier(.22, .61, .36, 1);
+  }
+  html[data-theme='synapse'] .paper-card:hover .paper-cover img { transform: scale(1.06); }
+
+  /* ---------- 正文 ---------- */
+  html[data-theme='synapse'] .paper-card .paper-body {
+    position: absolute;
+    left: 7%;
+    right: 7%;
+    top: 61.5%;
+    bottom: 12%;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: auto;
+  }
+
+  /* 分类已经在标签页里了，这里只留日期 */
+  html[data-theme='synapse'] .paper-card .paper-meta {
+    order: 3;
+    margin: auto 0 0;
+    gap: 0;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: .14em;
+    color: var(--ink-2);
+    transition: color .3s ease;
+  }
+  html[data-theme='synapse'] .paper-card .paper-meta .paper-cat,
+  html[data-theme='synapse'] .paper-card .paper-meta .paper-slash { display: none; }
+  html[data-theme='synapse'] .paper-card .paper-meta time { color: var(--ink-2); }
+
+  html[data-theme='synapse'] .paper-card .paper-card-title {
+    order: 1;
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: clamp(17px, 1.62vw, 22px);
+    font-weight: 650;
+    line-height: 1.32;
+    letter-spacing: -.01em;
+    color: var(--ink);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    transition: color .3s ease;
+  }
+
+  html[data-theme='synapse'] .paper-card .paper-excerpt {
+    order: 2;
+    margin: 8px 0 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--ink-2);
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    transition: color .3s ease;
+  }
+
+  /* READ SIGNAL 在这套卡里换成卡片本身可点 + 三颗点，收起来 */
+  html[data-theme='synapse'] .paper-card .paper-read { display: none; }
+
+  /* ---------- 三颗点：第几张 ---------- */
+  html[data-theme='synapse'] .paper-dots {
+    display: flex;
+    gap: 6px;
+    position: absolute;
+    right: 7%;
+    bottom: 11.6%;
+    z-index: 2;
+  }
+  html[data-theme='synapse'] .paper-dots i {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--ink);
+    opacity: .22;
+    transition: opacity .3s ease, background .3s ease;
+  }
+  html[data-theme='synapse'] .paper-dots i:nth-child(1) { opacity: .22; }
+  html[data-theme='synapse'] .paper-card[data-fam='0'] .paper-dots i:nth-child(1),
+  html[data-theme='synapse'] .paper-card[data-fam='1'] .paper-dots i:nth-child(2),
+  html[data-theme='synapse'] .paper-card[data-fam='2'] .paper-dots i:nth-child(3) { opacity: .85; }
+  html[data-theme='synapse'] .paper-card:hover .paper-dots i { background: var(--ink); }
+  html[data-theme='synapse'] .paper-card:hover .paper-dots i { opacity: .35; }
+  html[data-theme='synapse'] .paper-card[data-fam='0']:hover .paper-dots i:nth-child(1),
+  html[data-theme='synapse'] .paper-card[data-fam='1']:hover .paper-dots i:nth-child(2),
+  html[data-theme='synapse'] .paper-card[data-fam='2']:hover .paper-dots i:nth-child(3) { opacity: 1; }
+
+  /* 纸面这一屏本来就被下一张面板压住，卡片别再往里缩 */
+  html[data-theme='synapse'] .syn-panel--signals .paper-band { padding-bottom: clamp(14px, 2vw, 28px); }
 }
 
 /* 减少动效 */

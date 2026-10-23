@@ -74,7 +74,14 @@ const total = pad2(notes.length);
             class="paper-card"
             href={asset('notes/' + n.id + '/')}
             style={`--i:${i}`}
+            data-fam={i}
           >
+            {/* SYNAPSE：卡顶抬起的那条「标签页」，写分类名（参考站的品牌位）。
+                KISARA 下 display:none，分类仍然由下面的 .paper-cat 承担。 */}
+            <span class="paper-tab">
+              <i aria-hidden="true"></i>{n.category || '未分类'}
+            </span>
+
             <figure class="paper-cover">
               {n.cover ? (
                 <img src={asset(coverOf(n.cover))} alt="" loading="lazy" decoding="async" />
@@ -102,6 +109,9 @@ const total = pad2(notes.length);
                 READ SIGNAL <i aria-hidden="true">↗</i>
               </span>
             </div>
+
+            {/* 三颗点：位置即第几张（参考站卡底那一排） */}
+            <span class="paper-dots" aria-hidden="true"><i></i><i></i><i></i></span>
           </a>
         ))}
       </div>

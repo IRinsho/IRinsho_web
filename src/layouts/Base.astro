@@ -154,14 +154,26 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
         w.setAttribute('aria-hidden', 'true');
         document.documentElement.appendChild(w);
         document.documentElement.dataset.synWipeIn = '1';
-        /* 兜底：主脚本没跑到（报错 / 被拦截）也别把整页永远盖住 */
-        setTimeout(function () {
+
+        /* ⚠ 这条面板是「不透明」的：新页面没画出来之前，用户看到的就是
+           一整块紫。网络慢的时候（冷缓存 / 第一次 TLS 握手）它会挂在
+           那里一两秒，看起来像坏了。所以给三条兜底，谁先到算谁：
+             ① 主脚本（bootMotion → initSynWipe）画完第一帧就抽走 —— 正常路径
+             ② load 之后 80ms —— 页面已经能看了，别再挡着
+             ③ 1.5s 硬兜底 —— 主脚本报错 / 被拦也不会永远盖住
+           三条都只认第一次，后面再调直接返回。 */
+        var done = false;
+        function reveal() {
+          if (done) return;
+          done = true;
           document.documentElement.dataset.synWipeIn = '';
           var el = document.querySelector('.syn-wipe');
           if (!el || !el.classList.contains('is-covering')) return;
           el.classList.remove('is-covering');
           el.classList.add('is-out');
-        }, 2200);
+        }
+        window.addEventListener('load', function () { setTimeout(reveal, 80); }, { once: true });
+        setTimeout(reveal, 1500);
       } catch (e) {}
     })();
   </script>

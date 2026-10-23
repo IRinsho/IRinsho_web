@@ -16,9 +16,20 @@ export default defineConfig({
   // 如果部署在子目录（例如 https://xxx.com/blog/），把 base 也一起打开
   // base: '/blog/',
 
+  // 生成 /photos/index.html 这种目录结构，静态托管兼容性最好
   build: {
-    // 生成 /photos/index.html 这种目录结构，静态托管兼容性最好
     format: 'directory'
+  },
+
+  /* 鼠标悬停链接就预取：
+     SYNAPSE 的换页是整页跳转（绕开 View Transition），会把紫色面板盖在
+     旧页上等新页下载。预取命中以后这一步基本是 0 延迟，
+     那块面板不会再在慢网络下挂一两秒。 */
+  prefetch: {
+    // ⚠ 必须 true：false 时 Astro 只认带 data-astro-prefetch 的链接，
+    // 顶栏那些 <a> 一个都不会预取（实测 hover 之后缓存里什么都没有）。
+    prefetchAll: true,
+    defaultStrategy: 'hover'
   },
 
   // 生成的静态文件目录，腾讯云部署就是把这个文件夹传上去
