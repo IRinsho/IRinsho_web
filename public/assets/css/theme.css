@@ -547,6 +547,38 @@ html[data-theme='synapse'] .syn-card::before {
   .syn-prompt-text { transition: none; }
 }
 
+/* 矮屏（笔记本 768/800 高）时，分格屏的内容放不下；
+   把网格和友链压一档，保证整屏不裁切。 */
+@media (min-width: 900px) and (max-height: 820px) {
+  html[data-theme='synapse'] .syn-panel--index .syn-panel-inner {
+    padding: 20px;
+    gap: 6px;
+  }
+  html[data-theme='synapse'] .syn-panel--index .panels {
+    grid-template-rows: repeat(2, minmax(140px, 1fr));
+  }
+  html[data-theme='synapse'] .syn-panel--index .panel { min-height: 140px; }
+  html[data-theme='synapse'] .syn-panel--index .panel-home { min-height: 292px; }
+  html[data-theme='synapse'] .syn-panel--index .friend-entry {
+    margin-top: 18px;
+    padding: 14px 18px;
+  }
+}
+
+/* 减少动效：面板还在（布局是滚动吸附，不算动画），
+   但不做缩放/淡出、不做首屏失焦位移。 */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme='synapse'] .syn-panel-inner {
+    transform: none;
+    opacity: 1;
+  }
+  html[data-theme='synapse'] .syn-panel--hero .gate-inner {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
 /* =========================================================
  *  ⑤c Shader 紫场 + 卡片视差（仅首页 · SYNAPSE）
  *  ---------------------------------------------------------
@@ -651,6 +683,184 @@ html[data-theme='synapse'] .gate--home {
   html[data-theme='synapse'] .panel-art { animation: none; }
   html[data-theme='synapse'] .gate--home .gate-bg { transform: none; }
   html[data-theme='synapse'] .gate--home .gate-inner { transform: none; }
+}
+
+/* =========================================================
+ *  ⑤d 整屏面板堆叠 + 首屏编舞（仅 SYNAPSE · 桌面端）
+ *  ---------------------------------------------------------
+ *  KISARA 下这三层包裹全是 display:contents，等于不存在；
+ *  SYNAPSE 下每块变成一张 sticky 的整屏圆角卡，滚动时后一张
+ *  压住前一张 —— 和参考站 1.40s / 16.00s 那两帧一个机制。
+ *
+ *  --enter / --cover 由 index.astro 底部的 initSynPanels() 写：
+ *    enter 0→1：这张卡从下方进入视口
+ *    cover 0→1：下一张卡盖住它的程度（旧内容缩小、变淡）
+ * ======================================================= */
+.syn-stack,
+.syn-panel,
+.syn-panel-inner { display: contents; }
+
+@media (min-width: 900px) {
+  html[data-theme='synapse'] .syn-stack {
+    display: block;
+    /* 主区有 34px 上边距，而浮顶栏只占 76px；拉回 22px，
+       第一张面板正好从 88px 开始，首屏不漏底。 */
+    margin-top: -22px;
+  }
+
+  html[data-theme='synapse'] .syn-panel {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 88px;                              /* 浮在顶栏下面 */
+    height: calc(100svh - 88px);
+    border-radius: 30px;
+    overflow: clip;
+    isolation: isolate;
+    background: #07050c;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .08),
+      0 -40px 90px rgba(0, 0, 0, .55);
+  }
+
+  html[data-theme='synapse'] .syn-panel-inner {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1;
+    min-height: 0;
+    transform:
+      translateY(calc((1 - var(--enter, 1)) * 60px))
+      scale(calc(1 - var(--cover, 0) * .035));
+    opacity: calc(1 - var(--cover, 0) * .55);
+    transform-origin: 50% 12%;
+    will-change: transform, opacity;
+  }
+
+  /* 首屏：让 gate 填满整张面板，而不是再按视口算一次 */
+  html[data-theme='synapse'] .syn-panel--hero .gate {
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    border-radius: 0;
+  }
+  html[data-theme='synapse'] .syn-panel--hero .gate-inner {
+    min-height: 100%;
+  }
+
+  /* 分格 / 纸面：留一圈内边距，内容垂直居中 */
+  html[data-theme='synapse'] .syn-panel--index .syn-panel-inner,
+  html[data-theme='synapse'] .syn-panel--signals .syn-panel-inner {
+    padding: clamp(16px, 2.4vw, 34px);
+    gap: 8px;
+  }
+  html[data-theme='synapse'] .syn-panel--index {
+    background:
+      radial-gradient(70% 50% at 12% 0%, rgba(124, 58, 237, .18), transparent 70%),
+      #07050c;
+  }
+  html[data-theme='synapse'] .syn-panel--index .panels { margin: 0; }
+
+  /* 纸面这一屏整屏变成参考站那种"白面板"，而不是深底上一张白卡 */
+  html[data-theme='synapse'] .syn-panel--signals {
+    background:
+      radial-gradient(120% 90% at 10% 0%, #ffffff 0%, rgba(255, 255, 255, 0) 58%),
+      linear-gradient(168deg, #f7f3f2 0%, #f1eceb 60%, #ebe5e4 100%);
+    color: var(--paper-ink);
+  }
+  html[data-theme='synapse'] .syn-panel--signals .paper-band {
+    margin: 0;
+    width: 100%;
+    max-height: 100%;
+    overflow: auto;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    padding: clamp(10px, 2vw, 26px) 0;
+  }
+
+  /* 终幕：整张图铺满面板 */
+  html[data-theme='synapse'] .syn-panel--finale .syn-panel-inner {
+    padding: 0;
+  }
+  html[data-theme='synapse'] .syn-panel--finale .finale {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border-radius: 0;
+  }
+  html[data-theme='synapse'] .syn-panel--finale .finale-art {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* 接缝条是给"连续长页"用的，面板堆叠里不需要 */
+  html[data-theme='synapse'] .seam { display: none; }
+
+  /* 首屏编舞：标题先走（上移 + 失焦 + 淡出），
+     主视觉卡和 Live 卡各自滞后 —— Live 卡在 .syn-card 里已经带 +54px。 */
+  html[data-theme='synapse'] .syn-panel--hero .gate-inner {
+    justify-content: flex-start;
+    padding-top: clamp(36px, 7vh, 80px);
+    opacity: calc(1 - var(--gate-p, 0) * .95);
+    filter: blur(calc(var(--gate-p, 0) * 5px));
+    transform: translate3d(0, calc(var(--gate-p, 0) * -38px), 0);
+  }
+
+  /* 标题移到左上（参考站的构图），星星让到左下角，别和字打架 */
+  html[data-theme='synapse'] .syn-panel--hero .gate-inner::before {
+    top: auto;
+    bottom: clamp(56px, 10%, 120px);
+    left: clamp(40px, 10vw, 160px);
+  }
+}
+
+/* =========================================================
+ *  ⑤e 路由切换：整屏圆角面板擦除（仅 SYNAPSE）
+ *  ---------------------------------------------------------
+ *  参考站没有真正的路由（单页），但 13.5s 那块整屏白面板、
+ *  16.0s 那块紫色面板给了一个可复用的语言：换页时让一块
+ *  圆角面板从下往上盖住，再往上抽走，露出新页面。
+ *  导航栏 z-index 更高，所以它全程不动 —— 和参考站一致。
+ *
+ *  元素由 Base.astro 的 initSynWipe() 在第一次换页时插到 <html> 上；
+ *  它挂在 <html> 而不是 body，Astro 换 body 时不会被清掉。
+ * ======================================================= */
+.syn-wipe { display: none; }
+
+html[data-theme='synapse'] .syn-wipe {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 100;                /* 盖住顶栏：Astro 的换页残影会从顶栏露出来 */
+  pointer-events: none;
+  background:
+    radial-gradient(80% 60% at 20% 0%, #4c1d95 0%, transparent 62%),
+    radial-gradient(60% 50% at 92% 8%, #86198f 0%, transparent 66%),
+    #0a0414;
+  border-radius: 34px 34px 0 0;
+  transform: translateY(101%);
+  will-change: transform;
+  box-shadow: 0 -30px 80px rgba(0, 0, 0, .55);
+}
+
+html[data-theme='synapse'] .syn-wipe.is-covering {
+  /* 盖上去要快：慢的话底下的 Astro 换页交叉淡入会从边缘露出来 */
+  transform: translateY(0);
+  transition: transform .22s cubic-bezier(.5, 0, .3, 1);
+}
+
+
+
+html[data-theme='synapse'] .syn-wipe.is-out {
+  transform: translateY(-101%);
+  transition: transform .46s cubic-bezier(.65, 0, .35, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme='synapse'] .syn-wipe { display: none !important; }
 }
 
 /* =========================================================

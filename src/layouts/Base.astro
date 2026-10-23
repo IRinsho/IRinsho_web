@@ -139,6 +139,33 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
     })();
   </script>
 
+  <!--
+    换页擦除的第二半：如果这一页是从上一条 .syn-wipe 里"钻出来"的，
+    在首帧之前就把遮罩立起来（盖住），再由 Base 的脚本把它抽走。
+    ⚠ 必须在这里同步执行：等 DOMContentLoaded 再建，会先闪一帧新页面。
+  -->
+  <script is:inline>
+    (function () {
+      try {
+        if (sessionStorage.getItem('irinsho:wipe') !== '1') return;
+        sessionStorage.removeItem('irinsho:wipe');
+        var w = document.createElement('div');
+        w.className = 'syn-wipe is-covering';
+        w.setAttribute('aria-hidden', 'true');
+        document.documentElement.appendChild(w);
+        document.documentElement.dataset.synWipeIn = '1';
+        /* 兜底：主脚本没跑到（报错 / 被拦截）也别把整页永远盖住 */
+        setTimeout(function () {
+          document.documentElement.dataset.synWipeIn = '';
+          var el = document.querySelector('.syn-wipe');
+          if (!el || !el.classList.contains('is-covering')) return;
+          el.classList.remove('is-covering');
+          el.classList.add('is-out');
+        }, 2200);
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- 分享（Open Graph / Twitter Card）：微信 / QQ / Twitter / 搜索引擎 -->
   <meta property="og:site_name" content={config.name}>
   <meta property="og:title" content={ogTitle}>
@@ -896,6 +923,80 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
   }
 
   /* =========================================================
+   *  ⑩ 路由切换：整屏圆角面板擦除（仅 SYNAPSE）
+   *  ---------------------------------------------------------
+   *  · 点击链接 → before-preparation：一块紫色圆角面板从下方盖住
+   *  · 新页面换好 → after-swap：等它盖满，再向上抽走露出新页
+   *  · 挂在 <html> 上的 div：Astro 换的是 body，这块不会被清掉
+   *  · 顶栏 z-index 比它高，所以导航全程不动（对齐参考站）
+   *  · 减少动效 / KISARA / 链接下载失败（2.5s 兜底）都会跳过
+   * ======================================================= */
+  function initSynWipe() {
+    if (window.__synWipeBound) return;
+    window.__synWipeBound = true;
+
+    const reduced = () => window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const ensure = () => {
+      let el = document.querySelector('.syn-wipe');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'syn-wipe';
+        el.setAttribute('aria-hidden', 'true');
+        document.documentElement.appendChild(el);
+      }
+      return el;
+    };
+
+    /* 这一页是被上一条遮罩带进来的：首帧已经盖住，这里只负责抽走 */
+    const pending = document.documentElement.dataset.synWipeIn === '1';
+    if (pending) {
+      delete document.documentElement.dataset.synWipeIn;
+      const el = ensure();
+      el.classList.add('is-covering');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.classList.remove('is-covering');
+        el.classList.add('is-out');
+      }));
+    }
+
+    /* 点击拦截：走整页跳转（绕开 Astro 的 View Transition 顶层快照，
+       否则快照会盖在遮罩上面，出现导航重影），旧页先被紫色面板盖住。 */
+    document.addEventListener('click', (e) => {
+      if (document.documentElement.getAttribute('data-theme') !== 'synapse') return;
+      if (reduced()) return;
+      if (e.defaultPrevented || e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+      const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+      if (!a) return;
+      if (a.target === '_blank' || a.hasAttribute('download')) return;
+
+      const href = a.getAttribute('href');
+      if (!href || href.charAt(0) === '#') return;
+
+      let url;
+      try { url = new URL(a.href, location.href); } catch (err) { return; }
+      if (url.origin !== location.origin) return;
+      if (url.pathname === location.pathname && url.search === location.search) return;
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      try { sessionStorage.setItem('irinsho:wipe', '1'); } catch (err) {}
+
+      const el = ensure();
+      el.classList.remove('is-out');
+      el.classList.remove('is-covering');
+      void el.offsetWidth;
+      el.classList.add('is-covering');
+
+      window.setTimeout(() => { location.href = url.href; }, 260);
+    }, true);
+  }
+
+  /* =========================================================
    *  ④ 换页后重启
    *  ---------------------------------------------------------
    *  开了页面过渡（ClientRouter）后，Astro 换页时会把旧 DOM 整个换掉。
@@ -950,6 +1051,7 @@ const themeColor = view === 'me' ? '#f8ebf0' : '#12142a';
     initContextMenu();
     initGlassTuner();
     initTheme();
+    initSynWipe();
   }
 
   document.addEventListener('astro:page-load', bootMotion);

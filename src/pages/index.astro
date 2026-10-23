@@ -67,6 +67,28 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     （终幕图以前是这一层里交叉揭晓的，现在改成下面独立的 .finale 一段，
       所以这里不再需要 --finale 变量。）
   */}
+  {/*
+    SYNAPSE 的整屏面板堆叠：四张 sticky 面板（首屏 / 分格 / 纸面 / 终幕）。
+    KISARA 下 .syn-stack / .syn-panel / .syn-panel-inner 全是 display:contents，
+    对老布局零影响；只有 SYNAPSE + 桌面端才变成一张张圆角卡。
+  */}
+  {/*
+    右侧章节导航轨（宽屏才出现）
+    ---------------------------------------------------------
+    ⚠ 必须放在 .syn-stack 外面：SYNAPSE 的面板内容带 transform，
+      会把 position:fixed 的竖轨"吸"到面板里，定位就全错了。
+  */}
+  <nav class="chaprail" id="chapRail" aria-label="页面章节">
+    <a href="#homeGate" data-rail="homeGate"><b>01</b><span>开场</span></a>
+    <a href="#homePanels" data-rail="homePanels"><b>02</b><span>分格</span></a>
+    <a href="#homeChapters" data-rail="homeChapters"><b>03</b><span>章节</span></a>
+    <a href="#latestSignals" data-rail="latestSignals"><b>04</b><span>信号</span></a>
+    <a href="#homeFinale" data-rail="homeFinale"><b>05</b><span>终幕</span></a>
+  </nav>
+
+  <div class="syn-stack">
+  <section class="syn-panel syn-panel--hero">
+  <div class="syn-panel-inner">
   <section
     class="gate gate--home"
     id="homeGate"
@@ -188,6 +210,11 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
   {/* 顶部滚动进度轨 */}
   <div class="gate-rail" id="gateRail" aria-hidden="true"><i></i></div>
 
+  </div>
+  </section>
+
+  <section class="syn-panel syn-panel--index">
+  <div class="syn-panel-inner">
   <div class="panels" id="homePanels">
     {PANELS.map((p) => (
       <a class={'panel ' + p.cls} href={asset(p.href)}>
@@ -235,6 +262,11 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     <span class="friend-arrow" aria-hidden="true">↗</span>
   </a>
 
+  </div>
+  </section>
+
+  <section class="syn-panel syn-panel--signals">
+  <div class="syn-panel-inner">
   {/*
     ★ 纸面段落：整页唯一的浅色区
     ---------------------------------------------------------
@@ -245,22 +277,11 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     读者看完面板、章节、友链，翻过来是一张纸，然后才是终幕画面。
   */}
   <LatestSignals />
+  </div>
+  </section>
 
-  {/*
-    右侧章节导航轨（宽屏才出现）
-    ---------------------------------------------------------
-    对齐参考站右侧那条 01/02/03/04 竖轨：长首页需要一个「我在第几段」的锚。
-    用 IntersectionObserver 标出当前段落（见下面的 initChapRail）。
-    窄屏会在 CSS 里直接 display:none —— 右下角会压住正文。
-  */}
-  <nav class="chaprail" id="chapRail" aria-label="页面章节">
-    <a href="#homeGate" data-rail="homeGate"><b>01</b><span>开场</span></a>
-    <a href="#homePanels" data-rail="homePanels"><b>02</b><span>分格</span></a>
-    <a href="#homeChapters" data-rail="homeChapters"><b>03</b><span>章节</span></a>
-    <a href="#latestSignals" data-rail="latestSignals"><b>04</b><span>信号</span></a>
-    <a href="#homeFinale" data-rail="homeFinale"><b>05</b><span>终幕</span></a>
-  </nav>
-
+  <section class="syn-panel syn-panel--finale">
+  <div class="syn-panel-inner">
   {/*
     终幕画面单独作为一段显示 —— 原来它只在「滚动到首屏中段」时才揭晓，
     结果这张图很可能一直看不到，太别扭。现在它是一段正式内容：
@@ -281,6 +302,9 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
 
   {/* 接缝条：面板区 → 页脚（换一套角度，免得两条一模一样） */}
   <div class="seam seam--footer" aria-hidden="true"></div>
+  </div>
+  </section>
+  </div>
 
   <script>
     /* ⚠ 这里原来 import 了 ../lib/gate-field.js 的 initGateField()，
@@ -713,5 +737,73 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
     } else {
       initSynField();
     }
+  </script>
+
+  <script>
+    /* =========================================================
+     *  SYNAPSE 面板堆叠的进度变量
+     *  ---------------------------------------------------------
+     *  给每张 .syn-panel 写两个 0–1 的变量：
+     *    --enter  这张卡从下方进入视口的程度
+     *    --cover  下一张卡盖住它的程度
+     *  CSS 用它们做「旧内容缩小变淡 / 新内容从下往上落位」。
+     *  只写 CSS 变量，不做布局读写循环；滚动时一帧一次。
+     * ======================================================= */
+    (function () {
+      let raf = 0;
+
+      function update() {
+        raf = 0;
+        const root = document.documentElement;
+        const list = [...document.querySelectorAll('.syn-panel')];
+        if (!list.length) return;
+
+        const desktop = window.matchMedia &&
+          window.matchMedia('(min-width: 900px)').matches;
+
+        if (root.getAttribute('data-theme') !== 'synapse' || !desktop) {
+          list.forEach((p) => {
+            p.style.removeProperty('--enter');
+            p.style.removeProperty('--cover');
+          });
+          return;
+        }
+
+        const vh = window.innerHeight;
+        const H = Math.max(1, vh - 88);
+
+        list.forEach((p, i) => {
+          const r = p.getBoundingClientRect();
+          const enter = Math.min(1, Math.max(0, 1 - (r.top - 88) / H));
+          p.style.setProperty('--enter', enter.toFixed(3));
+
+          const next = list[i + 1];
+          let cover = 0;
+          if (next) {
+            const nr = next.getBoundingClientRect();
+            cover = Math.min(1, Math.max(0, 1 - (nr.top - 88) / H));
+          }
+          p.style.setProperty('--cover', cover.toFixed(3));
+        });
+      }
+
+      function kick() {
+        if (!raf) raf = requestAnimationFrame(update);
+      }
+
+      if (!window.__synPanelsBound) {
+        window.__synPanelsBound = true;
+        window.addEventListener('scroll', kick, { passive: true });
+        window.addEventListener('resize', kick, { passive: true });
+        window.addEventListener('irinsho:theme', kick);
+        document.addEventListener('astro:page-load', update);
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', update);
+      } else {
+        update();
+      }
+    })();
   </script>
 </Base>
