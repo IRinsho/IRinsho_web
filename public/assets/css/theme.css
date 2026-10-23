@@ -355,7 +355,8 @@ html[data-theme='synapse'] .syn-card {
   backdrop-filter: blur(16px) saturate(140%);
   overflow: hidden;
   transform:
-    translateY(-50%)
+    /* 滚动视差：往下滚时卡片比画面慢半拍（--gate-p 由 index.astro 的脚本写） */
+    translateY(calc(-50% + var(--gate-p, 0) * 54px))
     perspective(1200px)
     rotateY(var(--syn-ry, -11deg))
     rotateX(var(--syn-rx, 4deg));
@@ -528,6 +529,8 @@ html[data-theme='synapse'] .syn-card::before {
   html[data-theme='synapse'] .syn-card { display: none; }
 }
 
+
+
 /* 窄屏的星正好压在人物脸上，收掉 —— 桌面端留着当记号 */
 @media (max-width: 760px) {
   html[data-theme='synapse'] .gate-inner::before { display: none; }
@@ -537,6 +540,99 @@ html[data-theme='synapse'] .syn-card::before {
   html[data-theme='synapse'] .syn-card::before,
   .syn-orb { animation: none; }
   .syn-prompt-text { transition: none; }
+}
+
+/* =========================================================
+ *  ⑤c Shader 紫场 + 卡片视差（仅首页 · SYNAPSE）
+ *  ---------------------------------------------------------
+ *  · <canvas class="syn-field"> 铺满整个首屏，three.js 在
+ *    syn-field.js 里按需加载（只在切到 SYNAPSE 时才下载）
+ *  · 主视觉从「铺满全屏」变成右侧一张大卡片，原色保留；
+ *    卡片外面露出的是流动的紫场
+ *  · 滚动时：卡片、标题、Live session 卡各自以不同速度位移
+ *    （--gate-p 是现成的滚动进度，0~1）
+ *  · 分格区的插画用原生 view() 时间线做视差，不写 JS
+ * ======================================================= */
+.syn-field { display: none; }
+
+html[data-theme='synapse'] .syn-field {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* < 900px 不跑 shader：首屏回归整张插画，canvas 也没必要留着。
+   ⚠ 这条必须写在 display:block 之后，否则会被它盖掉。 */
+@media (max-width: 899px) {
+  html[data-theme='synapse'] .syn-field { display: none; }
+}
+
+/* 没有 WebGL 时的兜底：静态紫场，不是一块黑 */
+html[data-theme='synapse'] .gate--home {
+  background:
+    radial-gradient(80% 70% at 22% 0%, #4c1d95 0%, transparent 62%),
+    radial-gradient(60% 55% at 88% 18%, #86198f 0%, transparent 66%),
+    #0a0414;
+}
+
+@media (min-width: 900px) {
+  /* 主视觉变成右侧的大卡片：原色、圆角、细亮边、大投影 */
+  html[data-theme='synapse'] .gate--home .gate-bg {
+    left: 31%;
+    right: 17%;
+    top: 9%;
+    bottom: 13%;
+    border-radius: 26px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .14);
+    box-shadow:
+      0 50px 120px rgba(0, 0, 0, .55),
+      0 0 80px rgba(124, 58, 237, .16);
+    background: #0b0714;
+    transform: translate3d(0, calc(var(--gate-p, 0) * -34px), 0);
+    will-change: transform;
+  }
+
+  /* 标题让出右侧卡片的位置，只占左边那一栏 */
+  html[data-theme='synapse'] .gate--home .gate-inner {
+    padding-right: 32%;
+    transform: translate3d(0, calc(var(--gate-p, 0) * 22px), 0);
+  }
+
+  html[data-theme='synapse'] .gate--home .gate-title {
+    text-shadow: 0 10px 60px rgba(10, 4, 24, .55);
+  }
+
+  /* 指纹视差：卡片比画面慢、标题比画面快，滚动时有层次 */
+  html[data-theme='synapse'] .gate--home .gate-veil {
+    background:
+      radial-gradient(80% 70% at 30% 0%, rgba(124, 58, 237, .22), transparent 66%),
+      linear-gradient(180deg, rgba(12, 5, 24, .04) 0%, rgba(12, 5, 24, .10) 46%, rgba(7, 5, 12, .42) 100%);
+  }
+}
+
+/* 分格区：插画随滚动轻微漂移（Chrome / 新版 Safari 原生支持，其余浏览器静止） */
+@supports (animation-timeline: view()) {
+  html[data-theme='synapse'] .panel-art {
+    animation: synPanelDrift linear both;
+    animation-timeline: view();
+    animation-range: entry -10% exit 110%;
+  }
+}
+
+@keyframes synPanelDrift {
+  from { translate: 0 -16px; }
+  to   { translate: 0 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme='synapse'] .panel-art { animation: none; }
+  html[data-theme='synapse'] .gate--home .gate-bg { transform: none; }
+  html[data-theme='synapse'] .gate--home .gate-inner { transform: none; }
 }
 
 /* =========================================================

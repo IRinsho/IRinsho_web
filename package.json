@@ -21,7 +21,8 @@
     "admin:test:all": "node --test admin/tests/unit.test.mjs admin/tests/api.test.mjs node-functions/_lib/cloud.test.mjs"
   },
   "dependencies": {
-    "@edgeone/pages-blob": "^0.0.18"
+    "@edgeone/pages-blob": "^0.0.18",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "astro": "^5.0.0",

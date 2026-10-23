@@ -68,10 +68,17 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
       所以这里不再需要 --finale 变量。）
   */}
   <section
-    class="gate"
+    class="gate gate--home"
     id="homeGate"
     style={`--hero:url(${asset('media/images/home-hero.webp')})`}
   >
+    {/*
+      Shader 紫场：仅 SYNAPSE 主题 + 桌面端显示（CSS 控制），
+      three.js 由 syn-field.js 按需加载 —— 默认的 KISARA 访客不会下载它。
+      没有 WebGL 时这块是空的，底下 .gate--home 的静态紫场兜底。
+    */}
+    <canvas class="syn-field" data-syn-field aria-hidden="true"></canvas>
+
     <div class="gate-bg" aria-hidden="true">
       <span class="gate-layer gate-hero"></span>
       <span class="gate-veil"></span>
@@ -694,5 +701,17 @@ const titleSuffix = (config.nameAccent && config.homeTitle === config.name) ? ''
         initSynCard();
       }
     })();
+  </script>
+
+  <script>
+    /* 首屏紫场：three.js 走动态 import，只在切到 SYNAPSE 时才加载 */
+    import { initSynField } from '../scripts/syn-field.js';
+
+    document.addEventListener('astro:page-load', initSynField);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initSynField);
+    } else {
+      initSynField();
+    }
   </script>
 </Base>
