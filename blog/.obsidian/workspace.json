@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "水仙花数.md",
+                "file": "一元二次方程求解.md",
                 "mode": "preview",
                 "source": true,
                 "backlinks": true,
@@ -28,7 +28,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "水仙花数"
+              "title": "一元二次方程求解"
             }
           }
         ]
@@ -93,7 +93,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 280.16668701171875
+    "width": 255.70602416992188
   },
   "right": {
     "id": "238c49d96ecde3c3",
@@ -184,7 +184,7 @@
             "state": {
               "type": "file-properties",
               "state": {
-                "file": "水仙花数.md"
+                "file": "一元二次方程求解.md"
               },
               "icon": "lucide-info",
               "title": "笔记属性"
@@ -212,6 +212,8 @@
   },
   "active": "82ec2bc844b87f93",
   "lastOpenFiles": [
+    "水仙花数.md",
+    "一元二次方程求解.md",
     "AI实现AE输入法自动切换.md",
     "c语言练习总结.md",
     "Maya.md",
@@ -220,7 +222,6 @@
     "attachments/p1.png",
     "attachments/p2.png",
     "attachments/p3.png",
-    "水仙花数.md",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/如何实现把每一位上的数独立输出出来（for循环）既 C 语言中手动遍历字符串的经典写法.md",
     "c语言学习/如何输出字符串位数.md",
     "c语言学习/如何实现把每一位上的数独立输出出来（for循环）既 C语言中手动遍历字符串的经典写法/Pasted image 20260922164034.png",
