@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "一元二次方程求解.md",
+                "file": "给定一个日期，输出这个日期是该年的第几天。.md",
                 "mode": "preview",
                 "source": true,
                 "backlinks": true,
@@ -28,7 +28,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "一元二次方程求解"
+              "title": "给定一个日期，输出这个日期是该年的第几天。"
             }
           }
         ]
@@ -184,7 +184,7 @@
             "state": {
               "type": "file-properties",
               "state": {
-                "file": "一元二次方程求解.md"
+                "file": "给定一个日期，输出这个日期是该年的第几天。.md"
               },
               "icon": "lucide-info",
               "title": "笔记属性"
@@ -212,8 +212,9 @@
   },
   "active": "82ec2bc844b87f93",
   "lastOpenFiles": [
-    "水仙花数.md",
     "一元二次方程求解.md",
+    "给定一个日期，输出这个日期是该年的第几天。.md",
+    "水仙花数.md",
     "AI实现AE输入法自动切换.md",
     "c语言练习总结.md",
     "Maya.md",
