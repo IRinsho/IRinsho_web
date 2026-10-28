@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "练习.md",
+                "file": "练习二.md",
                 "mode": "preview",
                 "source": true,
                 "backlinks": true,
@@ -28,7 +28,7 @@
                 }
               },
               "icon": "lucide-file",
-              "title": "练习"
+              "title": "练习二"
             }
           }
         ]
@@ -184,7 +184,7 @@
             "state": {
               "type": "file-properties",
               "state": {
-                "file": "练习.md"
+                "file": "练习二.md"
               },
               "icon": "lucide-info",
               "title": "笔记属性"
@@ -212,13 +212,13 @@
   },
   "active": "82ec2bc844b87f93",
   "lastOpenFiles": [
+    "练习.md",
     "练习二.md",
     "判断素数.md",
     "冒泡排顺序.md",
     "今年还有多少天.md",
     "斐波那契数列.md",
     "给定一个日期，输出这个日期是该年的第几天。.md",
-    "练习.md",
     "c语言练习总结.md",
     "一元二次方程求解.md",
     "水仙花数.md",
